@@ -59,13 +59,25 @@ html {
 }
 
 .main .cell-name {
-  max-width: 300px;
+  width: 300px;
+}
+
+.main .cell-mtime {
+  width: 150px;
+  padding-left: 1em;
 }
 
 .main .cell-size {
   text-align: right;
-  width: 80px;
+  width: 100px;
+  padding-left: 1em;
 }
+
+.main .cell-actions {
+  width: 100px;
+  padding-left: 1em;
+}
+
 
 .path svg {
   height: 100%;
@@ -98,5 +110,5 @@ html {
 }
 
 .uploader {
-  padding-right: 2em;
+  padding-right: 1em;
 }

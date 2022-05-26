@@ -60,6 +60,12 @@ impl InnerService {
     }
 
     pub async fn handle(self: Arc<Self>, req: Request) -> Result<Response, hyper::Error> {
+        if !self.auth_guard(&req).unwrap_or_default() {
+            let mut res = status_code!(StatusCode::UNAUTHORIZED);
+            res.headers_mut().insert("WWW-Authenticate" , HeaderValue::from_static("Basic"));
+            return Ok(res)
+        }
+
         let res = if req.method() == Method::GET {
             self.handle_static(req).await
         } else if req.method() == Method::PUT {
@@ -67,6 +73,8 @@ impl InnerService {
                 return Ok(status_code!(StatusCode::FORBIDDEN));
             }
             self.handle_upload(req).await
+        } else if req.method() == Method::DELETE {
+            self.handle_delete(req).await
         } else {
             return Ok(status_code!(StatusCode::NOT_FOUND));
         };
@@ -74,11 +82,6 @@ impl InnerService {
     }
 
     async fn handle_static(&self, req: Request) -> BoxResult<Response> {
-        if !self.auth_guard(&req).unwrap_or_default() {
-            let mut res = status_code!(StatusCode::UNAUTHORIZED);
-            res.headers_mut().insert("WWW-Authenticate" , HeaderValue::from_static("Basic"));
-            return Ok(res)
-        }
         let path = match self.get_file_path(req.uri().path())? {
             Some(path) => path,
             None => return Ok(status_code!(StatusCode::FORBIDDEN)),
@@ -96,11 +99,6 @@ impl InnerService {
     }
 
     async fn handle_upload(&self, mut req: Request) -> BoxResult<Response> {
-        if !self.auth_guard(&req).unwrap_or_default() {
-            let mut res = status_code!(StatusCode::UNAUTHORIZED);
-            res.headers_mut().insert("WWW-Authenticate" , HeaderValue::from_static("Basic"));
-            return Ok(res)
-        }
         let path = match self.get_file_path(req.uri().path())? {
             Some(path) => path,
             None => return Ok(status_code!(StatusCode::FORBIDDEN)),
@@ -123,6 +121,22 @@ impl InnerService {
         io::copy(&mut body_reader, &mut file).await?;
 
         return Ok(status_code!(StatusCode::OK));
+    }
+
+    async fn handle_delete(&self, req: Request) -> BoxResult<Response> {
+        let path = match self.get_file_path(req.uri().path())? {
+            Some(path) => path,
+            None => return Ok(status_code!(StatusCode::FORBIDDEN)),
+        };
+
+        let meta = fs::metadata(&path).await?;
+        if meta.is_file() {
+            fs::remove_file(path).await?;
+        } else {
+            fs::remove_dir_all(path).await?;
+        }
+        Ok(status_code!(StatusCode::OK))
+
     }
 
     async fn handle_send_dir(&self, path: &Path) -> BoxResult<Response> {
@@ -179,7 +193,7 @@ impl InnerService {
 
         paths.sort_unstable();
         let breadcrumb = self.get_breadcrumb(path);
-        let data = SendDirData { breadcrumb, paths, readonly: !self.args.readonly };
+        let data = SendDirData { breadcrumb, paths, readonly: self.args.readonly };
         let data = serde_json::to_string(&data).unwrap();
 
         let mut output =

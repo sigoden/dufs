@@ -34,6 +34,7 @@ fn app() -> clap::Command<'static> {
         .long("readonly")
         .help("Only serve static files, no operations like upload and delete");
 
+
     let arg_auth = Arg::new("auth")
         .short('a')
         .long("auth")
