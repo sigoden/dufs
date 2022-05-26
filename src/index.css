@@ -7,7 +7,7 @@ html {
 .head {
   display: flex;
   align-items: baseline;
-  padding: 2.5em 2.5em 0;
+  padding: 1em 1em 0;
 }
 
 .head input {
@@ -49,13 +49,18 @@ html {
 }
 
 .main {
-  padding: 0 2.5em;
+  padding: 0 1em;
 }
 
 .main th {
   text-align: left;
   font-weight: unset;
   color: #5c5c5c;
+  white-space: nowrap;
+}
+
+.main td {
+  white-space: nowrap;
 }
 
 .main .cell-name {
@@ -64,18 +69,18 @@ html {
 
 .main .cell-mtime {
   width: 150px;
-  padding-left: 1em;
+  padding-left: 0.6em;
 }
 
 .main .cell-size {
   text-align: right;
   width: 100px;
-  padding-left: 1em;
+  padding-left: 0.6em;
 }
 
 .main .cell-actions {
   width: 100px;
-  padding-left: 1em;
+  padding-left: 0.6em;
 }
 
 
