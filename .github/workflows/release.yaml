@@ -1,0 +1,126 @@
+name: Release
+
+on:
+  push:
+    tags:
+    - v[0-9]+.[0-9]+.[0-9]+*
+
+jobs:
+  all:
+    name: All
+
+    strategy:
+      matrix:
+        target:
+        - aarch64-unknown-linux-musl
+        - aarch64-apple-darwin
+        - x86_64-apple-darwin
+        - x86_64-pc-windows-msvc
+        - x86_64-unknown-linux-musl
+        include:
+        - target: aarch64-unknown-linux-musl
+          os: ubuntu-latest
+          use-cross: true
+        - target: aarch64-apple-darwin
+          os: macos-latest
+          use-cross: true
+        - target: x86_64-apple-darwin
+          os: macos-latest
+        - target: x86_64-pc-windows-msvc
+          os: windows-latest
+        - target: x86_64-unknown-linux-musl
+          os: ubuntu-latest
+          use-cross: true
+
+    runs-on: ${{matrix.os}}
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Check Tag
+      id: check-tag
+      shell: bash
+      run: |
+        tag=${GITHUB_REF##*/}
+        echo "::set-output name=version::$tag"
+        if [[ "$tag" =~ [0-9]+.[0-9]+.[0-9]+$ ]]; then
+          echo "::set-output name=rc::false"
+        else
+          echo "::set-output name=rc::true"
+        fi
+
+
+    - name: Install Rust Toolchain Components
+      uses: actions-rs/toolchain@v1
+      with:
+        override: true
+        target: ${{ matrix.target }}
+        toolchain: stable
+        profile: minimal # minimal component installation (ie, no documentation)
+
+    - name: Install prerequisites
+      shell: bash
+      run: |
+        case ${{ matrix.target }} in
+          aarch64-unknown-linux-musl) sudo apt-get -y update ; sudo apt-get -y install gcc-aarch64-linux-gnu ;;
+        esac
+
+    - name: Show Version Information (Rust, cargo, GCC)
+      shell: bash
+      run: |
+        gcc --version || true
+        rustup -V
+        rustup toolchain list
+        rustup default
+        cargo -V
+        rustc -V
+      
+    - name: Build
+      uses: actions-rs/cargo@v1
+      with:
+        use-cross: ${{ matrix.use-cross }}
+        command: build
+        args: --locked --release --target=${{ matrix.target }}
+
+    - name: Build Archive
+      shell: bash
+      id: package
+      env:
+        target: ${{ matrix.target }}
+        version:  ${{ steps.check-tag.outputs.version }}
+      run: |
+        set -euxo pipefail
+
+        bin=${GITHUB_REPOSITORY##*/}
+        src=`pwd`
+        dist=$src/dist
+        name=$bin-$version-$target
+        executable=target/$target/release/$bin
+
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          executable=$executable.exe
+        fi
+
+        mkdir $dist
+        cp $executable $dist
+        cd $dist
+
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+            archive=$dist/$name.zip
+            7z a $archive *
+            echo "::set-output name=archive::`pwd -W`/$name.zip"
+        else
+            archive=$dist/$name.tar.gz
+            tar czf $archive *
+            echo "::set-output name=archive::$archive"
+        fi
+
+    - name: Publish Archive
+      uses: softprops/action-gh-release@v0.1.5
+      if: ${{ startsWith(github.ref, 'refs/tags/') }}
+      with:
+        draft: false
+        files: ${{ steps.package.outputs.archive }}
+        prerelease: ${{ steps.check-tag.outputs.rc == 'true' }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
