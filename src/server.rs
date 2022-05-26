@@ -62,8 +62,9 @@ impl InnerService {
     pub async fn handle(self: Arc<Self>, req: Request) -> Result<Response, hyper::Error> {
         if !self.auth_guard(&req).unwrap_or_default() {
             let mut res = status_code!(StatusCode::UNAUTHORIZED);
-            res.headers_mut().insert("WWW-Authenticate" , HeaderValue::from_static("Basic"));
-            return Ok(res)
+            res.headers_mut()
+                .insert("WWW-Authenticate", HeaderValue::from_static("Basic"));
+            return Ok(res);
         }
 
         let res = if req.method() == Method::GET {
@@ -136,7 +137,6 @@ impl InnerService {
             fs::remove_dir_all(path).await?;
         }
         Ok(status_code!(StatusCode::OK))
-
     }
 
     async fn handle_send_dir(&self, path: &Path) -> BoxResult<Response> {
@@ -181,7 +181,11 @@ impl InnerService {
 
         paths.sort_unstable();
         let breadcrumb = self.get_breadcrumb(path);
-        let data = SendDirData { breadcrumb, paths, readonly: self.args.readonly };
+        let data = SendDirData {
+            breadcrumb,
+            paths,
+            readonly: self.args.readonly,
+        };
         let data = serde_json::to_string(&data).unwrap();
 
         let mut output =
