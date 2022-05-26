@@ -29,11 +29,24 @@ fn app() -> clap::Command<'static> {
         .allow_invalid_utf8(true)
         .help("Path to a directory for serving files");
 
+    let arg_readonly = Arg::new("readonly")
+        .short('r')
+        .long("readonly")
+        .help("Only serve static files, no operations like upload and delete");
+
+    let arg_auth = Arg::new("auth")
+        .short('a')
+        .long("auth")
+        .help("Authenticate with user and pass")
+        .value_name("user:pass");
+
     clap::command!()
         .about(ABOUT)
         .arg(arg_address)
         .arg(arg_port)
         .arg(arg_path)
+        .arg(arg_readonly)
+        .arg(arg_auth)
 }
 
 pub fn matches() -> ArgMatches {
@@ -45,6 +58,8 @@ pub struct Args {
     pub address: String,
     pub port: u16,
     pub path: PathBuf,
+    pub readonly: bool,
+    pub auth: Option<String>,
 }
 
 impl Args {
@@ -57,11 +72,15 @@ impl Args {
         let port = matches.value_of_t::<u16>("port")?;
         let path = matches.value_of_os("path").unwrap_or_default();
         let path = Args::parse_path(path)?;
+        let readonly = matches.is_present("readonly");
+        let auth = matches.value_of("auth").map(|v| v.to_owned());
 
         Ok(Args {
             address,
             port,
             path,
+            readonly,
+            auth,
         })
     }
 

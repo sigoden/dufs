@@ -1,6 +1,7 @@
 use crate::{Args, BoxResult};
 
 use futures::TryStreamExt;
+use hyper::header::HeaderValue;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Method, StatusCode};
 use percent_encoding::percent_decode;
@@ -62,6 +63,9 @@ impl InnerService {
         let res = if req.method() == Method::GET {
             self.handle_static(req).await
         } else if req.method() == Method::PUT {
+            if self.args.readonly {
+                return Ok(status_code!(StatusCode::FORBIDDEN));
+            }
             self.handle_upload(req).await
         } else {
             return Ok(status_code!(StatusCode::NOT_FOUND));
@@ -70,6 +74,11 @@ impl InnerService {
     }
 
     async fn handle_static(&self, req: Request) -> BoxResult<Response> {
+        if !self.auth_guard(&req).unwrap_or_default() {
+            let mut res = status_code!(StatusCode::UNAUTHORIZED);
+            res.headers_mut().insert("WWW-Authenticate" , HeaderValue::from_static("Basic"));
+            return Ok(res)
+        }
         let path = match self.get_file_path(req.uri().path())? {
             Some(path) => path,
             None => return Ok(status_code!(StatusCode::FORBIDDEN)),
@@ -87,6 +96,11 @@ impl InnerService {
     }
 
     async fn handle_upload(&self, mut req: Request) -> BoxResult<Response> {
+        if !self.auth_guard(&req).unwrap_or_default() {
+            let mut res = status_code!(StatusCode::UNAUTHORIZED);
+            res.headers_mut().insert("WWW-Authenticate" , HeaderValue::from_static("Basic"));
+            return Ok(res)
+        }
         let path = match self.get_file_path(req.uri().path())? {
             Some(path) => path,
             None => return Ok(status_code!(StatusCode::FORBIDDEN)),
@@ -165,7 +179,7 @@ impl InnerService {
 
         paths.sort_unstable();
         let breadcrumb = self.get_breadcrumb(path);
-        let data = SendDirData { breadcrumb, paths };
+        let data = SendDirData { breadcrumb, paths, readonly: !self.args.readonly };
         let data = serde_json::to_string(&data).unwrap();
 
         let mut output =
@@ -180,6 +194,25 @@ impl InnerService {
         let stream = FramedRead::new(file, BytesCodec::new());
         let body = Body::wrap_stream(stream);
         Ok(Response::new(body))
+    }
+
+    fn auth_guard(&self, req: &Request) -> BoxResult<bool> {
+        if let Some(auth) = &self.args.auth {
+            if let Some(value) = req.headers().get("Authorization") {
+                let value = value.to_str()?;
+                let value = if value.contains("Basic ") {
+                    &value[6..]
+                } else {
+                    return Ok(false);
+                };
+                let value = base64::decode(value)?;
+                let value = std::str::from_utf8(&value)?;
+                return Ok(value == auth);
+            } else {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     fn get_breadcrumb(&self, path: &Path) -> String {
@@ -210,6 +243,7 @@ impl InnerService {
 struct SendDirData {
     breadcrumb: String,
     paths: Vec<PathItem>,
+    readonly: bool,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq, Ord, PartialOrd)]
