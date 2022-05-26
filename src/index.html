@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width" />
+  <title>Duf</title>
+  __STYLE__
+</head>
+<body>
+  <div class="head">
+    <div class="breadcrumb"></div>
+    <div class="action" title="Upload file">
+      <label for="file">
+        <svg viewBox="0 0 384.97 384.97" width="14" height="14"><path d="M372.939,264.641c-6.641,0-12.03,5.39-12.03,12.03v84.212H24.061v-84.212c0-6.641-5.39-12.03-12.03-12.03 S0,270.031,0,276.671v96.242c0,6.641,5.39,12.03,12.03,12.03h360.909c6.641,0,12.03-5.39,12.03-12.03v-96.242 C384.97,270.019,379.58,264.641,372.939,264.641z"></path><path d="M117.067,103.507l63.46-62.558v235.71c0,6.641,5.438,12.03,12.151,12.03c6.713,0,12.151-5.39,12.151-12.03V40.95 l63.46,62.558c4.74,4.704,12.439,4.704,17.179,0c4.74-4.704,4.752-12.319,0-17.011l-84.2-82.997 c-4.692-4.656-12.584-4.608-17.191,0L99.888,86.496c-4.752,4.704-4.74,12.319,0,17.011 C104.628,108.211,112.327,108.211,117.067,103.507z"></path></svg>
+      </label>
+      <input type="file" id="file" name="file" multiple>
+    </div>
+  </div>
+  <div class="main">
+    <div class="uploaders">
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th class="cell-name">Name</th>
+          <th class="cell-mtime">Date modify</th>
+          <th class="cell-size">Size</th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+  </div>
+  <script>
+
+    const $tbody = document.querySelector(".main tbody");
+    const $breadcrumb = document.querySelector(".breadcrumb");
+    const $fileInput = document.getElementById("file");
+    const $uploaders = document.querySelector(".uploaders");
+    const { breadcrumb, paths } = __DATA__;
+    let uploaderIdx = 0;
+
+    class Uploader {
+      idx = 0;
+      file;
+      path;
+      $elem;
+      constructor(idx, file) {
+        this.idx = idx;
+        this.file = file;
+        this.path = location.pathname + "/" + file.name;
+      }
+
+      upload() {
+        const { file, idx, path } = this;
+        $uploaders.insertAdjacentHTML("beforeend", `
+      <div class="uploader path">
+        <div><svg height="16" viewBox="0 0 12 16" width="12"><path fill-rule="evenodd" d="M6 5H2V4h4v1zM2 8h7V7H2v1zm0 2h7V9H2v1zm0 2h7v-1H2v1zm10-7.5V14c0 .55-.45 1-1 1H1c-.55 0-1-.45-1-1V2c0-.55.45-1 1-1h7.5L12 4.5zM11 5L8 2H1v12h10V5z"></path></svg></div>
+        <a href="${path}" id="file${idx}">${file.name} (0%)</a>
+      </div>`);
+        this.$elem = document.getElementById(`file${idx}`);
+
+        const ajax = new XMLHttpRequest();
+        ajax.upload.addEventListener("progress", e => this.progress(e), false);
+        ajax.addEventListener("load", e => this.complete(e), false);
+        ajax.addEventListener("error", e => this.error(e), false);
+        ajax.addEventListener("abort", e => this.abort(e), false);
+        ajax.open("PUT", path);
+        ajax.send(file);
+      }
+
+      progress(event) {
+        const percent = (event.loaded / event.total) * 100;
+        this.$elem.innerHTML = `${this.file.name} (${percent.toFixed(2)}%)`;
+      }
+
+      complete(event) {
+        this.$elem.innerHTML = `${this.file.name}`;
+      }
+
+      error(event) {
+        this.$elem.innerHTML = `${this.file.name} (x)`;
+      }
+      
+      abort(event) {
+        this.$elem.innerHTML = `${this.file.name} (x)`;
+      }
+    }
+
+    function addBreadcrumb(value) {
+      const parts = value.split("/").filter(v => !!v);
+      const len = parts.length;
+      let path = "";
+      for (let i = 0; i < len; i++) {
+        const name = parts[i];
+        if (i > 0) {
+          path  += "/" + name;
+        }
+        if (i === len - 1) {
+          $breadcrumb.insertAdjacentHTML("beforeend", `<b>${name}</b>`);
+        } else if (i === 0) {
+          $breadcrumb.insertAdjacentHTML("beforeend", `<a href="/"><b>${name}</b></a>`);
+        } else {
+          $breadcrumb.insertAdjacentHTML("beforeend", `<a href="${encodeURI(path)}">${name}</a>`);
+        }
+        $breadcrumb.insertAdjacentHTML("beforeend", `<span class="separator">/</span>`);
+      }
+    }
+
+    function addFile(file) {
+      $tbody.insertAdjacentHTML("beforeend", `
+  <tr>
+    <td class="path cell-name">
+      <div>${getSvg(file.path_type)}</div>
+      <a href="${encodeURI(file.path)}" title="${file.name}">${file.name}</a>
+    </td>
+    <td class="cell-mtime">${formatMtime(file.mtime)}</td>
+    <td class="cell-size">${formatSize(file.size)}</td>
+  </tr>
+`)
+    }
+
+    function getSvg(path_type) {
+      switch (path_type) {
+        case "Dir":
+          return `<svg height="16" viewBox="0 0 14 16" width="14"><path fill-rule="evenodd" d="M13 4H7V3c0-.66-.31-1-1-1H1c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1V5c0-.55-.45-1-1-1zM6 4H1V3h5v1z"></path></svg>`;
+        case "File":
+          return `<svg height="16" viewBox="0 0 12 16" width="12"><path fill-rule="evenodd" d="M6 5H2V4h4v1zM2 8h7V7H2v1zm0 2h7V9H2v1zm0 2h7v-1H2v1zm10-7.5V14c0 .55-.45 1-1 1H1c-.55 0-1-.45-1-1V2c0-.55.45-1 1-1h7.5L12 4.5zM11 5L8 2H1v12h10V5z"></path></svg>`;
+        case "SymlinkDir":
+          return `<svg height="16" viewBox="0 0 14 16" width="14"><path fill-rule="evenodd" d="M13 4H7V3c0-.66-.31-1-1-1H1c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1V5c0-.55-.45-1-1-1zM1 3h5v1H1V3zm6 9v-2c-.98-.02-1.84.22-2.55.7-.71.48-1.19 1.25-1.45 2.3.02-1.64.39-2.88 1.13-3.73C4.86 8.43 5.82 8 7.01 8V6l4 3-4 3H7z"></path></svg>`;
+        default:
+          return `<svg height="16" viewBox="0 0 12 16" width="12"><path fill-rule="evenodd" d="M8.5 1H1c-.55 0-1 .45-1 1v12c0 .55.45 1 1 1h10c.55 0 1-.45 1-1V4.5L8.5 1zM11 14H1V2h7l3 3v9zM6 4.5l4 3-4 3v-2c-.98-.02-1.84.22-2.55.7-.71.48-1.19 1.25-1.45 2.3.02-1.64.39-2.88 1.13-3.73.73-.84 1.69-1.27 2.88-1.27v-2H6z"></path></svg>`;
+      }
+    }
+
+    function formatMtime(mtime) {
+      if (!mtime) return ""
+      const date = new Date(mtime);
+      const year = date.getFullYear();
+      const month = padZero(date.getMonth() + 1, 2);
+      const day = padZero(date.getDate(), 2);
+      const hours = padZero(date.getHours(), 2);
+      const minutes = padZero(date.getMinutes(), 2);
+      return `${year}/${month}/${day} ${hours}:${minutes}`;
+    }
+
+    function padZero(value, size) {
+      return ("0".repeat(size) + value).slice(-1 * size)
+    }
+
+    function formatSize(size) {
+      if (!size) return ""
+      const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+      if (size == 0) return '0 Byte';
+      const i = parseInt(Math.floor(Math.log(size) / Math.log(1024)));
+      return Math.round(size / Math.pow(1024, i), 2) + ' ' + sizes[i];
+    }
+
+
+    document.addEventListener('DOMContentLoaded', () => {
+      addBreadcrumb(breadcrumb);
+      paths.forEach(file => addFile(file));
+      $fileInput.addEventListener("change", e => {
+        const files = e.target.files;
+        for (const file of files) {
+          uploaderIdx += 1;
+          const uploader = new Uploader(uploaderIdx, file);
+          uploader.upload();
+        }
+      });
+    });
+  </script>
+</body>
+</html>

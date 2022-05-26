@@ -1,0 +1,102 @@
+html {
+  font-family: -apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;
+  line-height: 1.5;
+  color: #24292e;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  padding: 2.5em 2.5em 0;
+}
+
+.head input {
+  display: none;
+}
+
+.breadcrumb {
+  font-size: 1.25em;
+}
+
+.breadcrumb > a {
+  color: #0366d6;
+  text-decoration: none;
+}
+
+.breadcrumb > a:hover {
+  text-decoration: underline;
+}
+
+/* final breadcrumb */
+.breadcrumb > b {
+  color: #24292e;
+}
+
+.breadcrumb > .separator {
+  color: #586069;
+  padding: 0 0.25em;
+}
+
+.breadcrumb svg {
+  height: 100%;
+  fill: rgba(3,47,98,0.5);
+  padding-right: 0.5em;
+  padding-left: 0.5em;
+}
+
+.action {
+  cursor: pointer;
+}
+
+.main {
+  padding: 0 2.5em;
+}
+
+.main th {
+  text-align: left;
+  font-weight: unset;
+  color: #5c5c5c;
+}
+
+.main .cell-name {
+  max-width: 300px;
+}
+
+.main .cell-size {
+  text-align: right;
+  width: 80px;
+}
+
+.path svg {
+  height: 100%;
+  fill: rgba(3,47,98,0.5);
+  padding-right: 0.5em;
+}
+
+.path {
+  display: flex;
+  list-style: none;
+}
+
+.path a {
+  color: #0366d6;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  display: block;
+  text-decoration: none;
+}
+
+.path a:hover {
+  text-decoration: underline;
+}
+
+.uploaders {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 0.5em 0;
+}
+
+.uploader {
+  padding-right: 2em;
+}

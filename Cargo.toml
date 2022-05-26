@@ -1,0 +1,25 @@
+[package]
+name = "duf2"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "3", default-features = false, features = ["std", "cargo"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util"]}
+hyper = { version = "0.14", features = ["http1", "server", "tcp", "stream"] }
+percent-encoding = "2.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio-util = { version = "0.7", features = ["codec", "io-util"] }
+futures = "0.3"
+
+[dev-dependencies]
+tempfile = "3"
+once_cell = "1"
+
+[profile.release]
+lto = true
+strip = true
+opt-level = "z"
