@@ -95,7 +95,7 @@ impl InnerService {
                     self.handle_send_file(path.as_path()).await
                 }
             }
-            Err(_) => return Ok(status_code!(StatusCode::NOT_FOUND)),
+            Err(_) => Ok(status_code!(StatusCode::NOT_FOUND)),
         }
     }
 
@@ -140,43 +140,13 @@ impl InnerService {
     }
 
     async fn handle_send_dir(&self, path: &Path) -> BoxResult<Response> {
-        let base_path = &self.args.path;
         let mut rd = fs::read_dir(path).await?;
         let mut paths: Vec<PathItem> = vec![];
         while let Some(entry) = rd.next_entry().await? {
             let entry_path = entry.path();
-            let rel_path = entry_path.strip_prefix(base_path).unwrap();
-            let meta = fs::metadata(&entry_path).await?;
-            let s_meta = fs::symlink_metadata(&entry_path).await?;
-            let is_dir = meta.is_dir();
-            let is_symlink = s_meta.file_type().is_symlink();
-            let path_type = match (is_symlink, is_dir) {
-                (true, true) => PathType::SymlinkDir,
-                (false, true) => PathType::Dir,
-                (true, false) => PathType::SymlinkFile,
-                (false, false) => PathType::File,
-            };
-            let mtime = meta
-                .modified()?
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .ok()
-                .map(|v| v.as_millis() as u64);
-            let size = match path_type {
-                PathType::Dir | PathType::SymlinkDir => None,
-                PathType::File | PathType::SymlinkFile => Some(meta.len()),
-            };
-            let name = rel_path
-                .file_name()
-                .and_then(|v| v.to_str())
-                .unwrap_or_default()
-                .to_owned();
-            paths.push(PathItem {
-                path_type,
-                name,
-                path: format!("/{}", normalize_path(rel_path)),
-                mtime,
-                size,
-            })
+            if let Ok(item) = self.get_path_item(entry_path).await {
+                paths.push(item);
+            }
         }
 
         paths.sort_unstable();
@@ -219,6 +189,43 @@ impl InnerService {
             }
         }
         Ok(true)
+    }
+
+    async fn get_path_item<P: AsRef<Path>>(&self, path: P) -> BoxResult<PathItem> {
+        let path = path.as_ref();
+        let base_path = &self.args.path;
+        let rel_path = path.strip_prefix(base_path).unwrap();
+        let meta = fs::metadata(&path).await?;
+        let s_meta = fs::symlink_metadata(&path).await?;
+        let is_dir = meta.is_dir();
+        let is_symlink = s_meta.file_type().is_symlink();
+        let path_type = match (is_symlink, is_dir) {
+            (true, true) => PathType::SymlinkDir,
+            (false, true) => PathType::Dir,
+            (true, false) => PathType::SymlinkFile,
+            (false, false) => PathType::File,
+        };
+        let mtime = meta
+            .modified()?
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .ok()
+            .map(|v| v.as_millis() as u64);
+        let size = match path_type {
+            PathType::Dir | PathType::SymlinkDir => None,
+            PathType::File | PathType::SymlinkFile => Some(meta.len()),
+        };
+        let name = rel_path
+            .file_name()
+            .and_then(|v| v.to_str())
+            .unwrap_or_default()
+            .to_owned();
+        Ok(PathItem {
+            path_type,
+            name,
+            path: format!("/{}", normalize_path(rel_path)),
+            mtime,
+            size,
+        })
     }
 
     fn get_breadcrumb(&self, path: &Path) -> String {
