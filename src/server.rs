@@ -143,18 +143,6 @@ impl InnerService {
         let base_path = &self.args.path;
         let mut rd = fs::read_dir(path).await?;
         let mut paths: Vec<PathItem> = vec![];
-        if self.args.path != path {
-            paths.push(PathItem {
-                path_type: PathType::Dir,
-                name: "..".to_owned(),
-                path: format!(
-                    "/{}",
-                    normalize_path(path.parent().unwrap().strip_prefix(base_path).unwrap())
-                ),
-                mtime: None,
-                size: None,
-            })
-        }
         while let Some(entry) = rd.next_entry().await? {
             let entry_path = entry.path();
             let rel_path = entry_path.strip_prefix(base_path).unwrap();
