@@ -12,6 +12,7 @@ Duf is a simple file server.
 - Serve static files
 - Upload/Delete files
 - Support basic auth
+- Easy to use with curl
 
 ## Install
 
@@ -42,12 +43,23 @@ duf folder_name
 Finally, run this command to see a list of all available option
 
 
-You can upload file to server with curl.
+
+## Curl
+
+Download a file
+```
+curl http://127.0.0.1:5000/some-file
+
+curl -o some-file.zip http://127.0.0.1:5000/some-file.zip
+```
+
+Upload a file
 
 ```
 curl --upload-file some-file http://127.0.0.1:5000/some-file
 ```
-... or delete file/folder with curl
+
+Delete a file/folder
 
 ```
 curl -X DELETE http://127.0.0.1:5000/some-file
