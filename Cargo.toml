@@ -9,7 +9,7 @@ homepage = "https://github.com/sigoden/duf"
 repository = "https://github.com/sigoden/duf"
 autotests = false
 categories = ["command-line-utilities", "web-programming::http-server"]
-keywords = ["static", "file", "server", "upload", "http", "cli"]
+keywords = ["static", "file", "server", "http", "cli"]
 
 [dependencies]
 clap = { version = "3", default-features = false, features = ["std", "cargo"] }
