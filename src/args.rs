@@ -40,6 +40,10 @@ fn app() -> clap::Command<'static> {
         .help("Authenticate with user and pass")
         .value_name("user:pass");
 
+    let arg_no_log = Arg::new("no-log")
+        .long("--no-log")
+        .help("Don't log any request/response information.");
+
     clap::command!()
         .about(ABOUT)
         .arg(arg_address)
@@ -47,6 +51,7 @@ fn app() -> clap::Command<'static> {
         .arg(arg_path)
         .arg(arg_readonly)
         .arg(arg_auth)
+        .arg(arg_no_log)
 }
 
 pub fn matches() -> ArgMatches {
@@ -60,6 +65,7 @@ pub struct Args {
     pub path: PathBuf,
     pub readonly: bool,
     pub auth: Option<String>,
+    pub log: bool,
 }
 
 impl Args {
@@ -74,6 +80,7 @@ impl Args {
         let path = Args::parse_path(path)?;
         let readonly = matches.is_present("readonly");
         let auth = matches.value_of("auth").map(|v| v.to_owned());
+        let log = !matches.is_present("no-log");
 
         Ok(Args {
             address,
@@ -81,6 +88,7 @@ impl Args {
             path,
             readonly,
             auth,
+            log,
         })
     }
 

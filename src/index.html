@@ -59,8 +59,8 @@
         const ajax = new XMLHttpRequest();
         ajax.upload.addEventListener("progress", e => this.progress(e), false);
         ajax.addEventListener("load", e => this.complete(e), false);
-        ajax.addEventListener("error", e => this.error(e), false);
-        ajax.addEventListener("abort", e => this.abort(e), false);
+        ajax.addEventListener("error", e => this.fail(e), false);
+        ajax.addEventListener("abort", e => this.fail(e), false);
         ajax.open("PUT", path);
         ajax.send(file);
       }
@@ -74,12 +74,8 @@
         this.$elem.innerHTML = `${this.file.name}`;
       }
 
-      error(event) {
-        this.$elem.innerHTML = `${this.file.name} (x)`;
-      }
-      
-      abort(event) {
-        this.$elem.innerHTML = `${this.file.name} (x)`;
+      fail(event) {
+        this.$elem.innerHTML = `<strike>${this.file.name}</strike>`;
       }
     }
 
@@ -126,18 +122,15 @@
     async function deletePath(index) {
       const file = paths[index];
       if (!file) return;
-      try {
-        const res = await fetch(encodeURI(file.path), {
-          method: "DELETE",
-        });
-        if (res.status !== 200) {
-          const text = await res.text();
-          throw new Error(text);
+
+      const ajax = new XMLHttpRequest();
+      ajax.open("DELETE", encodeURI(file.path));
+      ajax.addEventListener("readystatechange", function() {
+        if(ajax.readyState === 4 && ajax.status === 200) {
+            document.getElementById(`addPath${index}`).remove();
         }
-        document.getElementById(`addPath${index}`).remove();
-      } catch (err) {
-        alert(`Failed to delete ${file.name}, ${err.message}`);
-      }
+      });
+      ajax.send();
     }
 
     function addUploadControl() {

@@ -10,8 +10,9 @@ Duf is a simple file server.
 ## Features
 
 - Serve static files
-- Upload/Delete files
-- Support basic auth
+- Upload files
+- Delete files
+- Basic authentication
 - Easy to use with curl
 
 ## Install
@@ -44,7 +45,7 @@ Finally, run this command to see a list of all available option
 
 
 
-## Curl
+### Curl
 
 Download a file
 ```

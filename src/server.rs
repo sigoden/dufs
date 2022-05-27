@@ -37,7 +37,7 @@ pub async fn serve(args: Args) -> BoxResult<()> {
         async {
             Ok::<_, Infallible>(service_fn(move |req| {
                 let inner = inner.clone();
-                inner.handle(req)
+                inner.call(req)
             }))
         }
     });
@@ -59,7 +59,18 @@ impl InnerService {
         Self { args }
     }
 
-    pub async fn handle(self: Arc<Self>, req: Request) -> Result<Response, hyper::Error> {
+    pub async fn call(self: Arc<Self>, req: Request) -> Result<Response, hyper::Error> {
+        let method = req.method().clone();
+        let uri = req.uri().clone();
+        let res = self
+            .handle(req)
+            .await
+            .unwrap_or_else(|_| status_code!(StatusCode::INTERNAL_SERVER_ERROR));
+        info!(r#""{} {}" - {}"#, method, uri, res.status());
+        Ok(res)
+    }
+
+    pub async fn handle(self: Arc<Self>, req: Request) -> BoxResult<Response> {
         if !self.auth_guard(&req).unwrap_or_default() {
             let mut res = status_code!(StatusCode::UNAUTHORIZED);
             res.headers_mut()
@@ -67,7 +78,7 @@ impl InnerService {
             return Ok(res);
         }
 
-        let res = if req.method() == Method::GET {
+        if req.method() == Method::GET {
             self.handle_static(req).await
         } else if req.method() == Method::PUT {
             if self.args.readonly {
@@ -78,8 +89,7 @@ impl InnerService {
             self.handle_delete(req).await
         } else {
             return Ok(status_code!(StatusCode::NOT_FOUND));
-        };
-        Ok(res.unwrap_or_else(|_| status_code!(StatusCode::INTERNAL_SERVER_ERROR)))
+        }
     }
 
     async fn handle_static(&self, req: Request) -> BoxResult<Response> {
