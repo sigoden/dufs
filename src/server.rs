@@ -187,7 +187,7 @@ impl InnerService {
     }
 
     async fn handle_send_dir_zip(&self, path: &Path) -> BoxResult<Response> {
-        let (mut writer, reader) = tokio::io::duplex(65536);
+        let (mut writer, reader) = tokio::io::duplex(1024 * 1024 * 20);
         dir_zip(&mut writer, path).await?;
         let stream = ReaderStream::new(reader);
         let body = Body::wrap_stream(stream);

@@ -49,8 +49,6 @@ duf --static
 
 Finally, run this command to see a list of all available option
 
-
-
 ### Curl
 
 Download a file

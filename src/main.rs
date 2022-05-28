@@ -25,14 +25,18 @@ async fn main() {
 async fn run() -> BoxResult<()> {
     let args = Args::parse(matches())?;
 
-    let level = if args.log {
-        LevelFilter::Info
+    if std::env::var("RUST_LOG").is_ok() {
+        simple_logger::init()?;
     } else {
-        LevelFilter::Error
-    };
-    simple_logger::SimpleLogger::default()
-        .with_level(level)
-        .init()?;
+        let level = if args.log {
+            LevelFilter::Info
+        } else {
+            LevelFilter::Error
+        };
+        simple_logger::SimpleLogger::default()
+            .with_level(level)
+            .init()?;
+    }
     serve(args).await
 }
 
