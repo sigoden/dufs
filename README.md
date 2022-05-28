@@ -57,7 +57,9 @@ curl -o some-file2 http://127.0.0.1:5000/some-file
 
 Download a folder as zip file
 
+```
 curl -o some-folder.zip http://127.0.0.1:5000/some-folder?zip
+```
 
 Upload a file
 
