@@ -45,20 +45,21 @@
     class Uploader {
       idx = 0;
       file;
-      path;
       $elem;
       constructor(idx, file) {
         this.idx = idx;
         this.file = file;
-        this.path = location.pathname + "/" + file.name;
       }
 
       upload() {
-        const { file, idx, path } = this;
+        const { file, idx } = this;
+        let url = location.href.split('?')[0];
+        if (!url.endsWith("/")) url += "/";
+        url += encodeURI(file.name);
         $uploaders.insertAdjacentHTML("beforeend", `
       <div class="uploader path">
         <div><svg height="16" viewBox="0 0 12 16" width="12"><path fill-rule="evenodd" d="M6 5H2V4h4v1zM2 8h7V7H2v1zm0 2h7V9H2v1zm0 2h7v-1H2v1zm10-7.5V14c0 .55-.45 1-1 1H1c-.55 0-1-.45-1-1V2c0-.55.45-1 1-1h7.5L12 4.5zM11 5L8 2H1v12h10V5z"></path></svg></div>
-        <a href="${path}" id="file${idx}">${file.name} (0%)</a>
+        <a href="${url}" id="file${idx}">${file.name} (0%)</a>
       </div>`);
         this.$elem = document.getElementById(`file${idx}`);
 
@@ -67,7 +68,7 @@
         ajax.addEventListener("load", e => this.complete(e), false);
         ajax.addEventListener("error", e => this.fail(e), false);
         ajax.addEventListener("abort", e => this.fail(e), false);
-        ajax.open("PUT", path);
+        ajax.open("PUT", url);
         ajax.send(file);
       }
 
