@@ -1,5 +1,9 @@
 use crate::{Args, BoxResult};
 
+use async_walkdir::WalkDir;
+use async_zip::write::{EntryOptions, ZipFileWriter};
+use async_zip::Compression;
+use futures::stream::StreamExt;
 use futures::TryStreamExt;
 use hyper::header::HeaderValue;
 use hyper::service::{make_service_fn, service_fn};
@@ -10,8 +14,11 @@ use std::convert::Infallible;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::SystemTime;
+use tokio::fs::File;
+use tokio::io::AsyncWrite;
 use tokio::{fs, io};
 use tokio_util::codec::{BytesCodec, FramedRead};
+use tokio_util::io::ReaderStream;
 use tokio_util::io::StreamReader;
 
 type Request = hyper::Request<Body>;
@@ -100,7 +107,11 @@ impl InnerService {
         match fs::metadata(&path).await {
             Ok(meta) => {
                 if meta.is_dir() {
-                    self.handle_send_dir(path.as_path()).await
+                    if req.uri().query().map(|v| v == "zip").unwrap_or_default() {
+                        self.handle_send_dir_zip(path.as_path()).await
+                    } else {
+                        self.handle_send_dir(path.as_path()).await
+                    }
                 } else {
                     self.handle_send_file(path.as_path()).await
                 }
@@ -173,6 +184,14 @@ impl InnerService {
         output = output.replace("__DATA__", &data);
 
         Ok(hyper::Response::builder().body(output.into()).unwrap())
+    }
+
+    async fn handle_send_dir_zip(&self, path: &Path) -> BoxResult<Response> {
+        let (mut writer, reader) = tokio::io::duplex(65536);
+        dir_zip(&mut writer, path).await?;
+        let stream = ReaderStream::new(reader);
+        let body = Body::wrap_stream(stream);
+        Ok(Response::new(body))
     }
 
     async fn handle_send_file(&self, path: &Path) -> BoxResult<Response> {
@@ -293,4 +312,28 @@ fn normalize_path<P: AsRef<Path>>(path: P) -> String {
     } else {
         path.to_string()
     }
+}
+
+async fn dir_zip<W: AsyncWrite + Unpin>(writer: &mut W, dir: &Path) -> BoxResult<()> {
+    let mut writer = ZipFileWriter::new(writer);
+    let mut walkdir = WalkDir::new(dir);
+    while let Some(entry) = walkdir.next().await {
+        if let Ok(entry) = entry {
+            let meta = fs::symlink_metadata(entry.path()).await?;
+            if meta.is_file() {
+                let filepath = entry.path();
+                let filename = match filepath.strip_prefix(dir).ok().and_then(|v| v.to_str()) {
+                    Some(v) => v,
+                    None => continue,
+                };
+                let entry_options = EntryOptions::new(filename.to_owned(), Compression::Deflate);
+                let mut file = File::open(&filepath).await?;
+                let mut file_writer = writer.write_entry_stream(entry_options).await?;
+                io::copy(&mut file, &mut file_writer).await?;
+                file_writer.close().await?;
+            }
+        }
+    }
+    writer.close().await?;
+    Ok(())
 }

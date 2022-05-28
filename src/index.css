@@ -46,6 +46,7 @@ html {
 
 .upload-control {
   cursor: pointer;
+  padding-left: 0.25em;
 }
 
 .main {
@@ -80,6 +81,7 @@ html {
 
 .main .cell-actions {
   width: 100px;
+  display: flex;
   padding-left: 0.6em;
 }
 
@@ -106,6 +108,10 @@ html {
 
 .path a:hover {
   text-decoration: underline;
+}
+
+.action-btn {
+  padding-left: 0.4em;
 }
 
 .uploaders {

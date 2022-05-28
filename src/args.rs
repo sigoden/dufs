@@ -29,10 +29,9 @@ fn app() -> clap::Command<'static> {
         .allow_invalid_utf8(true)
         .help("Path to a directory for serving files");
 
-    let arg_readonly = Arg::new("readonly")
-        .short('r')
-        .long("readonly")
-        .help("Only serve static files, no operations like upload and delete");
+    let arg_static = Arg::new("static")
+        .long("static")
+        .help("Only serve static files, not allowed to upload or delete file");
 
     let arg_auth = Arg::new("auth")
         .short('a')
@@ -49,7 +48,7 @@ fn app() -> clap::Command<'static> {
         .arg(arg_address)
         .arg(arg_port)
         .arg(arg_path)
-        .arg(arg_readonly)
+        .arg(arg_static)
         .arg(arg_auth)
         .arg(arg_no_log)
 }
@@ -78,7 +77,7 @@ impl Args {
         let port = matches.value_of_t::<u16>("port")?;
         let path = matches.value_of_os("path").unwrap_or_default();
         let path = Args::parse_path(path)?;
-        let readonly = matches.is_present("readonly");
+        let readonly = matches.is_present("static");
         let auth = matches.value_of("auth").map(|v| v.to_owned());
         let log = !matches.is_present("no-log");
 

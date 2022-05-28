@@ -1,6 +1,6 @@
 [package]
 name = "duf"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["sigoden <sigoden@gmail.com>"]
 description = "Duf is a simple file server."
@@ -23,6 +23,8 @@ futures = "0.3"
 base64 = "0.13"
 log = "0.4"
 simple_logger = "2.1.0"
+async_zip = "0.0.7"
+async-walkdir = "0.2.0"
 
 [profile.release]
 lto = true

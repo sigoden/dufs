@@ -5,11 +5,12 @@
 
 Duf is a simple file server.
 
-![demo](https://user-images.githubusercontent.com/4012553/170498429-d68a5d6e-c4c5-405e-9c95-2ec880e2678d.png)
+![demo](https://user-images.githubusercontent.com/4012553/170822562-c6594de5-0bb2-4d5e-ba66-5731ab6481fd.png)
 
 ## Features
 
 - Serve static files
+- Download folder as zip file
 - Upload files
 - Delete files
 - Basic authentication
@@ -51,8 +52,12 @@ Download a file
 ```
 curl http://127.0.0.1:5000/some-file
 
-curl -o some-file.zip http://127.0.0.1:5000/some-file.zip
+curl -o some-file2 http://127.0.0.1:5000/some-file
 ```
+
+Download a folder as zip file
+
+curl -o some-folder.zip http://127.0.0.1:5000/some-folder?zip
 
 Upload a file
 
