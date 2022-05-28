@@ -36,10 +36,15 @@ You can run this command to start serving your current working directory on 127.
 duf
 ```
 
-...or specify which folder you want to serve:
+...or specify which folder you want to serve.
 
 ```
 duf folder_name
+```
+
+Only serve static files, disable upload and delete operations
+```
+duf --static
 ```
 
 Finally, run this command to see a list of all available option
