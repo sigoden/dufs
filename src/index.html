@@ -10,11 +10,20 @@
 <body>
   <div class="head">
     <div class="breadcrumb"></div>
-    <div>
-      <a href="?zip" title="Download folder as a .zip file">
-        <svg width="16" height="16" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
-      </a>
+    <div class="toolbox">
+      <div>
+        <a href="?zip" title="Download folder as a .zip file">
+          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
+        </a>
+      </div>
     </div>
+    <form class="searchbar">
+      <div class="icon">
+        <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>
+      </div>
+      <input id="search" name="q" type="text" maxlength="128" autocomplete="off" tabindex="1">
+      <input type="submit" hidden />
+    </form>
   </div>
   <div class="main">
     <div class="uploaders">
@@ -34,7 +43,7 @@
   </div>
   <script>
 
-    const $head = document.querySelector(".head");
+    const $toolbox = document.querySelector(".toolbox");
     const $tbody = document.querySelector(".main tbody");
     const $breadcrumb = document.querySelector(".breadcrumb");
     const $uploaders = document.querySelector(".uploaders");
@@ -53,9 +62,7 @@
 
       upload() {
         const { file, idx } = this;
-        let url = location.href.split('?')[0];
-        if (!url.endsWith("/")) url += "/";
-        url += encodeURI(file.name);
+        const url = getUrl(file.name);
         $uploaders.insertAdjacentHTML("beforeend", `
       <div class="uploader path">
         <div><svg height="16" viewBox="0 0 12 16" width="12"><path fill-rule="evenodd" d="M6 5H2V4h4v1zM2 8h7V7H2v1zm0 2h7V9H2v1zm0 2h7v-1H2v1zm10-7.5V14c0 .55-.45 1-1 1H1c-.55 0-1-.45-1-1V2c0-.55.45-1 1-1h7.5L12 4.5zM11 5L8 2H1v12h10V5z"></path></svg></div>
@@ -107,7 +114,7 @@
     }
 
     function addPath(file, index) {
-      const url = encodeURI(file.path);
+      const url = getUrl(file.name)
       let actionDelete = "";
       let actionDownload = "";
       if (file.path_type.endsWith("Dir")) {
@@ -154,7 +161,7 @@
       if (!file) return;
 
       const ajax = new XMLHttpRequest();
-      ajax.open("DELETE", encodeURI(file.path));
+      ajax.open("DELETE", getUrl(file.name));
       ajax.addEventListener("readystatechange", function() {
         if(ajax.readyState === 4 && ajax.status === 200) {
             document.getElementById(`addPath${index}`).remove();
@@ -164,7 +171,7 @@
     }
 
     function addUploadControl() {
-      $head.insertAdjacentHTML("beforeend", `
+      $toolbox.insertAdjacentHTML("beforeend", `
     <div class="upload-control" title="Upload file">
       <label for="file">
         <svg width="16" height="16" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/></svg>
@@ -172,6 +179,13 @@
       <input type="file" id="file" name="file" multiple>
     </div>
 `);
+    }
+
+    function getUrl(name) {
+        let url = location.href.split('?')[0];
+        if (!url.endsWith("/")) url += "/";
+        url += encodeURI(name);
+        return url;
     }
 
     function getSvg(path_type) {

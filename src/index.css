@@ -4,14 +4,15 @@ html {
   color: #24292e;
 }
 
-.head {
-  display: flex;
-  align-items: baseline;
-  padding: 1em 1em 0;
+body {
+  width: 700px;
 }
 
-.head input {
-  display: none;
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 1em 1em 0;
 }
 
 .breadcrumb {
@@ -44,9 +45,48 @@ html {
   padding-left: 0.5em;
 }
 
+.toolbox {
+  display: flex;
+}
+
+.searchbar {
+  display: flex;
+  flex-wrap: nowrap;
+  width: 246px;
+  height: 22px;
+  background-color: #fafafa;
+  transition: all .15s;
+  border: 1px #ddd solid;
+  border-radius: 15px;
+  margin: 0 0 2px 10px;
+}
+
+.searchbar #search {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  font-size: 16px;
+  line-height: 16px;
+  padding: 1px;
+  font-family: helvetica neue,luxi sans,Tahoma,hiragino sans gb,STHeiti,sans-serif;
+  background-color: transparent;
+  border: none;
+  outline: none;
+}
+
+.searchbar .icon {
+  color: #9a9a9a;
+  padding: 3px 3px;
+  cursor: pointer;
+}
+
 .upload-control {
   cursor: pointer;
   padding-left: 0.25em;
+}
+
+.upload-control input {
+  display: none;
 }
 
 .main {

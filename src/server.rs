@@ -108,18 +108,21 @@ impl InnerService {
         match fs::metadata(&path).await {
             Ok(meta) => {
                 if meta.is_dir() {
-                    if req.uri().query().map(|v| v == "zip").unwrap_or_default() {
-                        self.handle_send_dir_zip(path.as_path()).await
-                    } else {
-                        self.handle_send_dir(path.as_path(), true).await
+                    let req_query = req.uri().query().unwrap_or_default();
+                    if req_query == "zip" {
+                        return self.handle_send_dir_zip(path.as_path()).await;
                     }
+                    if let Some(q) = req_query.strip_prefix("q=") {
+                        return self.handle_query_dir(path.as_path(), q).await;
+                    }
+                    self.handle_ls_dir(path.as_path(), true).await
                 } else {
                     self.handle_send_file(path.as_path()).await
                 }
             }
             Err(_) => {
                 if req_path.ends_with('/') {
-                    self.handle_send_dir(path.as_path(), false).await
+                    self.handle_ls_dir(path.as_path(), false).await
                 } else {
                     Ok(status_code!(StatusCode::NOT_FOUND))
                 }
@@ -176,31 +179,42 @@ impl InnerService {
         Ok(status_code!(StatusCode::OK))
     }
 
-    async fn handle_send_dir(&self, path: &Path, exist: bool) -> BoxResult<Response> {
+    async fn handle_ls_dir(&self, path: &Path, exist: bool) -> BoxResult<Response> {
         let mut paths: Vec<PathItem> = vec![];
         if exist {
             let mut rd = fs::read_dir(path).await?;
             while let Some(entry) = rd.next_entry().await? {
                 let entry_path = entry.path();
-                if let Ok(item) = self.get_path_item(entry_path).await {
+                if let Ok(item) = get_path_item(entry_path, path.to_path_buf()).await {
                     paths.push(item);
                 }
             }
-            paths.sort_unstable();
         }
-        let breadcrumb = self.get_breadcrumb(path);
-        let data = SendDirData {
-            breadcrumb,
-            paths,
-            readonly: self.args.readonly,
-        };
-        let data = serde_json::to_string(&data).unwrap();
+        self.send_index(path, paths)
+    }
 
-        let mut output =
-            INDEX_HTML.replace("__STYLE__", &format!("<style>\n{}</style>", INDEX_CSS));
-        output = output.replace("__DATA__", &data);
-
-        Ok(hyper::Response::builder().body(output.into()).unwrap())
+    async fn handle_query_dir(&self, path: &Path, q: &str) -> BoxResult<Response> {
+        let mut paths: Vec<PathItem> = vec![];
+        let mut walkdir = WalkDir::new(path);
+        while let Some(entry) = walkdir.next().await {
+            if let Ok(entry) = entry {
+                if !entry
+                    .file_name()
+                    .to_string_lossy()
+                    .to_lowercase()
+                    .contains(&q.to_lowercase())
+                {
+                    continue;
+                }
+                if fs::symlink_metadata(entry.path()).await.is_err() {
+                    continue;
+                }
+                if let Ok(item) = get_path_item(entry.path(), path.to_path_buf()).await {
+                    paths.push(item);
+                }
+            }
+        }
+        self.send_index(path, paths)
     }
 
     async fn handle_send_dir_zip(&self, path: &Path) -> BoxResult<Response> {
@@ -223,6 +237,22 @@ impl InnerService {
         Ok(Response::new(body))
     }
 
+    fn send_index(&self, path: &Path, mut paths: Vec<PathItem>) -> BoxResult<Response> {
+        paths.sort_unstable();
+        let breadcrumb = self.get_breadcrumb(path);
+        let data = IndexData {
+            breadcrumb,
+            paths,
+            readonly: self.args.readonly,
+        };
+        let data = serde_json::to_string(&data).unwrap();
+        let mut output =
+            INDEX_HTML.replace("__STYLE__", &format!("<style>\n{}</style>", INDEX_CSS));
+        output = output.replace("__DATA__", &data);
+
+        Ok(hyper::Response::builder().body(output.into()).unwrap())
+    }
+
     fn auth_guard(&self, req: &Request) -> BoxResult<bool> {
         if let Some(auth) = &self.args.auth {
             if let Some(value) = req.headers().get("Authorization") {
@@ -240,43 +270,6 @@ impl InnerService {
             }
         }
         Ok(true)
-    }
-
-    async fn get_path_item<P: AsRef<Path>>(&self, path: P) -> BoxResult<PathItem> {
-        let path = path.as_ref();
-        let base_path = &self.args.path;
-        let rel_path = path.strip_prefix(base_path).unwrap();
-        let meta = fs::metadata(&path).await?;
-        let s_meta = fs::symlink_metadata(&path).await?;
-        let is_dir = meta.is_dir();
-        let is_symlink = s_meta.file_type().is_symlink();
-        let path_type = match (is_symlink, is_dir) {
-            (true, true) => PathType::SymlinkDir,
-            (false, true) => PathType::Dir,
-            (true, false) => PathType::SymlinkFile,
-            (false, false) => PathType::File,
-        };
-        let mtime = meta
-            .modified()?
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .ok()
-            .map(|v| v.as_millis() as u64);
-        let size = match path_type {
-            PathType::Dir | PathType::SymlinkDir => None,
-            PathType::File | PathType::SymlinkFile => Some(meta.len()),
-        };
-        let name = rel_path
-            .file_name()
-            .and_then(|v| v.to_str())
-            .unwrap_or_default()
-            .to_owned();
-        Ok(PathItem {
-            path_type,
-            name,
-            path: format!("/{}", normalize_path(rel_path)),
-            mtime,
-            size,
-        })
     }
 
     fn get_breadcrumb(&self, path: &Path) -> String {
@@ -304,7 +297,7 @@ impl InnerService {
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq, Ord, PartialOrd)]
-struct SendDirData {
+struct IndexData {
     breadcrumb: String,
     paths: Vec<PathItem>,
     readonly: bool,
@@ -314,7 +307,6 @@ struct SendDirData {
 struct PathItem {
     path_type: PathType,
     name: String,
-    path: String,
     mtime: Option<u64>,
     size: Option<u64>,
 }
@@ -325,6 +317,37 @@ enum PathType {
     SymlinkDir,
     File,
     SymlinkFile,
+}
+
+async fn get_path_item<P: AsRef<Path>>(path: P, base_path: P) -> BoxResult<PathItem> {
+    let path = path.as_ref();
+    let rel_path = path.strip_prefix(base_path).unwrap();
+    let meta = fs::metadata(&path).await?;
+    let s_meta = fs::symlink_metadata(&path).await?;
+    let is_dir = meta.is_dir();
+    let is_symlink = s_meta.file_type().is_symlink();
+    let path_type = match (is_symlink, is_dir) {
+        (true, true) => PathType::SymlinkDir,
+        (false, true) => PathType::Dir,
+        (true, false) => PathType::SymlinkFile,
+        (false, false) => PathType::File,
+    };
+    let mtime = meta
+        .modified()?
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .ok()
+        .map(|v| v.as_millis() as u64);
+    let size = match path_type {
+        PathType::Dir | PathType::SymlinkDir => None,
+        PathType::File | PathType::SymlinkFile => Some(meta.len()),
+    };
+    let name = normalize_path(rel_path);
+    Ok(PathItem {
+        path_type,
+        name,
+        mtime,
+        size,
+    })
 }
 
 fn normalize_path<P: AsRef<Path>>(path: P) -> String {
@@ -341,7 +364,10 @@ async fn dir_zip<W: AsyncWrite + Unpin>(writer: &mut W, dir: &Path) -> BoxResult
     let mut walkdir = WalkDir::new(dir);
     while let Some(entry) = walkdir.next().await {
         if let Ok(entry) = entry {
-            let meta = fs::symlink_metadata(entry.path()).await?;
+            let meta = match fs::symlink_metadata(entry.path()).await {
+                Ok(meta) => meta,
+                Err(_) => continue,
+            };
             if meta.is_file() {
                 let filepath = entry.path();
                 let filename = match filepath.strip_prefix(dir).ok().and_then(|v| v.to_str()) {

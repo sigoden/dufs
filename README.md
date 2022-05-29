@@ -5,12 +5,13 @@
 
 Duf is a simple file server.
 
-![demo](https://user-images.githubusercontent.com/4012553/170822562-c6594de5-0bb2-4d5e-ba66-5731ab6481fd.png)
+![demo](https://user-images.githubusercontent.com/4012553/170853143-05dc713e-f0d5-478d-baea-0914599b846c.png)
 
 ## Features
 
 - Serve static files
 - Download folder as zip file
+- Search files
 - Upload files
 - Delete files
 - Basic authentication
