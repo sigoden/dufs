@@ -65,22 +65,22 @@ html {
 }
 
 .main .cell-name {
-  width: 300px;
+  width: 400px;
 }
 
 .main .cell-mtime {
-  width: 150px;
+  width: 120px;
   padding-left: 0.6em;
 }
 
 .main .cell-size {
   text-align: right;
-  width: 100px;
+  width: 60px;
   padding-left: 0.6em;
 }
 
 .main .cell-actions {
-  width: 100px;
+  width: 60px;
   display: flex;
   padding-left: 0.6em;
 }
