@@ -100,7 +100,8 @@ impl InnerService {
     }
 
     async fn handle_static(&self, req: Request) -> BoxResult<Response> {
-        let path = match self.get_file_path(req.uri().path())? {
+        let req_path = req.uri().path();
+        let path = match self.get_file_path(req_path)? {
             Some(path) => path,
             None => return Ok(status_code!(StatusCode::FORBIDDEN)),
         };
@@ -110,24 +111,39 @@ impl InnerService {
                     if req.uri().query().map(|v| v == "zip").unwrap_or_default() {
                         self.handle_send_dir_zip(path.as_path()).await
                     } else {
-                        self.handle_send_dir(path.as_path()).await
+                        self.handle_send_dir(path.as_path(), true).await
                     }
                 } else {
                     self.handle_send_file(path.as_path()).await
                 }
             }
-            Err(_) => Ok(status_code!(StatusCode::NOT_FOUND)),
+            Err(_) => {
+                if req_path.ends_with('/') {
+                    self.handle_send_dir(path.as_path(), false).await
+                } else {
+                    Ok(status_code!(StatusCode::NOT_FOUND))
+                }
+            }
         }
     }
 
     async fn handle_upload(&self, mut req: Request) -> BoxResult<Response> {
+        let forbidden = status_code!(StatusCode::FORBIDDEN);
         let path = match self.get_file_path(req.uri().path())? {
             Some(path) => path,
-            None => return Ok(status_code!(StatusCode::FORBIDDEN)),
+            None => return Ok(forbidden),
         };
 
-        if !fs::metadata(&path.parent().unwrap()).await?.is_dir() {
-            return Ok(status_code!(StatusCode::FORBIDDEN));
+        match path.parent() {
+            Some(parent) => match fs::metadata(parent).await {
+                Ok(meta) => {
+                    if !meta.is_dir() {
+                        return Ok(forbidden);
+                    }
+                }
+                Err(_) => fs::create_dir_all(parent).await?,
+            },
+            None => return Ok(forbidden),
         }
 
         let mut file = fs::File::create(path).await?;
@@ -160,17 +176,18 @@ impl InnerService {
         Ok(status_code!(StatusCode::OK))
     }
 
-    async fn handle_send_dir(&self, path: &Path) -> BoxResult<Response> {
-        let mut rd = fs::read_dir(path).await?;
+    async fn handle_send_dir(&self, path: &Path, exist: bool) -> BoxResult<Response> {
         let mut paths: Vec<PathItem> = vec![];
-        while let Some(entry) = rd.next_entry().await? {
-            let entry_path = entry.path();
-            if let Ok(item) = self.get_path_item(entry_path).await {
-                paths.push(item);
+        if exist {
+            let mut rd = fs::read_dir(path).await?;
+            while let Some(entry) = rd.next_entry().await? {
+                let entry_path = entry.path();
+                if let Ok(item) = self.get_path_item(entry_path).await {
+                    paths.push(item);
+                }
             }
+            paths.sort_unstable();
         }
-
-        paths.sort_unstable();
         let breadcrumb = self.get_breadcrumb(path);
         let data = SendDirData {
             breadcrumb,
