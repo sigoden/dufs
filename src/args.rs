@@ -35,10 +35,10 @@ fn app() -> clap::Command<'static> {
                 .help("Path to a directory for serving files"),
         )
         .arg(
-            Arg::new("no-edit")
-                .short('E')
-                .long("no-edit")
-                .help("Disable editing operations such as update or delete"),
+            Arg::new("no-change")
+                .short('C')
+                .long("no-change")
+                .help("Disable change operations such as update or delete"),
         )
         .arg(
             Arg::new("auth")
@@ -46,6 +46,11 @@ fn app() -> clap::Command<'static> {
                 .long("auth")
                 .help("Authenticate with user and pass")
                 .value_name("user:pass"),
+        )
+        .arg(
+            Arg::new("cors")
+                .long("cors")
+                .help("Enable CORS, sets `Access-Control-Allow-Origin: *`"),
         )
 }
 
@@ -60,6 +65,7 @@ pub struct Args {
     pub path: PathBuf,
     pub readonly: bool,
     pub auth: Option<String>,
+    pub cors: bool,
 }
 
 impl Args {
@@ -72,7 +78,8 @@ impl Args {
         let port = matches.value_of_t::<u16>("port")?;
         let path = matches.value_of_os("path").unwrap_or_default();
         let path = Args::parse_path(path)?;
-        let readonly = matches.is_present("no-edit");
+        let readonly = matches.is_present("no-change");
+        let cors = matches.is_present("cors");
         let auth = matches.value_of("auth").map(|v| v.to_owned());
 
         Ok(Args {
@@ -81,6 +88,7 @@ impl Args {
             path,
             readonly,
             auth,
+            cors,
         })
     }
 

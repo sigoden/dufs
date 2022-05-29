@@ -5,7 +5,8 @@ use async_zip::write::{EntryOptions, ZipFileWriter};
 use async_zip::Compression;
 use futures::stream::StreamExt;
 use futures::TryStreamExt;
-use hyper::header::HeaderValue;
+use headers::{AccessControlAllowHeaders, AccessControlAllowOrigin, HeaderMapExt};
+use hyper::header::{HeaderValue, ACCEPT, CONTENT_TYPE, ORIGIN, RANGE, WWW_AUTHENTICATE};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Method, StatusCode};
 use percent_encoding::percent_decode;
@@ -69,11 +70,15 @@ impl InnerService {
     pub async fn call(self: Arc<Self>, req: Request) -> Result<Response, hyper::Error> {
         let method = req.method().clone();
         let uri = req.uri().clone();
-        let res = self
+        let cors = self.args.cors;
+        let mut res = self
             .handle(req)
             .await
             .unwrap_or_else(|_| status_code!(StatusCode::INTERNAL_SERVER_ERROR));
         info!(r#""{} {}" - {}"#, method, uri, res.status());
+        if cors {
+            add_cors(&mut res);
+        }
         Ok(res)
     }
 
@@ -81,21 +86,20 @@ impl InnerService {
         if !self.auth_guard(&req).unwrap_or_default() {
             let mut res = status_code!(StatusCode::UNAUTHORIZED);
             res.headers_mut()
-                .insert("WWW-Authenticate", HeaderValue::from_static("Basic"));
+                .insert(WWW_AUTHENTICATE, HeaderValue::from_static("Basic"));
             return Ok(res);
         }
-
-        if req.method() == Method::GET {
-            self.handle_static(req).await
-        } else if req.method() == Method::PUT {
-            if self.args.readonly {
-                return Ok(status_code!(StatusCode::FORBIDDEN));
+        match *req.method() {
+            Method::GET => self.handle_static(req).await,
+            Method::PUT => {
+                if self.args.readonly {
+                    return Ok(status_code!(StatusCode::FORBIDDEN));
+                }
+                self.handle_upload(req).await
             }
-            self.handle_upload(req).await
-        } else if req.method() == Method::DELETE {
-            self.handle_delete(req).await
-        } else {
-            return Ok(status_code!(StatusCode::NOT_FOUND));
+            Method::OPTIONS => Ok(status_code!(StatusCode::NO_CONTENT)),
+            Method::DELETE => self.handle_delete(req).await,
+            _ => Ok(status_code!(StatusCode::NOT_FOUND)),
         }
     }
 
@@ -357,6 +361,16 @@ fn normalize_path<P: AsRef<Path>>(path: P) -> String {
     } else {
         path.to_string()
     }
+}
+
+fn add_cors(res: &mut Response) {
+    res.headers_mut()
+        .typed_insert(AccessControlAllowOrigin::ANY);
+    res.headers_mut().typed_insert(
+        vec![RANGE, CONTENT_TYPE, ACCEPT, ORIGIN, WWW_AUTHENTICATE]
+            .into_iter()
+            .collect::<AccessControlAllowHeaders>(),
+    );
 }
 
 async fn dir_zip<W: AsyncWrite + Unpin>(writer: &mut W, dir: &Path) -> BoxResult<()> {
