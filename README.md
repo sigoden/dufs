@@ -5,7 +5,7 @@
 
 Duf is a simple file server.
 
-![demo](https://user-images.githubusercontent.com/4012553/170853143-05dc713e-f0d5-478d-baea-0914599b846c.png)
+![demo](https://user-images.githubusercontent.com/4012553/170853369-dfcdc4c7-4864-4401-bf49-6e41ffe05df3.png)
 
 ## Features
 
