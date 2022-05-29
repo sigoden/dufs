@@ -28,13 +28,8 @@ async fn run() -> BoxResult<()> {
     if std::env::var("RUST_LOG").is_ok() {
         simple_logger::init()?;
     } else {
-        let level = if args.log {
-            LevelFilter::Info
-        } else {
-            LevelFilter::Error
-        };
         simple_logger::SimpleLogger::default()
-            .with_level(level)
+            .with_level(LevelFilter::Info)
             .init()?;
     }
     serve(args).await

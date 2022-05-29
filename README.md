@@ -43,9 +43,9 @@ duf
 duf folder_name
 ```
 
-Only serve static files, disable upload and delete operations
+Only serve static files, disable editing operations such as update or delete
 ```
-duf --static
+duf --no-edit
 ```
 
 Finally, run this command to see a list of all available option
