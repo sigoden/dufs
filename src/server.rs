@@ -37,9 +37,9 @@ macro_rules! status_code {
     };
 }
 
-const INDEX_HTML: &str = include_str!("static/index.html");
-const INDEX_CSS: &str = include_str!("static/index.css");
-const INDEX_JS: &str = include_str!("static/index.js");
+const INDEX_HTML: &str = include_str!("assets/index.html");
+const INDEX_CSS: &str = include_str!("assets/index.css");
+const INDEX_JS: &str = include_str!("assets/index.js");
 const BUF_SIZE: usize = 1024 * 16;
 
 pub async fn serve(args: Args) -> BoxResult<()> {
