@@ -1,6 +1,6 @@
-var uploaderIdx = 0;
-var breadcrumb, paths, readonly;
 var $toolbox, $tbody, $breadcrumb, $uploaders, $uploadControl;
+var uploaderIdx = 0;
+var baseDir;
 
 class Uploader {
   idx = 0;
@@ -14,6 +14,9 @@ class Uploader {
   upload() {
     var { file, idx } = this;
     var url = getUrl(file.name);
+    if (file.name == baseDir + ".zip") {
+      url += "?unzip";
+    }
     $uploaders.insertAdjacentHTML("beforeend", `
   <div class="uploader path">
     <div><svg height="16" viewBox="0 0 12 16" width="12"><path fill-rule="evenodd" d="M6 5H2V4h4v1zM2 8h7V7H2v1zm0 2h7V9H2v1zm0 2h7v-1H2v1zm10-7.5V14c0 .55-.45 1-1 1H1c-.55 0-1-.45-1-1V2c0-.55.45-1 1-1h7.5L12 4.5zM11 5L8 2H1v12h10V5z"></path></svg></div>
@@ -55,6 +58,7 @@ function addBreadcrumb(value) {
     }
     if (i === len - 1) {
       $breadcrumb.insertAdjacentHTML("beforeend", `<b>${name}</b>`);
+      baseDir = name;
     } else if (i === 0) {
       $breadcrumb.insertAdjacentHTML("beforeend", `<a href="/"><b>${name}</b></a>`);
     } else {
@@ -83,7 +87,7 @@ function addPath(file, index) {
       </a>
     </div>`;
   }
-  if (!readonly) {
+  if (!DATA.readonly) {
     actionDelete = `
     <div onclick="deletePath(${index})" class="action-btn" id="deleteBtn${index}" title="Delete ${file.name}">
       <svg width="16" height="16" fill="currentColor"viewBox="0 0 16 16"><path d="M6.854 7.146a.5.5 0 1 0-.708.708L7.293 9l-1.147 1.146a.5.5 0 0 0 .708.708L8 9.707l1.146 1.147a.5.5 0 0 0 .708-.708L8.707 9l1.147-1.146a.5.5 0 0 0-.708-.708L8 8.293 6.854 7.146z"/><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/></svg>
@@ -108,7 +112,7 @@ ${actionCell}
 }
 
 async function deletePath(index) {
-  var file = paths[index];
+  var file = DATA.paths[index];
   if (!file) return;
 
   var ajax = new XMLHttpRequest();
@@ -119,17 +123,6 @@ async function deletePath(index) {
     }
   });
   ajax.send();
-}
-
-function addUploadControl() {
-  $toolbox.insertAdjacentHTML("beforeend", `
-<div class="upload-control" title="Upload file">
-  <label for="file">
-    <svg width="16" height="16" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/></svg>
-  </label>
-  <input type="file" id="file" name="file" multiple>
-</div>
-`);
 }
 
 function getUrl(name) {
@@ -177,19 +170,15 @@ function formatSize(size) {
 
 
 function ready() {
-  breadcrumb = DATA.breadcrumb;
-  paths = DATA.paths;
-  readonly = DATA.readonly;
   $toolbox = document.querySelector(".toolbox");
   $tbody = document.querySelector(".main tbody");
   $breadcrumb = document.querySelector(".breadcrumb");
   $uploaders = document.querySelector(".uploaders");
-  $uploadControl = document.querySelector(".upload-control");
 
-  addBreadcrumb(breadcrumb);
-  paths.forEach((file, index) => addPath(file, index));
-  if (!readonly) {
-    addUploadControl();
+  addBreadcrumb(DATA.breadcrumb);
+  DATA.paths.forEach((file, index) => addPath(file, index));
+  if (!DATA.readonly) {
+    document.querySelector(".upload-control").classList.remove(["hidden"]);
     document.getElementById("file").addEventListener("change", e => {
       var files = e.target.files;
       for (var file of files) {

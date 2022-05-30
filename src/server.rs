@@ -1,6 +1,7 @@
 use crate::{Args, BoxResult};
 
 use async_walkdir::WalkDir;
+use async_zip::read::seek::ZipFileReader;
 use async_zip::write::{EntryOptions, ZipFileWriter};
 use async_zip::Compression;
 use futures::stream::StreamExt;
@@ -157,7 +158,7 @@ impl InnerService {
             None => return Ok(forbidden),
         }
 
-        let mut file = fs::File::create(path).await?;
+        let mut file = fs::File::create(&path).await?;
 
         let body_with_io_error = req
             .body_mut()
@@ -168,6 +169,30 @@ impl InnerService {
         futures::pin_mut!(body_reader);
 
         io::copy(&mut body_reader, &mut file).await?;
+
+        let req_query = req.uri().query().unwrap_or_default();
+        if req_query == "unzip" {
+            let root = path.parent().unwrap();
+            let mut zip = ZipFileReader::new(File::open(&path).await?).await?;
+            for i in 0..zip.entries().len() {
+                let entry = &zip.entries()[i];
+                let entry_name = entry.name();
+                let entry_path = root.join(entry_name);
+                if entry_name.ends_with('/') {
+                    fs::create_dir_all(entry_path).await?;
+                } else {
+                    if let Some(parent) = entry_path.parent() {
+                        if fs::symlink_metadata(parent).await.is_err() {
+                            fs::create_dir_all(&parent).await?;
+                        }
+                    }
+                    let mut outfile = fs::File::create(&entry_path).await?;
+                    let mut reader = zip.entry_reader(i).await?;
+                    io::copy(&mut reader, &mut outfile).await?;
+                }
+            }
+            fs::remove_file(&path).await?;
+        }
 
         return Ok(status_code!(StatusCode::OK));
     }
