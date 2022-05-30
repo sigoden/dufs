@@ -268,9 +268,9 @@ impl InnerService {
         let (file, meta) = (file?, meta?);
         let mut res = Response::default();
         if let Ok(mtime) = meta.modified() {
-            let mtime_value = get_timestamp(&mtime);
+            let timestamp = get_timestamp(&mtime);
             let size = meta.len();
-            let etag = format!(r#""{}-{}""#, mtime_value, size)
+            let etag = format!(r#""{}-{}""#, timestamp, size)
                 .parse::<ETag>()
                 .unwrap();
             let last_modified = LastModified::from(mtime);
@@ -395,10 +395,10 @@ enum PathType {
 async fn get_path_item<P: AsRef<Path>>(path: P, base_path: P) -> BoxResult<PathItem> {
     let path = path.as_ref();
     let rel_path = path.strip_prefix(base_path).unwrap();
-    let meta = fs::metadata(&path).await?;
-    let s_meta = fs::symlink_metadata(&path).await?;
+    let (meta, meta2) = tokio::join!(fs::metadata(&path), fs::symlink_metadata(&path));
+    let (meta, meta2) = (meta?, meta2?);
     let is_dir = meta.is_dir();
-    let is_symlink = s_meta.file_type().is_symlink();
+    let is_symlink = meta2.file_type().is_symlink();
     let path_type = match (is_symlink, is_dir) {
         (true, true) => PathType::SymlinkDir,
         (false, true) => PathType::Dir,
