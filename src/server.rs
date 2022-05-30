@@ -7,8 +7,8 @@ use async_zip::Compression;
 use futures::stream::StreamExt;
 use futures::TryStreamExt;
 use headers::{
-    AccessControlAllowHeaders, AccessControlAllowOrigin, ContentType, ETag, HeaderMapExt,
-    IfModifiedSince, IfNoneMatch, LastModified,
+    AccessControlAllowHeaders, AccessControlAllowOrigin, ContentType, ETag, HeaderMap,
+    HeaderMapExt, IfModifiedSince, IfNoneMatch, LastModified,
 };
 use hyper::header::{HeaderValue, ACCEPT, CONTENT_TYPE, ORIGIN, RANGE, WWW_AUTHENTICATE};
 use hyper::service::{make_service_fn, service_fn};
@@ -27,15 +27,6 @@ use tokio_util::io::{ReaderStream, StreamReader};
 
 type Request = hyper::Request<Body>;
 type Response = hyper::Response<Body>;
-
-macro_rules! status_code {
-    ($status:expr) => {
-        hyper::Response::builder()
-            .status($status)
-            .body($status.canonical_reason().unwrap_or_default().into())
-            .unwrap()
-    };
-}
 
 const INDEX_HTML: &str = include_str!("assets/index.html");
 const INDEX_CSS: &str = include_str!("assets/index.css");
@@ -76,11 +67,16 @@ impl InnerService {
         let method = req.method().clone();
         let uri = req.uri().clone();
         let cors = self.args.cors;
-        let mut res = self
-            .handle(req)
-            .await
-            .unwrap_or_else(|_| status_code!(StatusCode::INTERNAL_SERVER_ERROR));
+
+        let mut res = self.handle(req).await.unwrap_or_else(|e| {
+            let mut res = Response::default();
+            *res.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+            *res.body_mut() = Body::from(e.to_string());
+            res
+        });
+
         info!(r#""{} {}" - {}"#, method, uri, res.status());
+
         if cors {
             add_cors(&mut res);
         }
@@ -88,74 +84,77 @@ impl InnerService {
     }
 
     pub async fn handle(self: Arc<Self>, req: Request) -> BoxResult<Response> {
-        if !self.auth_guard(&req).unwrap_or_default() {
-            let mut res = status_code!(StatusCode::UNAUTHORIZED);
-            res.headers_mut()
-                .insert(WWW_AUTHENTICATE, HeaderValue::from_static("Basic"));
+        let mut res = Response::default();
+
+        if !self.auth_guard(&req, &mut res) {
             return Ok(res);
         }
+
+        let path = req.uri().path();
+
+        let filepath = match self.extract_path(path) {
+            Some(v) => v,
+            None => {
+                *res.status_mut() = StatusCode::FORBIDDEN;
+                return Ok(res);
+            }
+        };
+        let filepath = filepath.as_path();
+
+        let query = req.uri().query().unwrap_or_default();
+
+        let meta = fs::metadata(filepath).await.ok();
+        let is_miss = meta.is_none();
+        let is_dir = meta.map(|v| v.is_dir()).unwrap_or_default();
+
+        let readonly = self.args.readonly;
+
         match *req.method() {
-            Method::GET => self.handle_static(req).await,
-            Method::PUT => {
-                if self.args.readonly {
-                    return Ok(status_code!(StatusCode::FORBIDDEN));
-                }
-                self.handle_upload(req).await
+            Method::GET if is_dir && query == "zip" => {
+                self.handle_zip_dir(filepath, &mut res).await?
             }
-            Method::OPTIONS => Ok(status_code!(StatusCode::NO_CONTENT)),
-            Method::DELETE => self.handle_delete(req).await,
-            _ => Ok(status_code!(StatusCode::NOT_FOUND)),
+            Method::GET if is_dir && query.starts_with("q=") => {
+                self.handle_query_dir(filepath, &query[3..], &mut res)
+                    .await?
+            }
+            Method::GET if !is_dir && !is_miss => {
+                self.handle_send_file(filepath, req.headers(), &mut res)
+                    .await?
+            }
+            Method::GET if is_miss && path.ends_with('/') => {
+                self.handle_ls_dir(filepath, false, &mut res).await?
+            }
+            Method::GET => self.handle_ls_dir(filepath, true, &mut res).await?,
+            Method::OPTIONS => *res.status_mut() = StatusCode::NO_CONTENT,
+            Method::PUT if readonly => *res.status_mut() = StatusCode::FORBIDDEN,
+            Method::PUT => self.handle_upload(filepath, req, &mut res).await?,
+            Method::DELETE if !is_miss && readonly => *res.status_mut() = StatusCode::FORBIDDEN,
+            Method::DELETE if !is_miss => self.handle_delete(filepath, is_dir).await?,
+            _ => *res.status_mut() = StatusCode::NOT_FOUND,
         }
+
+        Ok(res)
     }
 
-    async fn handle_static(&self, req: Request) -> BoxResult<Response> {
-        let req_path = req.uri().path();
-        let path = match self.get_file_path(req_path)? {
-            Some(path) => path,
-            None => return Ok(status_code!(StatusCode::FORBIDDEN)),
-        };
-        match fs::metadata(&path).await {
-            Ok(meta) => {
-                if meta.is_dir() {
-                    let req_query = req.uri().query().unwrap_or_default();
-                    if req_query == "zip" {
-                        return self.handle_send_dir_zip(path.as_path()).await;
-                    }
-                    if let Some(q) = req_query.strip_prefix("q=") {
-                        return self.handle_query_dir(path.as_path(), q).await;
-                    }
-                    self.handle_ls_dir(path.as_path(), true).await
-                } else {
-                    self.handle_send_file(&req, path.as_path()).await
-                }
-            }
-            Err(_) => {
-                if req_path.ends_with('/') {
-                    self.handle_ls_dir(path.as_path(), false).await
-                } else {
-                    Ok(status_code!(StatusCode::NOT_FOUND))
-                }
-            }
-        }
-    }
-
-    async fn handle_upload(&self, mut req: Request) -> BoxResult<Response> {
-        let forbidden = status_code!(StatusCode::FORBIDDEN);
-        let path = match self.get_file_path(req.uri().path())? {
-            Some(path) => path,
-            None => return Ok(forbidden),
-        };
-
-        match path.parent() {
+    async fn handle_upload(
+        &self,
+        path: &Path,
+        mut req: Request,
+        res: &mut Response,
+    ) -> BoxResult<()> {
+        let ensure_parent = match path.parent() {
             Some(parent) => match fs::metadata(parent).await {
-                Ok(meta) => {
-                    if !meta.is_dir() {
-                        return Ok(forbidden);
-                    }
+                Ok(meta) => meta.is_dir(),
+                Err(_) => {
+                    fs::create_dir_all(parent).await?;
+                    true
                 }
-                Err(_) => fs::create_dir_all(parent).await?,
             },
-            None => return Ok(forbidden),
+            None => false,
+        };
+        if !ensure_parent {
+            *res.status_mut() = StatusCode::FORBIDDEN;
+            return Ok(());
         }
 
         let mut file = fs::File::create(&path).await?;
@@ -194,39 +193,37 @@ impl InnerService {
             fs::remove_file(&path).await?;
         }
 
-        return Ok(status_code!(StatusCode::OK));
+        Ok(())
     }
 
-    async fn handle_delete(&self, req: Request) -> BoxResult<Response> {
-        let path = match self.get_file_path(req.uri().path())? {
-            Some(path) => path,
-            None => return Ok(status_code!(StatusCode::FORBIDDEN)),
-        };
-
-        let meta = fs::metadata(&path).await?;
-        if meta.is_file() {
-            fs::remove_file(path).await?;
-        } else {
-            fs::remove_dir_all(path).await?;
+    async fn handle_delete(&self, path: &Path, is_dir: bool) -> BoxResult<()> {
+        match is_dir {
+            true => fs::remove_dir_all(path).await?,
+            false => fs::remove_file(path).await?,
         }
-        Ok(status_code!(StatusCode::OK))
+        Ok(())
     }
 
-    async fn handle_ls_dir(&self, path: &Path, exist: bool) -> BoxResult<Response> {
+    async fn handle_ls_dir(&self, path: &Path, exist: bool, res: &mut Response) -> BoxResult<()> {
         let mut paths: Vec<PathItem> = vec![];
         if exist {
             let mut rd = fs::read_dir(path).await?;
             while let Some(entry) = rd.next_entry().await? {
                 let entry_path = entry.path();
-                if let Ok(item) = get_path_item(entry_path, path.to_path_buf()).await {
+                if let Ok(item) = to_pathitem(entry_path, path.to_path_buf()).await {
                     paths.push(item);
                 }
             }
         }
-        self.send_index(path, paths)
+        self.send_index(path, paths, res)
     }
 
-    async fn handle_query_dir(&self, path: &Path, q: &str) -> BoxResult<Response> {
+    async fn handle_query_dir(
+        &self,
+        path: &Path,
+        query: &str,
+        res: &mut Response,
+    ) -> BoxResult<()> {
         let mut paths: Vec<PathItem> = vec![];
         let mut walkdir = WalkDir::new(path);
         while let Some(entry) = walkdir.next().await {
@@ -235,22 +232,22 @@ impl InnerService {
                     .file_name()
                     .to_string_lossy()
                     .to_lowercase()
-                    .contains(&q.to_lowercase())
+                    .contains(&query.to_lowercase())
                 {
                     continue;
                 }
                 if fs::symlink_metadata(entry.path()).await.is_err() {
                     continue;
                 }
-                if let Ok(item) = get_path_item(entry.path(), path.to_path_buf()).await {
+                if let Ok(item) = to_pathitem(entry.path(), path.to_path_buf()).await {
                     paths.push(item);
                 }
             }
         }
-        self.send_index(path, paths)
+        self.send_index(path, paths, res)
     }
 
-    async fn handle_send_dir_zip(&self, path: &Path) -> BoxResult<Response> {
+    async fn handle_zip_dir(&self, path: &Path, res: &mut Response) -> BoxResult<()> {
         let (mut writer, reader) = tokio::io::duplex(BUF_SIZE);
         let path = path.to_owned();
         tokio::spawn(async move {
@@ -259,16 +256,20 @@ impl InnerService {
             }
         });
         let stream = ReaderStream::new(reader);
-        let body = Body::wrap_stream(stream);
-        Ok(Response::new(body))
+        *res.body_mut() = Body::wrap_stream(stream);
+        Ok(())
     }
 
-    async fn handle_send_file(&self, req: &Request, path: &Path) -> BoxResult<Response> {
+    async fn handle_send_file(
+        &self,
+        path: &Path,
+        headers: &HeaderMap<HeaderValue>,
+        res: &mut Response,
+    ) -> BoxResult<()> {
         let (file, meta) = tokio::join!(fs::File::open(path), fs::metadata(path),);
         let (file, meta) = (file?, meta?);
-        let mut res = Response::default();
         if let Ok(mtime) = meta.modified() {
-            let timestamp = get_timestamp(&mtime);
+            let timestamp = to_timestamp(&mtime);
             let size = meta.len();
             let etag = format!(r#""{}-{}""#, timestamp, size)
                 .parse::<ETag>()
@@ -276,10 +277,9 @@ impl InnerService {
             let last_modified = LastModified::from(mtime);
             let fresh = {
                 // `If-None-Match` takes presedence over `If-Modified-Since`.
-                if let Some(if_none_match) = req.headers().typed_get::<IfNoneMatch>() {
+                if let Some(if_none_match) = headers.typed_get::<IfNoneMatch>() {
                     !if_none_match.precondition_passes(&etag)
-                } else if let Some(if_modified_since) = req.headers().typed_get::<IfModifiedSince>()
-                {
+                } else if let Some(if_modified_since) = headers.typed_get::<IfModifiedSince>() {
                     !if_modified_since.is_modified(mtime)
                 } else {
                     false
@@ -289,7 +289,7 @@ impl InnerService {
             res.headers_mut().typed_insert(etag);
             if fresh {
                 *res.status_mut() = StatusCode::NOT_MODIFIED;
-                return Ok(res);
+                return Ok(());
             }
         }
         if let Some(mime) = mime_guess::from_path(&path).first() {
@@ -298,10 +298,16 @@ impl InnerService {
         let stream = FramedRead::new(file, BytesCodec::new());
         let body = Body::wrap_stream(stream);
         *res.body_mut() = body;
-        Ok(res)
+
+        Ok(())
     }
 
-    fn send_index(&self, path: &Path, mut paths: Vec<PathItem>) -> BoxResult<Response> {
+    fn send_index(
+        &self,
+        path: &Path,
+        mut paths: Vec<PathItem>,
+        res: &mut Response,
+    ) -> BoxResult<()> {
         paths.sort_unstable();
         let rel_path = match self.args.path.parent() {
             Some(p) => path.strip_prefix(p).unwrap(),
@@ -314,10 +320,10 @@ impl InnerService {
         };
         let data = serde_json::to_string(&data).unwrap();
         let output = INDEX_HTML.replace(
-            "__SLOB__",
+            "__SLOT__",
             &format!(
                 r#"
-<title>Files in {} - Duf/</title>
+<title>Files in {}/ - Duf</title>
 <style>{}</style>
 <script>var DATA = {}; {}</script>
 "#,
@@ -327,44 +333,51 @@ impl InnerService {
                 INDEX_JS
             ),
         );
+        *res.body_mut() = output.into();
 
-        Ok(Response::new(output.into()))
+        Ok(())
     }
 
-    fn auth_guard(&self, req: &Request) -> BoxResult<bool> {
-        if let Some(auth) = &self.args.auth {
-            if let Some(value) = req.headers().get("Authorization") {
-                let value = value.to_str()?;
-                let value = if value.contains("Basic ") {
-                    &value[6..]
-                } else {
-                    return Ok(false);
-                };
-                let value = base64::decode(value)?;
-                let value = std::str::from_utf8(&value)?;
-                return Ok(value == auth);
-            } else {
-                if self.args.no_auth_read && req.method() == Method::GET {
-                    return Ok(true);
-                }
-                return Ok(false);
+    fn auth_guard(&self, req: &Request, res: &mut Response) -> bool {
+        let pass = {
+            match &self.args.auth {
+                None => true,
+                Some(auth) => match req.headers().get("Authorization") {
+                    Some(value) => match value.to_str().ok().map(|v| {
+                        let mut it = v.split(' ');
+                        (it.next(), it.next())
+                    }) {
+                        Some((Some("Basic "), Some(tail))) => base64::decode(tail)
+                            .ok()
+                            .and_then(|v| String::from_utf8(v).ok())
+                            .map(|v| v.as_str() == auth)
+                            .unwrap_or_default(),
+                        _ => false,
+                    },
+                    None => self.args.no_auth_read && req.method() == Method::GET,
+                },
             }
+        };
+        if !pass {
+            *res.status_mut() = StatusCode::UNAUTHORIZED;
+            res.headers_mut()
+                .insert(WWW_AUTHENTICATE, HeaderValue::from_static("Basic"));
         }
-        Ok(true)
+        pass
     }
 
-    fn get_file_path(&self, path: &str) -> BoxResult<Option<PathBuf>> {
-        let decoded_path = percent_decode(path[1..].as_bytes()).decode_utf8()?;
+    fn extract_path(&self, path: &str) -> Option<PathBuf> {
+        let decoded_path = percent_decode(path[1..].as_bytes()).decode_utf8().ok()?;
         let slashes_switched = if cfg!(windows) {
             decoded_path.replace('/', "\\")
         } else {
             decoded_path.into_owned()
         };
-        let path = self.args.path.join(&slashes_switched);
-        if path.starts_with(&self.args.path) {
-            Ok(Some(path))
+        let full_path = self.args.path.join(&slashes_switched);
+        if full_path.starts_with(&self.args.path) {
+            Some(full_path)
         } else {
-            Ok(None)
+            None
         }
     }
 }
@@ -392,7 +405,7 @@ enum PathType {
     SymlinkFile,
 }
 
-async fn get_path_item<P: AsRef<Path>>(path: P, base_path: P) -> BoxResult<PathItem> {
+async fn to_pathitem<P: AsRef<Path>>(path: P, base_path: P) -> BoxResult<PathItem> {
     let path = path.as_ref();
     let rel_path = path.strip_prefix(base_path).unwrap();
     let (meta, meta2) = tokio::join!(fs::metadata(&path), fs::symlink_metadata(&path));
@@ -405,7 +418,7 @@ async fn get_path_item<P: AsRef<Path>>(path: P, base_path: P) -> BoxResult<PathI
         (true, false) => PathType::SymlinkFile,
         (false, false) => PathType::File,
     };
-    let mtime = get_timestamp(&meta.modified()?);
+    let mtime = to_timestamp(&meta.modified()?);
     let size = match path_type {
         PathType::Dir | PathType::SymlinkDir => None,
         PathType::File | PathType::SymlinkFile => Some(meta.len()),
@@ -419,7 +432,7 @@ async fn get_path_item<P: AsRef<Path>>(path: P, base_path: P) -> BoxResult<PathI
     })
 }
 
-fn get_timestamp(time: &SystemTime) -> u64 {
+fn to_timestamp(time: &SystemTime) -> u64 {
     time.duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
         .as_millis() as u64

@@ -1,6 +1,6 @@
-var $toolbox, $tbody, $breadcrumb, $uploaders, $uploadControl;
-var uploaderIdx = 0;
-var baseDir;
+let $tbody, $uploaders;
+let uploaderIdx = 0;
+let baseDir;
 
 class Uploader {
   idx = 0;
@@ -12,8 +12,8 @@ class Uploader {
   }
 
   upload() {
-    var { file, idx } = this;
-    var url = getUrl(file.name);
+    const { file, idx } = this;
+    let url = getUrl(file.name);
     if (file.name == baseDir + ".zip") {
       url += "?unzip";
     }
@@ -24,35 +24,45 @@ class Uploader {
   </div>`);
     this.$elem = document.getElementById(`file${idx}`);
 
-    var ajax = new XMLHttpRequest();
+    const ajax = new XMLHttpRequest();
     ajax.upload.addEventListener("progress", e => this.progress(e), false);
-    ajax.addEventListener("load", e => this.complete(e), false);
-    ajax.addEventListener("error", e => this.fail(e), false);
-    ajax.addEventListener("abort", e => this.fail(e), false);
+    ajax.addEventListener("readystatechange", () => {
+      console.log(ajax.readyState, ajax.status)
+      if(ajax.readyState === 4) {
+        if (ajax.status == 200) {
+          this.complete();
+        } else {
+          this.fail();
+        }
+      }
+    })
+    ajax.addEventListener("error", () => this.fail(), false);
+    ajax.addEventListener("abort", () => this.fail(), false);
     ajax.open("PUT", url);
     ajax.send(file);
   }
 
   progress(event) {
-    var percent = (event.loaded / event.total) * 100;
+    const percent = (event.loaded / event.total) * 100;
     this.$elem.innerHTML = `${this.file.name} (${percent.toFixed(2)}%)`;
   }
 
-  complete(event) {
+  complete() {
     this.$elem.innerHTML = `${this.file.name}`;
   }
 
-  fail(event) {
+  fail() {
     this.$elem.innerHTML = `<strike>${this.file.name}</strike>`;
   }
 }
 
 function addBreadcrumb(value) {
-  var parts = value.split("/").filter(v => !!v);
-  var len = parts.length;
-  var path = "";
-  for (var i = 0; i < len; i++) {
-    var name = parts[i];
+  const $breadcrumb = document.querySelector(".breadcrumb");
+  const parts = value.split("/").filter(v => !!v);
+  const len = parts.length;
+  let path = "";
+  for (let i = 0; i < len; i++) {
+    const name = parts[i];
     if (i > 0) {
       path  += "/" + name;
     }
@@ -69,9 +79,9 @@ function addBreadcrumb(value) {
 }
 
 function addPath(file, index) {
-  var url = getUrl(file.name)
-  var actionDelete = "";
-  var actionDownload = "";
+  const url = getUrl(file.name)
+  let actionDelete = "";
+  let actionDownload = "";
   if (file.path_type.endsWith("Dir")) {
     actionDownload = `
     <div class="action-btn">
@@ -93,7 +103,7 @@ function addPath(file, index) {
       <svg width="16" height="16" fill="currentColor"viewBox="0 0 16 16"><path d="M6.854 7.146a.5.5 0 1 0-.708.708L7.293 9l-1.147 1.146a.5.5 0 0 0 .708.708L8 9.707l1.146 1.147a.5.5 0 0 0 .708-.708L8.707 9l1.147-1.146a.5.5 0 0 0-.708-.708L8 8.293 6.854 7.146z"/><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/></svg>
     </div>`;
   }
-  var actionCell = `
+  let actionCell = `
   <td class="cell-actions">
     ${actionDownload}
     ${actionDelete}
@@ -112,21 +122,25 @@ ${actionCell}
 }
 
 async function deletePath(index) {
-  var file = DATA.paths[index];
+  const file = DATA.paths[index];
   if (!file) return;
 
-  var ajax = new XMLHttpRequest();
-  ajax.open("DELETE", getUrl(file.name));
-  ajax.addEventListener("readystatechange", function() {
-    if(ajax.readyState === 4 && ajax.status === 200) {
+  try {
+    const res = await fetch(getUrl(file.name), {
+      method: "DELETE",
+    });
+    if (res.status === 200) {
         document.getElementById(`addPath${index}`).remove();
+    } else {
+      throw new Error(await res.text())
     }
-  });
-  ajax.send();
+  } catch (err) {
+    alert(`Fail to delete ${file.name}, ${err.message}`);
+  }
 }
 
 function getUrl(name) {
-    var url = location.href.split('?')[0];
+    let url = location.href.split('?')[0];
     if (!url.endsWith("/")) url += "/";
     url += encodeURI(name);
     return url;
@@ -147,12 +161,12 @@ function getSvg(path_type) {
 
 function formatMtime(mtime) {
   if (!mtime) return ""
-  var date = new Date(mtime);
-  var year = date.getFullYear();
-  var month = padZero(date.getMonth() + 1, 2);
-  var day = padZero(date.getDate(), 2);
-  var hours = padZero(date.getHours(), 2);
-  var minutes = padZero(date.getMinutes(), 2);
+  const date = new Date(mtime);
+  const year = date.getFullYear();
+  const month = padZero(date.getMonth() + 1, 2);
+  const day = padZero(date.getDate(), 2);
+  const hours = padZero(date.getHours(), 2);
+  const minutes = padZero(date.getMinutes(), 2);
   return `${year}/${month}/${day} ${hours}:${minutes}`;
 }
 
@@ -162,17 +176,15 @@ function padZero(value, size) {
 
 function formatSize(size) {
   if (!size) return ""
-  var sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   if (size == 0) return '0 Byte';
-  var i = parseInt(Math.floor(Math.log(size) / Math.log(1024)));
+  const i = parseInt(Math.floor(Math.log(size) / Math.log(1024)));
   return Math.round(size / Math.pow(1024, i), 2) + ' ' + sizes[i];
 }
 
 
 function ready() {
-  $toolbox = document.querySelector(".toolbox");
   $tbody = document.querySelector(".main tbody");
-  $breadcrumb = document.querySelector(".breadcrumb");
   $uploaders = document.querySelector(".uploaders");
 
   addBreadcrumb(DATA.breadcrumb);
@@ -180,10 +192,10 @@ function ready() {
   if (!DATA.readonly) {
     document.querySelector(".upload-control").classList.remove(["hidden"]);
     document.getElementById("file").addEventListener("change", e => {
-      var files = e.target.files;
-      for (var file of files) {
+      const files = e.target.files;
+      for (let file of files) {
         uploaderIdx += 1;
-        var uploader = new Uploader(uploaderIdx, file);
+        const uploader = new Uploader(uploaderIdx, file);
         uploader.upload();
       }
     });
