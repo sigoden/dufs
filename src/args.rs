@@ -35,17 +35,22 @@ fn app() -> clap::Command<'static> {
                 .help("Path to a directory for serving files"),
         )
         .arg(
-            Arg::new("no-change")
-                .short('C')
-                .long("no-change")
+            Arg::new("readonly")
+                .short('r')
+                .long("readonly")
                 .help("Disable change operations such as update or delete"),
         )
         .arg(
             Arg::new("auth")
                 .short('a')
                 .long("auth")
-                .help("Authenticate with user and pass")
+                .help("Use HTTP authentication for all operations")
                 .value_name("user:pass"),
+        )
+        .arg(
+            Arg::new("no-auth-read")
+                .long("no-auth-read")
+                .help("Do not authenticate read operations like static serving"),
         )
         .arg(
             Arg::new("cors")
@@ -65,6 +70,7 @@ pub struct Args {
     pub path: PathBuf,
     pub readonly: bool,
     pub auth: Option<String>,
+    pub no_auth_read: bool,
     pub cors: bool,
 }
 
@@ -78,9 +84,10 @@ impl Args {
         let port = matches.value_of_t::<u16>("port")?;
         let path = matches.value_of_os("path").unwrap_or_default();
         let path = Args::parse_path(path)?;
-        let readonly = matches.is_present("no-change");
+        let readonly = matches.is_present("readonly");
         let cors = matches.is_present("cors");
         let auth = matches.value_of("auth").map(|v| v.to_owned());
+        let no_auth_read = matches.is_present("no-auth-read");
 
         Ok(Args {
             address,
@@ -88,6 +95,7 @@ impl Args {
             path,
             readonly,
             auth,
+            no_auth_read,
             cors,
         })
     }

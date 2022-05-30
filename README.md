@@ -45,7 +45,7 @@ duf folder_name
 
 Only serve static files, disable editing operations such as update or delete
 ```
-duf --no-change
+duf --readonly
 ```
 
 Finally, run this command to see a list of all available option

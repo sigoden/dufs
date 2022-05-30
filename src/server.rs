@@ -319,6 +319,9 @@ impl InnerService {
                 let value = std::str::from_utf8(&value)?;
                 return Ok(value == auth);
             } else {
+                if self.args.no_auth_read && req.method() == Method::GET {
+                    return Ok(true);
+                }
                 return Ok(false);
             }
         }
