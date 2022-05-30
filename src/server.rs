@@ -36,8 +36,9 @@ macro_rules! status_code {
     };
 }
 
-const INDEX_HTML: &str = include_str!("index.html");
-const INDEX_CSS: &str = include_str!("index.css");
+const INDEX_HTML: &str = include_str!("static/index.html");
+const INDEX_CSS: &str = include_str!("static/index.css");
+const INDEX_JS: &str = include_str!("static/index.js");
 const BUF_SIZE: usize = 1024 * 16;
 
 pub async fn serve(args: Args) -> BoxResult<()> {
@@ -277,16 +278,30 @@ impl InnerService {
 
     fn send_index(&self, path: &Path, mut paths: Vec<PathItem>) -> BoxResult<Response> {
         paths.sort_unstable();
-        let breadcrumb = self.get_breadcrumb(path);
+        let rel_path = match self.args.path.parent() {
+            Some(p) => path.strip_prefix(p).unwrap(),
+            None => path,
+        };
         let data = IndexData {
-            breadcrumb,
+            breadcrumb: normalize_path(rel_path),
             paths,
             readonly: self.args.readonly,
         };
         let data = serde_json::to_string(&data).unwrap();
-        let mut output =
-            INDEX_HTML.replace("__STYLE__", &format!("<style>\n{}</style>", INDEX_CSS));
-        output = output.replace("__DATA__", &data);
+        let output = INDEX_HTML.replace(
+            "__SLOB__",
+            &format!(
+                r#"
+<title>Files in {} - Duf/</title>
+<style>{}</style>
+<script>var DATA = {}; {}</script>
+"#,
+                rel_path.display(),
+                INDEX_CSS,
+                data,
+                INDEX_JS
+            ),
+        );
 
         Ok(Response::new(output.into()))
     }
@@ -308,14 +323,6 @@ impl InnerService {
             }
         }
         Ok(true)
-    }
-
-    fn get_breadcrumb(&self, path: &Path) -> String {
-        let path = match self.args.path.parent() {
-            Some(p) => path.strip_prefix(p).unwrap(),
-            None => path,
-        };
-        normalize_path(path)
     }
 
     fn get_file_path(&self, path: &str) -> BoxResult<Option<PathBuf>> {
