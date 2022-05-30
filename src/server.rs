@@ -5,7 +5,10 @@ use async_zip::write::{EntryOptions, ZipFileWriter};
 use async_zip::Compression;
 use futures::stream::StreamExt;
 use futures::TryStreamExt;
-use headers::{AccessControlAllowHeaders, AccessControlAllowOrigin, HeaderMapExt};
+use headers::{
+    AccessControlAllowHeaders, AccessControlAllowOrigin, ContentType, ETag, HeaderMapExt,
+    IfModifiedSince, IfNoneMatch, LastModified,
+};
 use hyper::header::{HeaderValue, ACCEPT, CONTENT_TYPE, ORIGIN, RANGE, WWW_AUTHENTICATE};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Method, StatusCode};
@@ -121,7 +124,7 @@ impl InnerService {
                     }
                     self.handle_ls_dir(path.as_path(), true).await
                 } else {
-                    self.handle_send_file(path.as_path()).await
+                    self.handle_send_file(&req, path.as_path()).await
                 }
             }
             Err(_) => {
@@ -234,11 +237,42 @@ impl InnerService {
         Ok(Response::new(body))
     }
 
-    async fn handle_send_file(&self, path: &Path) -> BoxResult<Response> {
-        let file = fs::File::open(path).await?;
+    async fn handle_send_file(&self, req: &Request, path: &Path) -> BoxResult<Response> {
+        let (file, meta) = tokio::join!(fs::File::open(path), fs::metadata(path),);
+        let (file, meta) = (file?, meta?);
+        let mut res = Response::default();
+        if let Ok(mtime) = meta.modified() {
+            let mtime_value = get_timestamp(&mtime);
+            let size = meta.len();
+            let etag = format!(r#""{}-{}""#, mtime_value, size)
+                .parse::<ETag>()
+                .unwrap();
+            let last_modified = LastModified::from(mtime);
+            let fresh = {
+                // `If-None-Match` takes presedence over `If-Modified-Since`.
+                if let Some(if_none_match) = req.headers().typed_get::<IfNoneMatch>() {
+                    !if_none_match.precondition_passes(&etag)
+                } else if let Some(if_modified_since) = req.headers().typed_get::<IfModifiedSince>()
+                {
+                    !if_modified_since.is_modified(mtime)
+                } else {
+                    false
+                }
+            };
+            res.headers_mut().typed_insert(last_modified);
+            res.headers_mut().typed_insert(etag);
+            if fresh {
+                *res.status_mut() = StatusCode::NOT_MODIFIED;
+                return Ok(res);
+            }
+        }
+        if let Some(mime) = mime_guess::from_path(&path).first() {
+            res.headers_mut().typed_insert(ContentType::from(mime));
+        }
         let stream = FramedRead::new(file, BytesCodec::new());
         let body = Body::wrap_stream(stream);
-        Ok(Response::new(body))
+        *res.body_mut() = body;
+        Ok(res)
     }
 
     fn send_index(&self, path: &Path, mut paths: Vec<PathItem>) -> BoxResult<Response> {
@@ -254,7 +288,7 @@ impl InnerService {
             INDEX_HTML.replace("__STYLE__", &format!("<style>\n{}</style>", INDEX_CSS));
         output = output.replace("__DATA__", &data);
 
-        Ok(hyper::Response::builder().body(output.into()).unwrap())
+        Ok(Response::new(output.into()))
     }
 
     fn auth_guard(&self, req: &Request) -> BoxResult<bool> {
@@ -311,7 +345,7 @@ struct IndexData {
 struct PathItem {
     path_type: PathType,
     name: String,
-    mtime: Option<u64>,
+    mtime: u64,
     size: Option<u64>,
 }
 
@@ -336,11 +370,7 @@ async fn get_path_item<P: AsRef<Path>>(path: P, base_path: P) -> BoxResult<PathI
         (true, false) => PathType::SymlinkFile,
         (false, false) => PathType::File,
     };
-    let mtime = meta
-        .modified()?
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .ok()
-        .map(|v| v.as_millis() as u64);
+    let mtime = get_timestamp(&meta.modified()?);
     let size = match path_type {
         PathType::Dir | PathType::SymlinkDir => None,
         PathType::File | PathType::SymlinkFile => Some(meta.len()),
@@ -352,6 +382,12 @@ async fn get_path_item<P: AsRef<Path>>(path: P, base_path: P) -> BoxResult<PathI
         mtime,
         size,
     })
+}
+
+fn get_timestamp(time: &SystemTime) -> u64 {
+    time.duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64
 }
 
 fn normalize_path<P: AsRef<Path>>(path: P) -> String {
