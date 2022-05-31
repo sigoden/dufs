@@ -11,7 +11,8 @@ use headers::{
     HeaderMap, HeaderMapExt, IfModifiedSince, IfNoneMatch, IfRange, LastModified, Range,
 };
 use hyper::header::{
-    HeaderValue, ACCEPT, CONTENT_DISPOSITION, CONTENT_TYPE, ORIGIN, RANGE, WWW_AUTHENTICATE,
+    HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_DISPOSITION, CONTENT_TYPE, ORIGIN, RANGE,
+    WWW_AUTHENTICATE,
 };
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Method, StatusCode};
@@ -193,8 +194,8 @@ impl InnerService {
 
         io::copy(&mut body_reader, &mut file).await?;
 
-        let req_query = req.uri().query().unwrap_or_default();
-        if req_query == "unzip" {
+        let query = req.uri().query().unwrap_or_default();
+        if query == "unzip" {
             let root = path.parent().unwrap();
             let mut zip = ZipFileReader::new(File::open(&path).await?).await?;
             for i in 0..zip.entries().len() {
@@ -204,6 +205,9 @@ impl InnerService {
                 if entry_name.ends_with('/') {
                     fs::create_dir_all(entry_path).await?;
                 } else {
+                    if !self.args.allow_delete && fs::metadata(&entry_path).await.is_ok() {
+                        continue;
+                    }
                     if let Some(parent) = entry_path.parent() {
                         if fs::symlink_metadata(parent).await.is_err() {
                             fs::create_dir_all(&parent).await?;
@@ -395,7 +399,7 @@ impl InnerService {
         let pass = {
             match &self.args.auth {
                 None => true,
-                Some(auth) => match req.headers().get("Authorization") {
+                Some(auth) => match req.headers().get(AUTHORIZATION) {
                     Some(value) => match value.to_str().ok().map(|v| {
                         let mut it = v.split(' ');
                         (it.next(), it.next())

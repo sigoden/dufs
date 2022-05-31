@@ -27,7 +27,6 @@ class Uploader {
     const ajax = new XMLHttpRequest();
     ajax.upload.addEventListener("progress", e => this.progress(e), false);
     ajax.addEventListener("readystatechange", () => {
-      console.log(ajax.readyState, ajax.status)
       if(ajax.readyState === 4) {
         if (ajax.status == 200) {
           this.complete();
