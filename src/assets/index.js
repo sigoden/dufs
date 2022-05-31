@@ -1,26 +1,28 @@
 let $tbody, $uploaders;
-let uploaderIdx = 0;
 let baseDir;
 
 class Uploader {
-  idx = 0;
+  idx;
   file;
+  name;
   $elem;
-  constructor(idx, file) {
-    this.idx = idx;
+  static globalIdx = 0;
+  constructor(file, dirs) {
+    this.name = [...dirs, file.name].join("/");
+    this.idx = Uploader.globalIdx++;
     this.file = file;
   }
 
   upload() {
-    const { file, idx } = this;
-    let url = getUrl(file.name);
+    const { file, idx, name } = this;
+    let url = getUrl(name);
     if (file.name == baseDir + ".zip") {
       url += "?unzip";
     }
     $uploaders.insertAdjacentHTML("beforeend", `
   <div class="uploader path">
     <div><svg height="16" viewBox="0 0 12 16" width="12"><path fill-rule="evenodd" d="M6 5H2V4h4v1zM2 8h7V7H2v1zm0 2h7V9H2v1zm0 2h7v-1H2v1zm10-7.5V14c0 .55-.45 1-1 1H1c-.55 0-1-.45-1-1V2c0-.55.45-1 1-1h7.5L12 4.5zM11 5L8 2H1v12h10V5z"></path></svg></div>
-    <a href="${url}" id="file${idx}">${file.name} (0%)</a>
+    <a href="${url}" id="file${idx}">${name} (0%)</a>
   </div>`);
     this.$elem = document.getElementById(`file${idx}`);
 
@@ -43,15 +45,15 @@ class Uploader {
 
   progress(event) {
     const percent = (event.loaded / event.total) * 100;
-    this.$elem.innerHTML = `${this.file.name} (${percent.toFixed(2)}%)`;
+    this.$elem.innerHTML = `${this.name} (${percent.toFixed(2)}%)`;
   }
 
   complete() {
-    this.$elem.innerHTML = `${this.file.name}`;
+    this.$elem.innerHTML = `${this.name}`;
   }
 
   fail() {
-    this.$elem.innerHTML = `<strike>${this.file.name}</strike>`;
+    this.$elem.innerHTML = `<strike>${this.name}</strike>`;
   }
 }
 
@@ -140,6 +142,44 @@ async function deletePath(index) {
   }
 }
 
+function dropzone() {
+    ["drag", "dragstart", "dragend", "dragover", "dragenter", "dragleave", "drop"].forEach(name => {
+      document.addEventListener(name, e => {
+          e.preventDefault();
+          e.stopPropagation();
+      });
+    });
+    document.addEventListener("drop", e => {
+      if (!e.dataTransfer.items[0].webkitGetAsEntry) {
+        const files = e.dataTransfer.files.filter(v => v.size > 0);
+        for (const file of files) {
+          new Uploader(file, []).upload();
+        }
+      } else {
+        const entries = [];
+        const len = e.dataTransfer.items.length;
+        for (let i = 0; i < len; i++) {
+          entries.push(e.dataTransfer.items[i].webkitGetAsEntry());
+        }
+        addFileEntries(entries, [])
+      }
+    });
+}
+
+async function addFileEntries(entries, dirs) {
+  for (const entry of entries) {
+    if (entry.isFile) {
+      entry.file(file => {
+        new Uploader(file, dirs).upload();
+      });
+    } else if (entry.isDirectory) {
+      const dirReader = entry.createReader()
+      dirReader.readEntries(entries => addFileEntries(entries, [...dirs, entry.name]));
+    }
+  }
+}
+
+
 function getUrl(name) {
     let url = location.href.split('?')[0];
     if (!url.endsWith("/")) url += "/";
@@ -183,21 +223,24 @@ function formatSize(size) {
   return Math.round(size / Math.pow(1024, i), 2) + ' ' + sizes[i];
 }
 
-
 function ready() {
   $tbody = document.querySelector(".main tbody");
   $uploaders = document.querySelector(".uploaders");
 
   addBreadcrumb(DATA.breadcrumb);
-  DATA.paths.forEach((file, index) => addPath(file, index));
+  if (Array.isArray(DATA.paths)) {
+    const len = DATA.paths.length;
+    for (let i = 0; i < len; i++) {
+      addPath(DATA.paths[i], i);
+    }
+  }
   if (DATA.allow_upload) {
+    dropzone();
     document.querySelector(".upload-control").classList.remove(["hidden"]);
     document.getElementById("file").addEventListener("change", e => {
       const files = e.target.files;
       for (let file of files) {
-        uploaderIdx += 1;
-        const uploader = new Uploader(uploaderIdx, file);
-        uploader.upload();
+        new Uploader(file, []).upload();
       }
     });
   }

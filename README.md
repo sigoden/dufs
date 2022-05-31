@@ -12,10 +12,10 @@ Duf is a simple file server.
 - Serve static files
 - Download folder as zip file
 - Search files
-- Upload files
+- Upload files and folders
 - Delete files
 - Basic authentication
-- Unzip zip file when upload
+- Upload zip file then unzip
 - Easy to use with curl
 
 ## Install
