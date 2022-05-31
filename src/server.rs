@@ -134,6 +134,7 @@ impl InnerService {
                 self.handle_query_dir(filepath, &query[3..], &mut res)
                     .await?
             }
+            Method::GET if is_dir => self.handle_ls_dir(filepath, true, &mut res).await?,
             Method::GET if is_file => {
                 self.handle_send_file(filepath, req.headers(), &mut res)
                     .await?
@@ -141,7 +142,6 @@ impl InnerService {
             Method::GET if is_miss && path.ends_with('/') => {
                 self.handle_ls_dir(filepath, false, &mut res).await?
             }
-            Method::GET => self.handle_ls_dir(filepath, true, &mut res).await?,
             Method::OPTIONS => {
                 status!(res, StatusCode::NO_CONTENT);
             }
