@@ -10,7 +10,9 @@ use headers::{
     AccessControlAllowHeaders, AccessControlAllowOrigin, ContentRange, ContentType, ETag,
     HeaderMap, HeaderMapExt, IfModifiedSince, IfNoneMatch, IfRange, LastModified, Range,
 };
-use hyper::header::{HeaderValue, ACCEPT, CONTENT_TYPE, ORIGIN, RANGE, WWW_AUTHENTICATE};
+use hyper::header::{
+    HeaderValue, ACCEPT, CONTENT_DISPOSITION, CONTENT_TYPE, ORIGIN, RANGE, WWW_AUTHENTICATE,
+};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Method, StatusCode};
 use percent_encoding::percent_decode;
@@ -271,6 +273,7 @@ impl InnerService {
 
     async fn handle_zip_dir(&self, path: &Path, res: &mut Response) -> BoxResult<()> {
         let (mut writer, reader) = tokio::io::duplex(BUF_SIZE);
+        let filename = path.file_name().unwrap().to_str().unwrap();
         let path = path.to_owned();
         tokio::spawn(async move {
             if let Err(e) = dir_zip(&mut writer, &path).await {
@@ -279,6 +282,10 @@ impl InnerService {
         });
         let stream = ReaderStream::new(reader);
         *res.body_mut() = Body::wrap_stream(stream);
+        res.headers_mut().insert(
+            CONTENT_DISPOSITION,
+            HeaderValue::from_str(&format!("attachment; filename=\"{}.zip\"", filename,)).unwrap(),
+        );
         Ok(())
     }
 
