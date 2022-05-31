@@ -107,18 +107,19 @@ impl InnerService {
 
         let path = req.uri().path();
 
-        let filepath = match self.extract_path(path) {
+        let pathname = match self.extract_path(path) {
             Some(v) => v,
             None => {
                 status!(res, StatusCode::FORBIDDEN);
                 return Ok(res);
             }
         };
-        let filepath = filepath.as_path();
+        let pathname = pathname.as_path();
 
         let query = req.uri().query().unwrap_or_default();
 
-        let meta = fs::metadata(filepath).await.ok();
+        let meta = fs::metadata(pathname).await.ok();
+
         let is_miss = meta.is_none();
         let is_dir = meta.map(|v| v.is_dir()).unwrap_or_default();
         let is_file = !is_miss && !is_dir;
@@ -126,21 +127,26 @@ impl InnerService {
         let allow_upload = self.args.allow_upload;
         let allow_delete = self.args.allow_delete;
 
+        if !self.args.allow_symlink && !is_miss && !self.is_root_contained(pathname).await {
+            status!(res, StatusCode::NOT_FOUND);
+            return Ok(res);
+        }
+
         match *req.method() {
             Method::GET if is_dir && query == "zip" => {
-                self.handle_zip_dir(filepath, &mut res).await?
+                self.handle_zip_dir(pathname, &mut res).await?
             }
             Method::GET if is_dir && query.starts_with("q=") => {
-                self.handle_query_dir(filepath, &query[3..], &mut res)
+                self.handle_query_dir(pathname, &query[3..], &mut res)
                     .await?
             }
-            Method::GET if is_dir => self.handle_ls_dir(filepath, true, &mut res).await?,
+            Method::GET if is_dir => self.handle_ls_dir(pathname, true, &mut res).await?,
             Method::GET if is_file => {
-                self.handle_send_file(filepath, req.headers(), &mut res)
+                self.handle_send_file(pathname, req.headers(), &mut res)
                     .await?
             }
             Method::GET if allow_upload && is_miss && path.ends_with('/') => {
-                self.handle_ls_dir(filepath, false, &mut res).await?
+                self.handle_ls_dir(pathname, false, &mut res).await?
             }
             Method::OPTIONS => {
                 status!(res, StatusCode::NO_CONTENT);
@@ -148,11 +154,11 @@ impl InnerService {
             Method::PUT if !allow_upload || (!allow_delete && is_file) => {
                 status!(res, StatusCode::FORBIDDEN);
             }
-            Method::PUT => self.handle_upload(filepath, req, &mut res).await?,
+            Method::PUT => self.handle_upload(pathname, req, &mut res).await?,
             Method::DELETE if !allow_delete => {
                 status!(res, StatusCode::FORBIDDEN);
             }
-            Method::DELETE if !is_miss => self.handle_delete(filepath, is_dir).await?,
+            Method::DELETE if !is_miss => self.handle_delete(pathname, is_dir).await?,
             _ => {
                 status!(res, StatusCode::NOT_FOUND);
             }
@@ -238,7 +244,7 @@ impl InnerService {
             let mut rd = fs::read_dir(path).await?;
             while let Some(entry) = rd.next_entry().await? {
                 let entry_path = entry.path();
-                if let Ok(item) = to_pathitem(entry_path, path.to_path_buf()).await {
+                if let Ok(Some(item)) = self.to_pathitem(entry_path, path.to_path_buf()).await {
                     paths.push(item);
                 }
             }
@@ -267,7 +273,7 @@ impl InnerService {
                 if fs::symlink_metadata(entry.path()).await.is_err() {
                     continue;
                 }
-                if let Ok(item) = to_pathitem(entry.path(), path.to_path_buf()).await {
+                if let Ok(Some(item)) = self.to_pathitem(entry.path(), path.to_path_buf()).await {
                     paths.push(item);
                 }
             }
@@ -280,7 +286,7 @@ impl InnerService {
         let filename = path.file_name().unwrap().to_str().unwrap();
         let path = path.to_owned();
         tokio::spawn(async move {
-            if let Err(e) = dir_zip(&mut writer, &path).await {
+            if let Err(e) = zip_dir(&mut writer, &path).await {
                 error!("Fail to zip {}, {}", path.display(), e.to_string());
             }
         });
@@ -423,6 +429,14 @@ impl InnerService {
         pass
     }
 
+    async fn is_root_contained(&self, path: &Path) -> bool {
+        fs::canonicalize(path)
+            .await
+            .ok()
+            .map(|v| v.starts_with(&self.args.path))
+            .unwrap_or_default()
+    }
+
     fn extract_path(&self, path: &str) -> Option<PathBuf> {
         let decoded_path = percent_decode(path[1..].as_bytes()).decode_utf8().ok()?;
         let slashes_switched = if cfg!(windows) {
@@ -430,12 +444,42 @@ impl InnerService {
         } else {
             decoded_path.into_owned()
         };
-        let full_path = self.args.path.join(&slashes_switched);
-        if full_path.starts_with(&self.args.path) {
-            Some(full_path)
-        } else {
-            None
+        let fullpath = self.args.path.join(&slashes_switched);
+        Some(fullpath)
+    }
+
+    async fn to_pathitem<P: AsRef<Path>>(
+        &self,
+        path: P,
+        base_path: P,
+    ) -> BoxResult<Option<PathItem>> {
+        let path = path.as_ref();
+        let rel_path = path.strip_prefix(base_path).unwrap();
+        let (meta, meta2) = tokio::join!(fs::metadata(&path), fs::symlink_metadata(&path));
+        let (meta, meta2) = (meta?, meta2?);
+        let is_symlink = meta2.is_symlink();
+        if !self.args.allow_symlink && is_symlink && !self.is_root_contained(path).await {
+            return Ok(None);
         }
+        let is_dir = meta.is_dir();
+        let path_type = match (is_symlink, is_dir) {
+            (true, true) => PathType::SymlinkDir,
+            (false, true) => PathType::Dir,
+            (true, false) => PathType::SymlinkFile,
+            (false, false) => PathType::File,
+        };
+        let mtime = to_timestamp(&meta.modified()?);
+        let size = match path_type {
+            PathType::Dir | PathType::SymlinkDir => None,
+            PathType::File | PathType::SymlinkFile => Some(meta.len()),
+        };
+        let name = normalize_path(rel_path);
+        Ok(Some(PathItem {
+            path_type,
+            name,
+            mtime,
+            size,
+        }))
     }
 }
 
@@ -463,33 +507,6 @@ enum PathType {
     SymlinkFile,
 }
 
-async fn to_pathitem<P: AsRef<Path>>(path: P, base_path: P) -> BoxResult<PathItem> {
-    let path = path.as_ref();
-    let rel_path = path.strip_prefix(base_path).unwrap();
-    let (meta, meta2) = tokio::join!(fs::metadata(&path), fs::symlink_metadata(&path));
-    let (meta, meta2) = (meta?, meta2?);
-    let is_dir = meta.is_dir();
-    let is_symlink = meta2.file_type().is_symlink();
-    let path_type = match (is_symlink, is_dir) {
-        (true, true) => PathType::SymlinkDir,
-        (false, true) => PathType::Dir,
-        (true, false) => PathType::SymlinkFile,
-        (false, false) => PathType::File,
-    };
-    let mtime = to_timestamp(&meta.modified()?);
-    let size = match path_type {
-        PathType::Dir | PathType::SymlinkDir => None,
-        PathType::File | PathType::SymlinkFile => Some(meta.len()),
-    };
-    let name = normalize_path(rel_path);
-    Ok(PathItem {
-        path_type,
-        name,
-        mtime,
-        size,
-    })
-}
-
 fn to_timestamp(time: &SystemTime) -> u64 {
     time.duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
@@ -515,27 +532,28 @@ fn add_cors(res: &mut Response) {
     );
 }
 
-async fn dir_zip<W: AsyncWrite + Unpin>(writer: &mut W, dir: &Path) -> BoxResult<()> {
+async fn zip_dir<W: AsyncWrite + Unpin>(writer: &mut W, dir: &Path) -> BoxResult<()> {
     let mut writer = ZipFileWriter::new(writer);
     let mut walkdir = WalkDir::new(dir);
     while let Some(entry) = walkdir.next().await {
         if let Ok(entry) = entry {
+            let entry_path = entry.path();
             let meta = match fs::symlink_metadata(entry.path()).await {
                 Ok(meta) => meta,
                 Err(_) => continue,
             };
-            if meta.is_file() {
-                let filepath = entry.path();
-                let filename = match filepath.strip_prefix(dir).ok().and_then(|v| v.to_str()) {
-                    Some(v) => v,
-                    None => continue,
-                };
-                let entry_options = EntryOptions::new(filename.to_owned(), Compression::Deflate);
-                let mut file = File::open(&filepath).await?;
-                let mut file_writer = writer.write_entry_stream(entry_options).await?;
-                io::copy(&mut file, &mut file_writer).await?;
-                file_writer.close().await?;
+            if !meta.is_file() {
+                continue;
             }
+            let filename = match entry_path.strip_prefix(dir).ok().and_then(|v| v.to_str()) {
+                Some(v) => v,
+                None => continue,
+            };
+            let entry_options = EntryOptions::new(filename.to_owned(), Compression::Deflate);
+            let mut file = File::open(&entry_path).await?;
+            let mut file_writer = writer.write_entry_stream(entry_options).await?;
+            io::copy(&mut file, &mut file_writer).await?;
+            file_writer.close().await?;
         }
     }
     writer.close().await?;

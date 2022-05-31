@@ -32,7 +32,7 @@ fn app() -> clap::Command<'static> {
             Arg::new("path")
                 .default_value(".")
                 .allow_invalid_utf8(true)
-                .help("Path to a directory for serving files"),
+                .help("Path to a root directory for serving files"),
         )
         .arg(
             Arg::new("allow-all")
@@ -49,6 +49,11 @@ fn app() -> clap::Command<'static> {
             Arg::new("allow-delete")
                 .long("allo-delete")
                 .help("Allow delete operation"),
+        )
+        .arg(
+            Arg::new("allow-symlink")
+                .long("allo-symlink")
+                .help("Allow symlink to directories/files outside root directory"),
         )
         .arg(
             Arg::new("auth")
@@ -82,6 +87,7 @@ pub struct Args {
     pub no_auth_read: bool,
     pub allow_upload: bool,
     pub allow_delete: bool,
+    pub allow_symlink: bool,
     pub cors: bool,
 }
 
@@ -99,6 +105,7 @@ impl Args {
         let no_auth_read = matches.is_present("no-auth-read");
         let allow_upload = matches.is_present("allow-all") || matches.is_present("allow-upload");
         let allow_delete = matches.is_present("allow-all") || matches.is_present("allow-delete");
+        let allow_symlink = matches.is_present("allow-all") || matches.is_present("allow-symlink");
 
         Ok(Args {
             address,
@@ -109,6 +116,7 @@ impl Args {
             cors,
             allow_delete,
             allow_upload,
+            allow_symlink,
         })
     }
 
