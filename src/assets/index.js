@@ -125,6 +125,8 @@ async function deletePath(index) {
   const file = DATA.paths[index];
   if (!file) return;
 
+  if (!confirm(`Delete \`${file.name}\`?`)) return;
+
   try {
     const res = await fetch(getUrl(file.name), {
       method: "DELETE",
