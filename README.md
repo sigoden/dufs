@@ -44,16 +44,16 @@ duf
 duf folder_name
 ```
 
-Allow upload operations
-
-```
-duf --allow-upload
-```
-
-Allow all operations
+Allow all operations such as upload, delete
 
 ```
 duf --allow-all
+```
+
+Only allow upload operations
+
+```
+duf --allow-upload
 ```
 
 Use http authentication
