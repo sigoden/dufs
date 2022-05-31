@@ -444,8 +444,7 @@ impl InnerService {
         } else {
             decoded_path.into_owned()
         };
-        let fullpath = self.args.path.join(&slashes_switched);
-        Some(fullpath)
+        Some(self.args.path.join(&slashes_switched))
     }
 
     async fn to_pathitem<P: AsRef<Path>>(

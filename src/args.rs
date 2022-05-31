@@ -1,7 +1,6 @@
 use clap::crate_description;
 use clap::{Arg, ArgMatches};
 use std::env;
-use std::fs::canonicalize;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
@@ -47,12 +46,12 @@ fn app() -> clap::Command<'static> {
         )
         .arg(
             Arg::new("allow-delete")
-                .long("allo-delete")
+                .long("allow-delete")
                 .help("Allow delete operation"),
         )
         .arg(
             Arg::new("allow-symlink")
-                .long("allo-symlink")
+                .long("allow-symlink")
                 .help("Allow symlink to directories/files outside root directory"),
         )
         .arg(
@@ -130,7 +129,7 @@ impl Args {
         env::current_dir()
             .and_then(|mut p| {
                 p.push(path); // If path is absolute, it replaces the current path.
-                canonicalize(p)
+                std::fs::canonicalize(p)
             })
             .or_else(|err| {
                 bail!(
