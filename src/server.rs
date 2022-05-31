@@ -139,7 +139,7 @@ impl InnerService {
                 self.handle_send_file(filepath, req.headers(), &mut res)
                     .await?
             }
-            Method::GET if is_miss && path.ends_with('/') => {
+            Method::GET if allow_upload && is_miss && path.ends_with('/') => {
                 self.handle_ls_dir(filepath, false, &mut res).await?
             }
             Method::OPTIONS => {
