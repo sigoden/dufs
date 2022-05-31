@@ -33,6 +33,13 @@ const INDEX_CSS: &str = include_str!("assets/index.css");
 const INDEX_JS: &str = include_str!("assets/index.js");
 const BUF_SIZE: usize = 1024 * 16;
 
+macro_rules! status {
+    ($res:ident, $status:expr) => {
+        *$res.status_mut() = $status;
+        *$res.body_mut() = Body::from($status.canonical_reason().unwrap_or_default());
+    };
+}
+
 pub async fn serve(args: Args) -> BoxResult<()> {
     let address = args.address()?;
     let inner = Arc::new(InnerService::new(args));
@@ -68,14 +75,18 @@ impl InnerService {
         let uri = req.uri().clone();
         let cors = self.args.cors;
 
-        let mut res = self.handle(req).await.unwrap_or_else(|e| {
-            let mut res = Response::default();
-            *res.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
-            *res.body_mut() = Body::from(e.to_string());
-            res
-        });
-
-        info!(r#""{} {}" - {}"#, method, uri, res.status());
+        let mut res = match self.handle(req).await {
+            Ok(res) => {
+                info!(r#""{} {}" - {}"#, method, uri, res.status());
+                res
+            }
+            Err(err) => {
+                let mut res = Response::default();
+                status!(res, StatusCode::INTERNAL_SERVER_ERROR);
+                error!(r#""{} {}" - {} {}"#, method, uri, res.status(), err);
+                res
+            }
+        };
 
         if cors {
             add_cors(&mut res);
@@ -95,7 +106,7 @@ impl InnerService {
         let filepath = match self.extract_path(path) {
             Some(v) => v,
             None => {
-                *res.status_mut() = StatusCode::FORBIDDEN;
+                status!(res, StatusCode::FORBIDDEN);
                 return Ok(res);
             }
         };
@@ -106,8 +117,10 @@ impl InnerService {
         let meta = fs::metadata(filepath).await.ok();
         let is_miss = meta.is_none();
         let is_dir = meta.map(|v| v.is_dir()).unwrap_or_default();
+        let is_file = !is_miss && !is_dir;
 
-        let readonly = self.args.readonly;
+        let allow_upload = self.args.allow_upload;
+        let allow_delete = self.args.allow_delete;
 
         match *req.method() {
             Method::GET if is_dir && query == "zip" => {
@@ -117,7 +130,7 @@ impl InnerService {
                 self.handle_query_dir(filepath, &query[3..], &mut res)
                     .await?
             }
-            Method::GET if !is_dir && !is_miss => {
+            Method::GET if is_file => {
                 self.handle_send_file(filepath, req.headers(), &mut res)
                     .await?
             }
@@ -125,12 +138,20 @@ impl InnerService {
                 self.handle_ls_dir(filepath, false, &mut res).await?
             }
             Method::GET => self.handle_ls_dir(filepath, true, &mut res).await?,
-            Method::OPTIONS => *res.status_mut() = StatusCode::NO_CONTENT,
-            Method::PUT if readonly => *res.status_mut() = StatusCode::FORBIDDEN,
+            Method::OPTIONS => {
+                status!(res, StatusCode::NO_CONTENT);
+            }
+            Method::PUT if !allow_upload || (!allow_delete && is_file) => {
+                status!(res, StatusCode::FORBIDDEN);
+            }
             Method::PUT => self.handle_upload(filepath, req, &mut res).await?,
-            Method::DELETE if !is_miss && readonly => *res.status_mut() = StatusCode::FORBIDDEN,
+            Method::DELETE if !allow_delete => {
+                status!(res, StatusCode::FORBIDDEN);
+            }
             Method::DELETE if !is_miss => self.handle_delete(filepath, is_dir).await?,
-            _ => *res.status_mut() = StatusCode::NOT_FOUND,
+            _ => {
+                status!(res, StatusCode::NOT_FOUND);
+            }
         }
 
         Ok(res)
@@ -153,7 +174,7 @@ impl InnerService {
             None => false,
         };
         if !ensure_parent {
-            *res.status_mut() = StatusCode::FORBIDDEN;
+            status!(res, StatusCode::FORBIDDEN);
             return Ok(());
         }
 
@@ -288,7 +309,7 @@ impl InnerService {
             res.headers_mut().typed_insert(last_modified);
             res.headers_mut().typed_insert(etag);
             if fresh {
-                *res.status_mut() = StatusCode::NOT_MODIFIED;
+                status!(res, StatusCode::NOT_MODIFIED);
                 return Ok(());
             }
         }
@@ -316,7 +337,8 @@ impl InnerService {
         let data = IndexData {
             breadcrumb: normalize_path(rel_path),
             paths,
-            readonly: self.args.readonly,
+            allow_upload: self.args.allow_upload,
+            allow_delete: self.args.allow_delete,
         };
         let data = serde_json::to_string(&data).unwrap();
         let output = INDEX_HTML.replace(
@@ -347,7 +369,7 @@ impl InnerService {
                         let mut it = v.split(' ');
                         (it.next(), it.next())
                     }) {
-                        Some((Some("Basic "), Some(tail))) => base64::decode(tail)
+                        Some((Some("Basic"), Some(tail))) => base64::decode(tail)
                             .ok()
                             .and_then(|v| String::from_utf8(v).ok())
                             .map(|v| v.as_str() == auth)
@@ -359,7 +381,7 @@ impl InnerService {
             }
         };
         if !pass {
-            *res.status_mut() = StatusCode::UNAUTHORIZED;
+            status!(res, StatusCode::UNAUTHORIZED);
             res.headers_mut()
                 .insert(WWW_AUTHENTICATE, HeaderValue::from_static("Basic"));
         }
@@ -386,7 +408,8 @@ impl InnerService {
 struct IndexData {
     breadcrumb: String,
     paths: Vec<PathItem>,
-    readonly: bool,
+    allow_upload: bool,
+    allow_delete: bool,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq, Ord, PartialOrd)]

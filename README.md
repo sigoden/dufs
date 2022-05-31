@@ -44,14 +44,25 @@ duf
 duf folder_name
 ```
 
-Only serve static files, disable editing operations such as update or delete
+Allow upload operations
+
 ```
-duf --readonly
+duf --allow-upload
 ```
 
-Finally, run this command to see a list of all available option
+Allow all operations
 
-### Curl
+```
+duf --allow-all
+```
+
+Use http authentication
+
+```
+duf --auth user:pass
+```
+
+### Api
 
 Download a file
 ```

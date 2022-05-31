@@ -35,10 +35,20 @@ fn app() -> clap::Command<'static> {
                 .help("Path to a directory for serving files"),
         )
         .arg(
-            Arg::new("readonly")
-                .short('r')
-                .long("readonly")
-                .help("Disable change operations such as update or delete"),
+            Arg::new("allow-all")
+                .short('A')
+                .long("allow-all")
+                .help("Allow all operations"),
+        )
+        .arg(
+            Arg::new("allow-upload")
+                .long("allow-upload")
+                .help("Allow upload operation"),
+        )
+        .arg(
+            Arg::new("allow-delete")
+                .long("allo-delete")
+                .help("Allow delete operation"),
         )
         .arg(
             Arg::new("auth")
@@ -68,9 +78,10 @@ pub struct Args {
     pub address: String,
     pub port: u16,
     pub path: PathBuf,
-    pub readonly: bool,
     pub auth: Option<String>,
     pub no_auth_read: bool,
+    pub allow_upload: bool,
+    pub allow_delete: bool,
     pub cors: bool,
 }
 
@@ -82,21 +93,22 @@ impl Args {
     pub fn parse(matches: ArgMatches) -> BoxResult<Args> {
         let address = matches.value_of("address").unwrap_or_default().to_owned();
         let port = matches.value_of_t::<u16>("port")?;
-        let path = matches.value_of_os("path").unwrap_or_default();
-        let path = Args::parse_path(path)?;
-        let readonly = matches.is_present("readonly");
+        let path = Args::parse_path(matches.value_of_os("path").unwrap_or_default())?;
         let cors = matches.is_present("cors");
         let auth = matches.value_of("auth").map(|v| v.to_owned());
         let no_auth_read = matches.is_present("no-auth-read");
+        let allow_upload = matches.is_present("allow-all") || matches.is_present("allow-upload");
+        let allow_delete = matches.is_present("allow-all") || matches.is_present("allow-delete");
 
         Ok(Args {
             address,
             port,
             path,
-            readonly,
             auth,
             no_auth_read,
             cors,
+            allow_delete,
+            allow_upload,
         })
     }
 
