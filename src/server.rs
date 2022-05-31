@@ -7,8 +7,8 @@ use async_zip::Compression;
 use futures::stream::StreamExt;
 use futures::TryStreamExt;
 use headers::{
-    AccessControlAllowHeaders, AccessControlAllowOrigin, ContentType, ETag, HeaderMap,
-    HeaderMapExt, IfModifiedSince, IfNoneMatch, LastModified,
+    AccessControlAllowHeaders, AccessControlAllowOrigin, ContentRange, ContentType, ETag,
+    HeaderMap, HeaderMapExt, IfModifiedSince, IfNoneMatch, IfRange, LastModified, Range,
 };
 use hyper::header::{HeaderValue, ACCEPT, CONTENT_TYPE, ORIGIN, RANGE, WWW_AUTHENTICATE};
 use hyper::service::{make_service_fn, service_fn};
@@ -16,11 +16,12 @@ use hyper::{Body, Method, StatusCode};
 use percent_encoding::percent_decode;
 use serde::Serialize;
 use std::convert::Infallible;
+use std::fs::Metadata;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::SystemTime;
 use tokio::fs::File;
-use tokio::io::AsyncWrite;
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWrite};
 use tokio::{fs, io};
 use tokio_util::codec::{BytesCodec, FramedRead};
 use tokio_util::io::{ReaderStream, StreamReader};
@@ -288,36 +289,59 @@ impl InnerService {
         res: &mut Response,
     ) -> BoxResult<()> {
         let (file, meta) = tokio::join!(fs::File::open(path), fs::metadata(path),);
-        let (file, meta) = (file?, meta?);
-        if let Ok(mtime) = meta.modified() {
-            let timestamp = to_timestamp(&mtime);
-            let size = meta.len();
-            let etag = format!(r#""{}-{}""#, timestamp, size)
-                .parse::<ETag>()
-                .unwrap();
-            let last_modified = LastModified::from(mtime);
-            let fresh = {
-                // `If-None-Match` takes presedence over `If-Modified-Since`.
+        let (mut file, meta) = (file?, meta?);
+        let mut maybe_range = true;
+        if let Some((etag, last_modified)) = extract_cache_headers(&meta) {
+            let cached = {
                 if let Some(if_none_match) = headers.typed_get::<IfNoneMatch>() {
                     !if_none_match.precondition_passes(&etag)
                 } else if let Some(if_modified_since) = headers.typed_get::<IfModifiedSince>() {
-                    !if_modified_since.is_modified(mtime)
+                    !if_modified_since.is_modified(last_modified.into())
                 } else {
                     false
                 }
             };
             res.headers_mut().typed_insert(last_modified);
-            res.headers_mut().typed_insert(etag);
-            if fresh {
+            res.headers_mut().typed_insert(etag.clone());
+            if cached {
                 status!(res, StatusCode::NOT_MODIFIED);
                 return Ok(());
             }
+            if headers.typed_get::<Range>().is_some() {
+                maybe_range = headers
+                    .typed_get::<IfRange>()
+                    .map(|if_range| !if_range.is_modified(Some(&etag), Some(&last_modified)))
+                    // Always be fresh if there is no validators
+                    .unwrap_or(true);
+            } else {
+                maybe_range = false;
+            }
         }
+        let file_range = if maybe_range {
+            if let Some(content_range) = headers
+                .typed_get::<Range>()
+                .and_then(|range| to_content_range(&range, meta.len()))
+            {
+                res.headers_mut().typed_insert(content_range.clone());
+                *res.status_mut() = StatusCode::PARTIAL_CONTENT;
+                content_range.bytes_range()
+            } else {
+                None
+            }
+        } else {
+            None
+        };
         if let Some(mime) = mime_guess::from_path(&path).first() {
             res.headers_mut().typed_insert(ContentType::from(mime));
         }
-        let stream = FramedRead::new(file, BytesCodec::new());
-        let body = Body::wrap_stream(stream);
+        let body = if let Some((begin, end)) = file_range {
+            file.seek(io::SeekFrom::Start(begin)).await?;
+            let stream = FramedRead::new(file.take(end - begin + 1), BytesCodec::new());
+            Body::wrap_stream(stream)
+        } else {
+            let stream = FramedRead::new(file, BytesCodec::new());
+            Body::wrap_stream(stream)
+        };
         *res.body_mut() = body;
 
         Ok(())
@@ -505,4 +529,43 @@ async fn dir_zip<W: AsyncWrite + Unpin>(writer: &mut W, dir: &Path) -> BoxResult
     }
     writer.close().await?;
     Ok(())
+}
+
+fn extract_cache_headers(meta: &Metadata) -> Option<(ETag, LastModified)> {
+    let mtime = meta.modified().ok()?;
+    let timestamp = to_timestamp(&mtime);
+    let size = meta.len();
+    let etag = format!(r#""{}-{}""#, timestamp, size)
+        .parse::<ETag>()
+        .unwrap();
+    let last_modified = LastModified::from(mtime);
+    Some((etag, last_modified))
+}
+
+fn to_content_range(range: &Range, complete_length: u64) -> Option<ContentRange> {
+    use core::ops::Bound::{Included, Unbounded};
+    let mut iter = range.iter();
+    let bounds = iter.next();
+
+    if iter.next().is_some() {
+        // Found multiple byte-range-spec. Drop.
+        return None;
+    }
+
+    bounds.and_then(|b| match b {
+        (Included(start), Included(end)) if start <= end && start < complete_length => {
+            ContentRange::bytes(
+                start..=end.min(complete_length.saturating_sub(1)),
+                complete_length,
+            )
+            .ok()
+        }
+        (Included(start), Unbounded) if start < complete_length => {
+            ContentRange::bytes(start.., complete_length).ok()
+        }
+        (Unbounded, Included(end)) if end > 0 => {
+            ContentRange::bytes(complete_length.saturating_sub(end).., complete_length).ok()
+        }
+        _ => None,
+    })
 }
