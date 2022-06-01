@@ -3,7 +3,7 @@
 [![CI](https://github.com/sigoden/duf/actions/workflows/ci.yaml/badge.svg)](https://github.com/sigoden/duf/actions/workflows/ci.yaml)
 [![Crates](https://img.shields.io/crates/v/duf.svg)](https://crates.io/crates/duf)
 
-Duf is a simple file server.
+Duf is a fully functional file server.
 
 ![demo](https://user-images.githubusercontent.com/4012553/170853369-dfcdc4c7-4864-4401-bf49-6e41ffe05df3.png)
 
