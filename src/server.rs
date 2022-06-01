@@ -32,9 +32,9 @@ use tokio_util::io::{ReaderStream, StreamReader};
 type Request = hyper::Request<Body>;
 type Response = hyper::Response<Body>;
 
-const INDEX_HTML: &str = include_str!("assets/index.html");
-const INDEX_CSS: &str = include_str!("assets/index.css");
-const INDEX_JS: &str = include_str!("assets/index.js");
+const INDEX_HTML: &str = include_str!("../assets/index.html");
+const INDEX_CSS: &str = include_str!("../assets/index.css");
+const INDEX_JS: &str = include_str!("../assets/index.js");
 const BUF_SIZE: usize = 1024 * 16;
 
 macro_rules! status {
