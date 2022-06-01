@@ -241,7 +241,13 @@ impl InnerService {
     async fn handle_ls_dir(&self, path: &Path, exist: bool, res: &mut Response) -> BoxResult<()> {
         let mut paths: Vec<PathItem> = vec![];
         if exist {
-            let mut rd = fs::read_dir(path).await?;
+            let mut rd = match fs::read_dir(path).await {
+                Ok(rd) => rd,
+                Err(_) => {
+                    status!(res, StatusCode::FORBIDDEN);
+                    return Ok(());
+                }
+            };
             while let Some(entry) = rd.next_entry().await? {
                 let entry_path = entry.path();
                 if let Ok(Some(item)) = self.to_pathitem(entry_path, path.to_path_buf()).await {
