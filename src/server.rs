@@ -7,8 +7,9 @@ use async_zip::Compression;
 use futures::stream::StreamExt;
 use futures::TryStreamExt;
 use headers::{
-    AccessControlAllowHeaders, AccessControlAllowOrigin, ContentRange, ContentType, ETag,
-    HeaderMap, HeaderMapExt, IfModifiedSince, IfNoneMatch, IfRange, LastModified, Range, ContentLength, AcceptRanges,
+    AcceptRanges, AccessControlAllowHeaders, AccessControlAllowOrigin, ContentLength, ContentRange,
+    ContentType, ETag, HeaderMap, HeaderMapExt, IfModifiedSince, IfNoneMatch, IfRange,
+    LastModified, Range,
 };
 use hyper::header::{
     HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_DISPOSITION, CONTENT_TYPE, ORIGIN, RANGE,
@@ -35,6 +36,7 @@ type Response = hyper::Response<Body>;
 const INDEX_HTML: &str = include_str!("../assets/index.html");
 const INDEX_CSS: &str = include_str!("../assets/index.css");
 const INDEX_JS: &str = include_str!("../assets/index.js");
+const INDEX_NAME: &str = "index.html";
 const BUF_SIZE: usize = 1024 * 16;
 
 macro_rules! status {
@@ -105,20 +107,20 @@ impl InnerService {
             return Ok(res);
         }
 
-        let path = req.uri().path();
+        let req_path = req.uri().path();
 
-        let pathname = match self.extract_path(path) {
+        let path = match self.extract_path(req_path) {
             Some(v) => v,
             None => {
                 status!(res, StatusCode::FORBIDDEN);
                 return Ok(res);
             }
         };
-        let pathname = pathname.as_path();
+        let path = path.as_path();
 
         let query = req.uri().query().unwrap_or_default();
 
-        let meta = fs::metadata(pathname).await.ok();
+        let meta = fs::metadata(path).await.ok();
 
         let is_miss = meta.is_none();
         let is_dir = meta.map(|v| v.is_dir()).unwrap_or_default();
@@ -126,44 +128,60 @@ impl InnerService {
 
         let allow_upload = self.args.allow_upload;
         let allow_delete = self.args.allow_delete;
+        let render_index = self.args.render_index;
+        let render_spa = self.args.render_spa;
 
-        if !self.args.allow_symlink && !is_miss && !self.is_root_contained(pathname).await {
+        if !self.args.allow_symlink && !is_miss && !self.is_root_contained(path).await {
             status!(res, StatusCode::NOT_FOUND);
             return Ok(res);
         }
 
         match *req.method() {
-            Method::GET if is_dir && query == "zip" => {
-                self.handle_zip_dir(pathname, &mut res).await?
-            }
-            Method::GET if is_dir && query.starts_with("q=") => {
-                self.handle_query_dir(pathname, &query[3..], &mut res)
-                    .await?
-            }
-            Method::GET if is_dir => self.handle_ls_dir(pathname, true, &mut res).await?,
-            Method::GET if is_file => {
-                self.handle_send_file(pathname, req.headers(), &mut res)
-                    .await?
-            }
-            Method::GET if allow_upload && is_miss && path.ends_with('/') => {
-                self.handle_ls_dir(pathname, false, &mut res).await?
+            Method::GET => {
+                let headers = req.headers();
+                if is_dir {
+                    if render_index || render_spa {
+                        self.handle_render_index(path, headers, &mut res).await?;
+                    } else if query == "zip" {
+                        self.handle_zip_dir(path, &mut res).await?;
+                    } else if query.starts_with("q=") {
+                        self.handle_query_dir(path, &query[3..], &mut res).await?;
+                    } else {
+                        self.handle_ls_dir(path, true, &mut res).await?;
+                    }
+                } else if is_file {
+                    self.handle_send_file(path, headers, &mut res).await?;
+                } else if render_spa {
+                    self.handle_render_spa(path, headers, &mut res).await?;
+                } else if allow_upload && req_path.ends_with('/') {
+                    self.handle_ls_dir(path, false, &mut res).await?;
+                } else {
+                    status!(res, StatusCode::NOT_FOUND);
+                }
             }
             Method::OPTIONS => {
                 status!(res, StatusCode::NO_CONTENT);
             }
-            Method::PUT if !allow_upload || (!allow_delete && is_file) => {
-                status!(res, StatusCode::FORBIDDEN);
+            Method::PUT => {
+                if !allow_upload || (!allow_delete && is_file) {
+                    status!(res, StatusCode::FORBIDDEN);
+                } else {
+                    self.handle_upload(path, req, &mut res).await?;
+                }
             }
-            Method::PUT => self.handle_upload(pathname, req, &mut res).await?,
-            Method::DELETE if !allow_delete => {
-                status!(res, StatusCode::FORBIDDEN);
+            Method::DELETE => {
+                if !allow_delete {
+                    status!(res, StatusCode::FORBIDDEN);
+                } else if !is_miss {
+                    self.handle_delete(path, is_dir).await?
+                } else {
+                    status!(res, StatusCode::NOT_FOUND);
+                }
             }
-            Method::DELETE if !is_miss => self.handle_delete(pathname, is_dir).await?,
             _ => {
-                status!(res, StatusCode::NOT_FOUND);
+                status!(res, StatusCode::METHOD_NOT_ALLOWED);
             }
         }
-
         Ok(res)
     }
 
@@ -305,6 +323,41 @@ impl InnerService {
         Ok(())
     }
 
+    async fn handle_render_index(
+        &self,
+        path: &Path,
+        headers: &HeaderMap<HeaderValue>,
+        res: &mut Response,
+    ) -> BoxResult<()> {
+        let path = path.join(INDEX_NAME);
+        if fs::metadata(&path)
+            .await
+            .ok()
+            .map(|v| v.is_file())
+            .unwrap_or_default()
+        {
+            self.handle_send_file(&path, headers, res).await?;
+        } else {
+            status!(res, StatusCode::NOT_FOUND);
+        }
+        Ok(())
+    }
+
+    async fn handle_render_spa(
+        &self,
+        path: &Path,
+        headers: &HeaderMap<HeaderValue>,
+        res: &mut Response,
+    ) -> BoxResult<()> {
+        if path.extension().is_none() {
+            let path = self.args.path.join(INDEX_NAME);
+            self.handle_send_file(&path, headers, res).await?;
+        } else {
+            status!(res, StatusCode::NOT_FOUND);
+        }
+        Ok(())
+    }
+
     async fn handle_send_file(
         &self,
         path: &Path,
@@ -367,7 +420,8 @@ impl InnerService {
         };
         *res.body_mut() = body;
         res.headers_mut().typed_insert(AcceptRanges::bytes());
-        res.headers_mut().typed_insert(ContentLength(meta.len() as u64));
+        res.headers_mut()
+            .typed_insert(ContentLength(meta.len() as u64));
 
         Ok(())
     }

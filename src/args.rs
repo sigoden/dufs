@@ -55,6 +55,16 @@ fn app() -> clap::Command<'static> {
                 .help("Allow symlink to directories/files outside root directory"),
         )
         .arg(
+            Arg::new("render-index")
+                .long("render-index")
+                .help("Render existing index.html when requesting a directory"),
+        )
+        .arg(
+            Arg::new("render-spa")
+                .long("render-spa")
+                .help("Render spa, rewrite all not-found requests to `index.html"),
+        )
+        .arg(
             Arg::new("auth")
                 .short('a')
                 .long("auth")
@@ -87,6 +97,8 @@ pub struct Args {
     pub allow_upload: bool,
     pub allow_delete: bool,
     pub allow_symlink: bool,
+    pub render_index: bool,
+    pub render_spa: bool,
     pub cors: bool,
 }
 
@@ -105,6 +117,8 @@ impl Args {
         let allow_upload = matches.is_present("allow-all") || matches.is_present("allow-upload");
         let allow_delete = matches.is_present("allow-all") || matches.is_present("allow-delete");
         let allow_symlink = matches.is_present("allow-all") || matches.is_present("allow-symlink");
+        let render_index = matches.is_present("render-index");
+        let render_spa = matches.is_present("render-spa");
 
         Ok(Args {
             address,
@@ -116,6 +130,8 @@ impl Args {
             allow_delete,
             allow_upload,
             allow_symlink,
+            render_index,
+            render_spa,
         })
     }
 
