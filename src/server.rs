@@ -8,7 +8,7 @@ use futures::stream::StreamExt;
 use futures::TryStreamExt;
 use headers::{
     AccessControlAllowHeaders, AccessControlAllowOrigin, ContentRange, ContentType, ETag,
-    HeaderMap, HeaderMapExt, IfModifiedSince, IfNoneMatch, IfRange, LastModified, Range,
+    HeaderMap, HeaderMapExt, IfModifiedSince, IfNoneMatch, IfRange, LastModified, Range, ContentLength, AcceptRanges,
 };
 use hyper::header::{
     HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_DISPOSITION, CONTENT_TYPE, ORIGIN, RANGE,
@@ -366,6 +366,8 @@ impl InnerService {
             Body::wrap_stream(stream)
         };
         *res.body_mut() = body;
+        res.headers_mut().typed_insert(AcceptRanges::bytes());
+        res.headers_mut().typed_insert(ContentLength(meta.len() as u64));
 
         Ok(())
     }
