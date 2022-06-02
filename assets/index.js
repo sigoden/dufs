@@ -1,11 +1,11 @@
-let $tbody, $uploaders;
+let $pathsTable, $pathsTableBody, $uploadersTable;
 let baseDir;
 
 class Uploader {
   idx;
   file;
   name;
-  $elem;
+  $uploadStatus;
   static globalIdx = 0;
   constructor(file, dirs) {
     this.name = [...dirs, file.name].join("/");
@@ -19,12 +19,16 @@ class Uploader {
     if (file.name == baseDir + ".zip") {
       url += "?unzip";
     }
-    $uploaders.insertAdjacentHTML("beforeend", `
-  <div class="uploader path">
-    <div><svg height="16" viewBox="0 0 12 16" width="12"><path fill-rule="evenodd" d="M6 5H2V4h4v1zM2 8h7V7H2v1zm0 2h7V9H2v1zm0 2h7v-1H2v1zm10-7.5V14c0 .55-.45 1-1 1H1c-.55 0-1-.45-1-1V2c0-.55.45-1 1-1h7.5L12 4.5zM11 5L8 2H1v12h10V5z"></path></svg></div>
-    <a href="${url}" id="file${idx}">${name} (0%)</a>
-  </div>`);
-    this.$elem = document.getElementById(`file${idx}`);
+    $uploadersTable.insertAdjacentHTML("beforeend", `
+  <tr id="upload${idx}" class="uploader">
+    <td class="path cell-name">
+      <div>${getSvg("File")}</div>
+      <a href="${url}">${name}</a>
+    </td>
+    <td class="cell-status" id="uploadStatus${idx}"></td>
+  </tr>`);
+    $uploadersTable.classList.remove("hidden");
+    this.$uploadStatus = document.getElementById(`uploadStatus${idx}`);
 
     const ajax = new XMLHttpRequest();
     ajax.upload.addEventListener("progress", e => this.progress(e), false);
@@ -45,15 +49,15 @@ class Uploader {
 
   progress(event) {
     const percent = (event.loaded / event.total) * 100;
-    this.$elem.innerHTML = `${this.name} (${percent.toFixed(2)}%)`;
+    this.$uploadStatus.innerHTML = `${percent.toFixed(2)}%`;
   }
 
   complete() {
-    this.$elem.innerHTML = `${this.name}`;
+    this.$uploadStatus.innerHTML = `✓`;
   }
 
   fail() {
-    this.$elem.innerHTML = `<strike>${this.name}</strike>`;
+    this.$uploadStatus.innerHTML = `✗`;
   }
 }
 
@@ -110,15 +114,15 @@ function addPath(file, index) {
     ${actionDelete}
   </td>`
 
-  $tbody.insertAdjacentHTML("beforeend", `
+  $pathsTableBody.insertAdjacentHTML("beforeend", `
 <tr id="addPath${index}">
-<td class="path cell-name">
-  <div>${getSvg(file.path_type)}</div>
-  <a href="${url}" title="${file.name}">${file.name}</a>
-</td>
-<td class="cell-mtime">${formatMtime(file.mtime)}</td>
-<td class="cell-size">${formatSize(file.size)}</td>
-${actionCell}
+  <td class="path cell-name">
+    <div>${getSvg(file.path_type)}</div>
+    <a href="${url}" title="${file.name}">${file.name}</a>
+  </td>
+  <td class="cell-mtime">${formatMtime(file.mtime)}</td>
+  <td class="cell-size">${formatSize(file.size)}</td>
+  ${actionCell}
 </tr>`)
 }
 
@@ -134,6 +138,10 @@ async function deletePath(index) {
     });
     if (res.status === 200) {
         document.getElementById(`addPath${index}`).remove();
+        DATA.paths[index] = null;
+        if (!DATA.paths.find(v => !!v)) {
+          $pathsTable.classList.add("hidden");
+        }
     } else {
       throw new Error(await res.text())
     }
@@ -224,19 +232,23 @@ function formatSize(size) {
 }
 
 function ready() {
-  $tbody = document.querySelector(".main tbody");
-  $uploaders = document.querySelector(".uploaders");
+  $pathsTable = document.querySelector(".paths-table")
+  $pathsTableBody = document.querySelector(".paths-table tbody");
+  $uploadersTable = document.querySelector(".uploaders-table");
 
   addBreadcrumb(DATA.breadcrumb);
   if (Array.isArray(DATA.paths)) {
     const len = DATA.paths.length;
+    if (len > 0) {
+      $pathsTable.classList.remove("hidden");
+    }
     for (let i = 0; i < len; i++) {
       addPath(DATA.paths[i], i);
     }
   }
   if (DATA.allow_upload) {
     dropzone();
-    document.querySelector(".upload-control").classList.remove(["hidden"]);
+    document.querySelector(".upload-control").classList.remove("hidden");
     document.getElementById("file").addEventListener("change", e => {
       const files = e.target.files;
       for (let file of files) {

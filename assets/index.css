@@ -97,35 +97,43 @@ body {
   padding: 0 1em;
 }
 
-.main th {
+.uploaders-table th,
+.paths-table th {
   text-align: left;
   font-weight: unset;
   color: #5c5c5c;
   white-space: nowrap;
 }
 
-.main td {
+.uploaders-table td,
+.paths-table td {
   white-space: nowrap;
 }
 
-.main .cell-name {
-  width: 400px;
+.uploaders-table .cell-name,
+.paths-table .cell-name {
+  width: 500px;
 }
 
-.main .cell-mtime {
+.uploaders-table .cell-status {
+  width: 80px;
+  padding-left: 0.6em;
+}
+
+.paths-table .cell-actions {
+  width: 60px;
+  display: flex;
+  padding-left: 0.6em;
+}
+
+.paths-table .cell-mtime {
   width: 120px;
   padding-left: 0.6em;
 }
 
-.main .cell-size {
+.paths-table .cell-size {
   text-align: right;
   width: 70px;
-  padding-left: 0.6em;
-}
-
-.main .cell-actions {
-  width: 60px;
-  display: flex;
   padding-left: 0.6em;
 }
 
@@ -158,7 +166,7 @@ body {
   padding-left: 0.4em;
 }
 
-.uploaders {
+.uploaders-table {
   padding: 0.5em 0;
 }
 
