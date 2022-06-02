@@ -4,15 +4,10 @@ macro_rules! bail {
     }
 }
 
-#[macro_use]
-extern crate log;
-
 mod args;
 mod server;
 
 pub type BoxResult<T> = Result<T, Box<dyn std::error::Error>>;
-
-use log::LevelFilter;
 
 use crate::args::{matches, Args};
 use crate::server::serve;
@@ -24,14 +19,6 @@ async fn main() {
 
 async fn run() -> BoxResult<()> {
     let args = Args::parse(matches())?;
-
-    if std::env::var("RUST_LOG").is_ok() {
-        simple_logger::init()?;
-    } else {
-        simple_logger::SimpleLogger::default()
-            .with_level(LevelFilter::Info)
-            .init()?;
-    }
     serve(args).await
 }
 

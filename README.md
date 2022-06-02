@@ -16,6 +16,7 @@ Duf is a fully functional file server.
 - Delete files
 - Basic authentication
 - Upload zip file then unzip
+- Serve through https
 - Easy to use with curl
 
 ## Install
@@ -58,7 +59,6 @@ duf --allow-all
 duf -A
 ```
 
-
 Only allow upload operation
 
 ```
@@ -69,6 +69,12 @@ Serve a single page application (SPA)
 
 ```
 duf --render-spa
+```
+
+Serve https 
+
+```
+duf --tls-cert my.crt --tls-key my.key
 ```
 
 ### Api

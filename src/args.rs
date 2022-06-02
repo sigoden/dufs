@@ -1,8 +1,9 @@
 use clap::crate_description;
 use clap::{Arg, ArgMatches};
-use std::env;
+use rustls::{Certificate, PrivateKey};
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
+use std::{env, fs, io};
 
 use crate::BoxResult;
 
@@ -87,6 +88,18 @@ fn app() -> clap::Command<'static> {
                 .long("cors")
                 .help("Enable CORS, sets `Access-Control-Allow-Origin: *`"),
         )
+        .arg(
+            Arg::new("tls-cert")
+                .long("tls-cert")
+                .value_name("path")
+                .help("Path to an SSL/TLS certificate to serve with HTTPS"),
+        )
+        .arg(
+            Arg::new("tls-key")
+                .long("tls-key")
+                .value_name("path")
+                .help("Path to the SSL/TLS certificate's private key"),
+        )
 }
 
 pub fn matches() -> ArgMatches {
@@ -107,6 +120,7 @@ pub struct Args {
     pub render_index: bool,
     pub render_spa: bool,
     pub cors: bool,
+    pub tls: Option<(Vec<Certificate>, PrivateKey)>,
 }
 
 impl Args {
@@ -127,6 +141,14 @@ impl Args {
         let allow_symlink = matches.is_present("allow-all") || matches.is_present("allow-symlink");
         let render_index = matches.is_present("render-index");
         let render_spa = matches.is_present("render-spa");
+        let tls = match (matches.value_of("tls-cert"), matches.value_of("tls-key")) {
+            (Some(certs_file), Some(key_file)) => {
+                let certs = load_certs(certs_file)?;
+                let key = load_private_key(key_file)?;
+                Some((certs, key))
+            }
+            _ => None,
+        };
 
         Ok(Args {
             address,
@@ -141,6 +163,7 @@ impl Args {
             allow_symlink,
             render_index,
             render_spa,
+            tls,
         })
     }
 
@@ -178,4 +201,36 @@ impl Args {
                 )
             })
     }
+}
+
+// Load public certificate from file.
+pub fn load_certs(filename: &str) -> BoxResult<Vec<Certificate>> {
+    // Open certificate file.
+    let certfile =
+        fs::File::open(&filename).map_err(|e| format!("Failed to open {}: {}", &filename, e))?;
+    let mut reader = io::BufReader::new(certfile);
+
+    // Load and return certificate.
+    let certs = rustls_pemfile::certs(&mut reader).map_err(|_| "Failed to load certificate")?;
+    if certs.is_empty() {
+        return Err("Expected at least one certificate".into());
+    }
+    Ok(certs.into_iter().map(Certificate).collect())
+}
+
+// Load private key from file.
+pub fn load_private_key(filename: &str) -> BoxResult<PrivateKey> {
+    // Open keyfile.
+    let keyfile =
+        fs::File::open(&filename).map_err(|e| format!("Failed to open {}: {}", &filename, e))?;
+    let mut reader = io::BufReader::new(keyfile);
+
+    // Load and return a single private key.
+    let keys = rustls_pemfile::rsa_private_keys(&mut reader)
+        .map_err(|e| format!("There was a problem with reading private key: {:?}", e))?;
+
+    if keys.len() != 1 {
+        return Err("Expected a single private key".into());
+    }
+    Ok(PrivateKey(keys[0].to_owned()))
 }
