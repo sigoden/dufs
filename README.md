@@ -16,7 +16,8 @@ Duf is a fully functional file server.
 - Delete files
 - Basic authentication
 - Upload zip file then unzip
-- Serve through https
+- Partial responses (Parallel/Resume download)
+- Support https/tls
 - Easy to use with curl
 
 ## Install
@@ -31,7 +32,37 @@ cargo install duf
 
 Download from [Github Releases](https://github.com/sigoden/duf/releases), unzip and add duf to your $PATH.
 
-## Usage
+## CLI
+
+```
+Duf is a fully functional file server.
+
+USAGE:
+    duf [OPTIONS] [path]
+
+ARGS:
+    <path>    Path to a root directory for serving files [default: .]
+
+OPTIONS:
+    -a, --auth <user:pass>      Use HTTP authentication
+        --no-auth-access        Not required auth when access static files
+    -A, --allow-all             Allow all operations
+        --allow-delete          Allow delete files/folders
+        --allow-symlink         Allow symlink to files/folders outside root directory
+        --allow-upload          Allow upload files/folders
+    -b, --bind <address>        Specify bind address [default: 127.0.0.1]
+        --cors                  Enable CORS, sets `Access-Control-Allow-Origin: *`
+    -h, --help                  Print help information
+    -p, --port <port>           Specify port to listen on [default: 5000]
+        --path-prefix <path>    Specify an url path prefix
+        --render-index          Render index.html when requesting a directory
+        --render-spa            Render for single-page application
+        --tls-cert <path>       Path to an SSL/TLS certificate to serve with HTTPS
+        --tls-key <path>        Path to the SSL/TLS certificate's private key
+    -V, --version               Print version information
+```
+
+## Examples
 
 You can run this command to start serving your current working directory on 127.0.0.1:5000 by default.
 
@@ -76,37 +107,6 @@ Serve https
 ```
 duf --tls-cert my.crt --tls-key my.key
 ```
-
-## CLI
-
-```
-Duf is a fully functional file server.
-
-USAGE:
-    duf [OPTIONS] [path]
-
-ARGS:
-    <path>    Path to a root directory for serving files [default: .]
-
-OPTIONS:
-    -a, --auth <user:pass>      Use HTTP authentication to restrict write
-        --auth-access           Enhance authentication to restrict access
-    -A, --allow-all             Allow all operations
-        --allow-delete          Allow delete files/folders
-        --allow-symlink         Allow symlink to files/folders outside root directory
-        --allow-upload          Allow upload files/folders
-    -b, --bind <address>        Specify bind address [default: 127.0.0.1]
-        --cors                  Enable CORS, sets `Access-Control-Allow-Origin: *`
-    -h, --help                  Print help information
-    -p, --port <port>           Specify port to listen on [default: 5000]
-        --path-prefix <path>    Specify an url path prefix
-        --render-index          Render index.html when requesting a directory
-        --render-spa            Render for single-page application
-        --tls-cert <path>       Path to an SSL/TLS certificate to serve with HTTPS
-        --tls-key <path>        Path to the SSL/TLS certificate's private key
-    -V, --version               Print version information
-```
-
 
 ## API
 
