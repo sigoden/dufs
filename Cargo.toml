@@ -27,6 +27,7 @@ async_zip = "0.0.7"
 async-walkdir = "0.2.0"
 headers = "0.3.7"
 mime_guess = "2.0.4"
+get_if_addrs = "0.5.3"
 
 [profile.release]
 lto = true

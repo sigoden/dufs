@@ -6,6 +6,7 @@ use async_zip::write::{EntryOptions, ZipFileWriter};
 use async_zip::Compression;
 use futures::stream::StreamExt;
 use futures::TryStreamExt;
+use get_if_addrs::get_if_addrs;
 use headers::{
     AcceptRanges, AccessControlAllowHeaders, AccessControlAllowOrigin, ContentLength, ContentRange,
     ContentType, ETag, HeaderMap, HeaderMapExt, IfModifiedSince, IfNoneMatch, IfRange,
@@ -21,6 +22,7 @@ use percent_encoding::percent_decode;
 use serde::Serialize;
 use std::convert::Infallible;
 use std::fs::Metadata;
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -47,7 +49,9 @@ macro_rules! status {
 }
 
 pub async fn serve(args: Args) -> BoxResult<()> {
-    let address = args.address()?;
+    let socket_addr = args.address()?;
+    let address = args.address.clone();
+    let port = args.port;
     let inner = Arc::new(InnerService::new(args));
     let make_svc = make_service_fn(move |_| {
         let inner = inner.clone();
@@ -59,9 +63,8 @@ pub async fn serve(args: Args) -> BoxResult<()> {
         }
     });
 
-    let server = hyper::Server::try_bind(&address)?.serve(make_svc);
-    let address = server.local_addr();
-    eprintln!("Files served on http://{}", address);
+    let server = hyper::Server::try_bind(&socket_addr)?.serve(make_svc);
+    print_listening(&address, port);
     server.await?;
 
     Ok(())
@@ -673,4 +676,31 @@ fn to_content_range(range: &Range, complete_length: u64) -> Option<ContentRange>
         }
         _ => None,
     })
+}
+
+fn print_listening(address: &str, port: u16) {
+    let addrs = retrive_listening_addrs(address);
+    if addrs.len() == 1 {
+        eprintln!("Listening on http://{}:{}", addrs[0], port);
+    } else {
+        eprintln!("Listening on:");
+        for addr in addrs {
+            eprintln!("  http://{}:{}", addr, port);
+        }
+    }
+}
+
+fn retrive_listening_addrs(address: &str) -> Vec<String> {
+    if address == "0.0.0.0" {
+        if let Ok(interfaces) = get_if_addrs() {
+            let mut ifaces: Vec<IpAddr> = interfaces
+                .into_iter()
+                .map(|v| v.ip())
+                .filter(|v| v.is_ipv4())
+                .collect();
+            ifaces.sort();
+            return ifaces.into_iter().map(|v| v.to_string()).collect();
+        }
+    }
+    vec![address.to_owned()]
 }
