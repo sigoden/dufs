@@ -63,7 +63,7 @@ pub async fn serve(args: Args) -> BoxResult<()> {
             .with_single_cert(certs.clone(), key.clone())?;
         let tls_acceptor = TlsAcceptor::from(Arc::new(config));
         let arc_acceptor = Arc::new(tls_acceptor);
-        let listener = TcpListener::bind(&socket_addr).await.unwrap();
+        let listener = TcpListener::bind(&socket_addr).await?;
         let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
         let incoming = hyper::server::accept::from_stream(incoming.filter_map(|socket| async {
             match socket {
@@ -86,7 +86,7 @@ pub async fn serve(args: Args) -> BoxResult<()> {
         print_listening(args.address.as_str(), args.port, true);
         server.await?;
     } else {
-        let server = hyper::Server::bind(&socket_addr).serve(make_service_fn(move |_| {
+        let server = hyper::Server::try_bind(&socket_addr)?.serve(make_service_fn(move |_| {
             let inner = inner.clone();
             async move {
                 Ok::<_, Infallible>(service_fn(move |req| {
