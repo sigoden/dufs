@@ -506,7 +506,22 @@ impl InnerService {
         } else {
             decoded_path.into_owned()
         };
-        Some(self.args.path.join(&slashes_switched))
+        let stripped_path = match self.strip_path_prefix(&slashes_switched) {
+            Some(path) => path,
+            None => return None,
+        };
+        Some(self.args.path.join(&stripped_path))
+    }
+
+    fn strip_path_prefix<'a, P: AsRef<Path>>(&self, path: &'a P) -> Option<&'a Path> {
+        let path = path.as_ref();
+        match self.args.path_prefix.as_deref() {
+            Some(prefix) => {
+                let prefix = prefix.trim_start_matches('/');
+                path.strip_prefix(prefix).ok()
+            }
+            None => Some(path),
+        }
     }
 
     async fn to_pathitem<P: AsRef<Path>>(

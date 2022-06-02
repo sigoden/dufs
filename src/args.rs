@@ -34,6 +34,12 @@ fn app() -> clap::Command<'static> {
                 .help("Path to a root directory for serving files"),
         )
         .arg(
+            Arg::new("path-prefix")
+                .long("path-prefix")
+                .value_name("path")
+                .help("Specify an url path prefix"),
+        )
+        .arg(
             Arg::new("allow-all")
                 .short('A')
                 .long("allow-all")
@@ -92,6 +98,7 @@ pub struct Args {
     pub address: String,
     pub port: u16,
     pub path: PathBuf,
+    pub path_prefix: Option<String>,
     pub auth: Option<String>,
     pub no_auth_read: bool,
     pub allow_upload: bool,
@@ -111,6 +118,7 @@ impl Args {
         let address = matches.value_of("address").unwrap_or_default().to_owned();
         let port = matches.value_of_t::<u16>("port")?;
         let path = Args::parse_path(matches.value_of_os("path").unwrap_or_default())?;
+        let path_prefix = matches.value_of("path-prefix").map(|v| v.to_owned());
         let cors = matches.is_present("cors");
         let auth = matches.value_of("auth").map(|v| v.to_owned());
         let no_auth_read = matches.is_present("no-auth-read");
@@ -124,6 +132,7 @@ impl Args {
             address,
             port,
             path,
+            path_prefix,
             auth,
             no_auth_read,
             cors,
