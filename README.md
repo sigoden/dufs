@@ -5,14 +5,14 @@
 
 Duf is a fully functional file server.
 
-![demo](https://user-images.githubusercontent.com/4012553/170853369-dfcdc4c7-4864-4401-bf49-6e41ffe05df3.png)
+![demo](https://user-images.githubusercontent.com/4012553/171526189-09afc2de-793f-4216-b3d5-31ea408d3610.png)
 
 ## Features
 
 - Serve static files
 - Download folder as zip file
 - Search files
-- Upload files and folders
+- Upload files and folders (Drag & Drop)
 - Delete files
 - Basic authentication
 - Upload zip file then unzip
@@ -44,22 +44,31 @@ duf
 duf folder_name
 ```
 
+Listen on all Interfaces and port 3000
+
+```
+duf -b 0.0.0.0 -p 3000
+```
+
 Allow all operations such as upload, delete
 
-```
+```sh
 duf --allow-all
+# or
+duf -A
 ```
 
-Only allow upload operations
+
+Only allow upload operation
 
 ```
 duf --allow-upload
 ```
 
-Use http authentication
+Serve a single page application (SPA)
 
 ```
-duf --auth user:pass
+duf --render-spa
 ```
 
 ### Api
