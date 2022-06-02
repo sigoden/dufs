@@ -64,12 +64,12 @@ fn app() -> clap::Command<'static> {
         .arg(
             Arg::new("render-index")
                 .long("render-index")
-                .help("Render existing index.html when requesting a directory"),
+                .help("Render index.html when requesting a directory"),
         )
         .arg(
             Arg::new("render-spa")
                 .long("render-spa")
-                .help("Render spa, rewrite all not-found requests to `index.html"),
+                .help("Render for single-page application"),
         )
         .arg(
             Arg::new("auth")

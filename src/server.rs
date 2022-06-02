@@ -726,6 +726,7 @@ fn print_listening(address: &str, port: u16, tls: bool) {
             eprintln!("  {}://{}:{}", protocol, addr, port);
         }
     }
+    eprintln!();
 }
 
 fn retrive_listening_addrs(address: &str) -> Vec<String> {
