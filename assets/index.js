@@ -1,4 +1,10 @@
+/**
+ * @type Element
+ */
 let $pathsTable, $pathsTableBody, $uploadersTable;
+/**
+ * @type string
+ */
 let baseDir;
 
 class Uploader {
