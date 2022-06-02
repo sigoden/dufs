@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.1] - 2022-06-02
+
+### Bug Fixes
+
+- Panic when bind already used port
+
 ## [0.10.0] - 2022-06-02
 
 ### Bug Fixes
@@ -18,10 +24,6 @@ All notable changes to this project will be documented in this file.
 
 - Change auth logic/options
 - Improve ui
-
-### Miscellaneous Tasks
-
-- Insert cli output
 
 ### Refactor
 
@@ -52,12 +54,6 @@ All notable changes to this project will be documented in this file.
 - Add some headers to res
 - Support render-index/render-spa
 
-### Miscellaneous Tasks
-
-- Move src/assets out of src
-- Update description
-- Upgrade version
-
 ## [0.7.0] - 2022-05-31
 
 ### Bug Fixes
@@ -71,10 +67,6 @@ All notable changes to this project will be documented in this file.
 
 - Drag and drop uploads, upload folder
 
-### Miscellaneous Tasks
-
-- Upgrade version
-
 ## [0.6.0] - 2022-05-31
 
 ### Features
@@ -82,10 +74,6 @@ All notable changes to this project will be documented in this file.
 - Delete confirm
 - Distinct upload and delete operation
 - Support range requests
-
-### Miscellaneous Tasks
-
-- Upgrade version
 
 ### Refactor
 
@@ -99,22 +87,12 @@ All notable changes to this project will be documented in this file.
 - Add no-auth-read options
 - Unzip zip file when unload
 
-### Miscellaneous Tasks
-
-- Reorganize web static files
-- Rename src/static to src/assets
-- Upgrade version
-
 ## [0.4.0] - 2022-05-29
 
 ### Features
 
 - Replace --static option to --no-edit
 - Add cors
-
-### Miscellaneous Tasks
-
-- Upgrade version
 
 ## [0.3.0] - 2022-05-29
 
@@ -162,10 +140,6 @@ All notable changes to this project will be documented in this file.
 - Add logger
 - Download folder as zip file
 
-### Miscellaneous Tasks
-
-- Update cargo metadata
-
 ## [0.1.0] - 2022-05-26
 
 ### Bug Fixes
@@ -182,11 +156,6 @@ All notable changes to this project will be documented in this file.
 - Add basic auth and readonly mode
 - Support delete operation
 - Remove parent path
-
-### Miscellaneous Tasks
-
-- Add readme and license
-- Update cargo metadata
 
 ### Styling
 
