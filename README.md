@@ -77,7 +77,38 @@ Serve https
 duf --tls-cert my.crt --tls-key my.key
 ```
 
-### Api
+## CLI
+
+```
+Duf is a fully functional file server.
+
+USAGE:
+    duf [OPTIONS] [path]
+
+ARGS:
+    <path>    Path to a root directory for serving files [default: .]
+
+OPTIONS:
+    -a, --auth <user:pass>      Use HTTP authentication for all operations
+    -A, --allow-all             Allow all operations
+        --allow-delete          Allow delete operation
+        --allow-symlink         Allow symlink to directories/files outside root directory
+        --allow-upload          Allow upload operation
+    -b, --bind <address>        Specify bind address [default: 127.0.0.1]
+        --cors                  Enable CORS, sets `Access-Control-Allow-Origin: *`
+    -h, --help                  Print help information
+        --no-auth-read          Do not authenticate read operations like static serving
+    -p, --port <port>           Specify port to listen on [default: 5000]
+        --path-prefix <path>    Specify an url path prefix
+        --render-index          Render index.html when requesting a directory
+        --render-spa            Render for single-page application
+        --tls-cert <path>       Path to an SSL/TLS certificate to serve with HTTPS
+        --tls-key <path>        Path to the SSL/TLS certificate's private key
+    -V, --version               Print version information
+```
+
+
+## API
 
 Download a file
 ```
