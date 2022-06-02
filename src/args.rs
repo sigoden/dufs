@@ -76,14 +76,14 @@ fn app() -> clap::Command<'static> {
                 .short('a')
                 .display_order(1)
                 .long("auth")
-                .help("Use HTTP authentication to restrict write")
+                .help("Use HTTP authentication")
                 .value_name("user:pass"),
         )
         .arg(
-            Arg::new("auth-access")
+            Arg::new("no-auth-access")
                 .display_order(1)
-                .long("auth-access")
-                .help("Enhance authentication to restrict access"),
+                .long("no-auth-access")
+                .help("Not required auth when access static files"),
         )
         .arg(
             Arg::new("cors")
@@ -115,7 +115,7 @@ pub struct Args {
     pub path: PathBuf,
     pub path_prefix: Option<String>,
     pub auth: Option<String>,
-    pub auth_access: bool,
+    pub no_auth_access: bool,
     pub allow_upload: bool,
     pub allow_delete: bool,
     pub allow_symlink: bool,
@@ -137,7 +137,7 @@ impl Args {
         let path_prefix = matches.value_of("path-prefix").map(|v| v.to_owned());
         let cors = matches.is_present("cors");
         let auth = matches.value_of("auth").map(|v| v.to_owned());
-        let auth_access = matches.is_present("auth-access");
+        let no_auth_access = matches.is_present("no-auth-access");
         let allow_upload = matches.is_present("allow-all") || matches.is_present("allow-upload");
         let allow_delete = matches.is_present("allow-all") || matches.is_present("allow-delete");
         let allow_symlink = matches.is_present("allow-all") || matches.is_present("allow-symlink");
@@ -158,7 +158,7 @@ impl Args {
             path,
             path_prefix,
             auth,
-            auth_access,
+            no_auth_access,
             cors,
             allow_delete,
             allow_upload,

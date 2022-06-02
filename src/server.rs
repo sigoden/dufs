@@ -501,7 +501,7 @@ impl InnerService {
                             .unwrap_or_default(),
                         _ => false,
                     },
-                    None => !self.args.auth_access && req.method() == Method::GET,
+                    None => self.args.no_auth_access && req.method() == Method::GET,
                 },
             }
         };
@@ -733,8 +733,8 @@ fn print_listening(address: &str, port: u16, tls: bool) {
         for addr in addrs {
             eprintln!("  {}://{}:{}", protocol, addr, port);
         }
+        eprintln!();
     }
-    eprintln!();
 }
 
 fn retrive_listening_addrs(address: &str) -> Vec<String> {
