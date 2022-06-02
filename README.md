@@ -89,15 +89,15 @@ ARGS:
     <path>    Path to a root directory for serving files [default: .]
 
 OPTIONS:
-    -a, --auth <user:pass>      Use HTTP authentication for all operations
+    -a, --auth <user:pass>      Use HTTP authentication to restrict write
+        --auth-access           Enhance authentication to restrict access
     -A, --allow-all             Allow all operations
-        --allow-delete          Allow delete operation
-        --allow-symlink         Allow symlink to directories/files outside root directory
-        --allow-upload          Allow upload operation
+        --allow-delete          Allow delete files/folders
+        --allow-symlink         Allow symlink to files/folders outside root directory
+        --allow-upload          Allow upload files/folders
     -b, --bind <address>        Specify bind address [default: 127.0.0.1]
         --cors                  Enable CORS, sets `Access-Control-Allow-Origin: *`
     -h, --help                  Print help information
-        --no-auth-read          Do not authenticate read operations like static serving
     -p, --port <port>           Specify port to listen on [default: 5000]
         --path-prefix <path>    Specify an url path prefix
         --render-index          Render index.html when requesting a directory

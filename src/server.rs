@@ -519,7 +519,7 @@ impl InnerService {
                             .unwrap_or_default(),
                         _ => false,
                     },
-                    None => self.args.no_auth_read && req.method() == Method::GET,
+                    None => !self.args.auth_access && req.method() == Method::GET,
                 },
             }
         };

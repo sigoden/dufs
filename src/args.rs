@@ -49,17 +49,17 @@ fn app() -> clap::Command<'static> {
         .arg(
             Arg::new("allow-upload")
                 .long("allow-upload")
-                .help("Allow upload operation"),
+                .help("Allow upload files/folders"),
         )
         .arg(
             Arg::new("allow-delete")
                 .long("allow-delete")
-                .help("Allow delete operation"),
+                .help("Allow delete files/folders"),
         )
         .arg(
             Arg::new("allow-symlink")
                 .long("allow-symlink")
-                .help("Allow symlink to directories/files outside root directory"),
+                .help("Allow symlink to files/folders outside root directory"),
         )
         .arg(
             Arg::new("render-index")
@@ -74,14 +74,16 @@ fn app() -> clap::Command<'static> {
         .arg(
             Arg::new("auth")
                 .short('a')
+                .display_order(1)
                 .long("auth")
-                .help("Use HTTP authentication for all operations")
+                .help("Use HTTP authentication to restrict write")
                 .value_name("user:pass"),
         )
         .arg(
-            Arg::new("no-auth-read")
-                .long("no-auth-read")
-                .help("Do not authenticate read operations like static serving"),
+            Arg::new("auth-access")
+                .display_order(1)
+                .long("auth-access")
+                .help("Enhance authentication to restrict access"),
         )
         .arg(
             Arg::new("cors")
@@ -113,7 +115,7 @@ pub struct Args {
     pub path: PathBuf,
     pub path_prefix: Option<String>,
     pub auth: Option<String>,
-    pub no_auth_read: bool,
+    pub auth_access: bool,
     pub allow_upload: bool,
     pub allow_delete: bool,
     pub allow_symlink: bool,
@@ -135,7 +137,7 @@ impl Args {
         let path_prefix = matches.value_of("path-prefix").map(|v| v.to_owned());
         let cors = matches.is_present("cors");
         let auth = matches.value_of("auth").map(|v| v.to_owned());
-        let no_auth_read = matches.is_present("no-auth-read");
+        let auth_access = matches.is_present("auth-access");
         let allow_upload = matches.is_present("allow-all") || matches.is_present("allow-upload");
         let allow_delete = matches.is_present("allow-all") || matches.is_present("allow-delete");
         let allow_symlink = matches.is_present("allow-all") || matches.is_present("allow-symlink");
@@ -156,7 +158,7 @@ impl Args {
             path,
             path_prefix,
             auth,
-            no_auth_read,
+            auth_access,
             cors,
             allow_delete,
             allow_upload,
