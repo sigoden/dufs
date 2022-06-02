@@ -1,6 +1,6 @@
 [package]
 name = "duf"
-version = "0.9.0"
+version = "0.10.0"
 edition = "2021"
 authors = ["sigoden <sigoden@gmail.com>"]
 description = "Duf is a fully functional file server."

@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.0] - 2022-06-02
+
+### Bug Fixes
+
+- Remove unzip file even failed to unzip
+- Rename --no-auth-read to --no-auth-access
+- Broken ui
+
+### Documentation
+
+- Refactor readme
+
+### Features
+
+- Change auth logic/options
+- Improve ui
+
+### Miscellaneous Tasks
+
+- Insert cli output
+
+### Refactor
+
+- Small improvement
+
 ## [0.9.0] - 2022-06-02
 
 ### Documentation
