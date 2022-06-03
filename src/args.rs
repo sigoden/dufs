@@ -16,7 +16,7 @@ fn app() -> clap::Command<'static> {
             Arg::new("address")
                 .short('b')
                 .long("bind")
-                .default_value("127.0.0.1")
+                .default_value("0.0.0.0")
                 .help("Specify bind address")
                 .value_name("address"),
         )
@@ -173,7 +173,7 @@ impl Args {
     fn parse_path<P: AsRef<Path>>(path: P) -> BoxResult<PathBuf> {
         let path = path.as_ref();
         if !path.exists() {
-            bail!("error: path \"{}\" doesn't exist", path.display());
+            return Err(format!("Path `{}` doesn't exist", path.display()).into());
         }
 
         env::current_dir()
@@ -181,27 +181,14 @@ impl Args {
                 p.push(path); // If path is absolute, it replaces the current path.
                 std::fs::canonicalize(p)
             })
-            .or_else(|err| {
-                bail!(
-                    "error: failed to access path \"{}\": {}",
-                    path.display(),
-                    err,
-                )
-            })
+            .map_err(|err| format!("Failed to access path `{}`: {}", path.display(), err,).into())
     }
 
     /// Construct socket address from arguments.
     pub fn address(&self) -> BoxResult<SocketAddr> {
         format!("{}:{}", self.address, self.port)
             .parse()
-            .or_else(|err| {
-                bail!(
-                    "error: invalid address {}:{} : {}",
-                    self.address,
-                    self.port,
-                    err,
-                )
-            })
+            .map_err(|_| format!("Invalid bind address `{}:{}`", self.address, self.port).into())
     }
 }
 

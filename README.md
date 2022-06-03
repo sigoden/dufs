@@ -28,6 +28,12 @@ Duf is a fully functional file server.
 cargo install duf
 ```
 
+### With docker
+
+```
+docker run -v /tmp:/tmp -p 5000:5000 --rm -it docker.io/sigoden/duf /tmp
+```
+
 ### Binaries on macOS, Linux, Windows
 
 Download from [Github Releases](https://github.com/sigoden/duf/releases), unzip and add duf to your $PATH.
@@ -50,7 +56,7 @@ OPTIONS:
         --allow-delete          Allow delete files/folders
         --allow-symlink         Allow symlink to files/folders outside root directory
         --allow-upload          Allow upload files/folders
-    -b, --bind <address>        Specify bind address [default: 127.0.0.1]
+    -b, --bind <address>        Specify bind address [default: 0.0.0.0]
         --cors                  Enable CORS, sets `Access-Control-Allow-Origin: *`
     -h, --help                  Print help information
     -p, --port <port>           Specify port to listen on [default: 5000]
@@ -76,18 +82,10 @@ duf
 duf folder_name
 ```
 
-Listen on all Interfaces and port 3000
-
-```
-duf -b 0.0.0.0 -p 3000
-```
-
 Allow all operations such as upload, delete
 
 ```sh
 duf --allow-all
-# or
-duf -A
 ```
 
 Only allow upload operation
@@ -102,7 +100,7 @@ Serve a single page application (SPA)
 duf --render-spa
 ```
 
-Serve https 
+Use https
 
 ```
 duf --tls-cert my.crt --tls-key my.key

@@ -1,9 +1,3 @@
-macro_rules! bail {
-    ($($tt:tt)*) => {
-        return Err(From::from(format!($($tt)*)))
-    }
-}
-
 mod args;
 mod server;
 
@@ -23,6 +17,6 @@ async fn run() -> BoxResult<()> {
 }
 
 fn handle_err<T>(err: Box<dyn std::error::Error>) -> T {
-    eprintln!("Server error: {}", err);
+    eprintln!("error: {}", err);
     std::process::exit(1);
 }
