@@ -7,8 +7,9 @@ on:
 
 jobs:
   release:
-  
     name: Publish to Github Reelases
+    outputs:
+      rc: ${{ steps.check-tag.outputs.rc }}
 
     strategy:
       matrix:
@@ -143,5 +144,22 @@ jobs:
         id: docker_build
         uses: docker/build-push-action@v2
         with:
-          push: false
+          push: ${{ needs.release.outputs.rc == 'false' }}
           tags: sigoden/duf:latest, sigoden/duf:${{ github.ref_name }}
+          
+  publish-crate:
+    name: Publish to crates.io
+    if: ${{ needs.release.outputs.rc == 'false' }}
+    runs-on: ubuntu-latest
+    needs: release
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+      - name: Publish
+
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+        run: cargo publish
