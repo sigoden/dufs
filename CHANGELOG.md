@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.0] - 2022-06-03
+
+### Features
+
+- Support gracefully shutdown server
+- Listen 0.0.0.0 by default
+
 ## [0.10.1] - 2022-06-02
 
 ### Bug Fixes
