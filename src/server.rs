@@ -116,7 +116,6 @@ pub async fn serve_http(args: Args) -> BoxResult<()> {
     Ok(())
 }
 
-
 struct InnerService {
     args: Arc<Args>,
 }

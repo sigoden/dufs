@@ -1,11 +1,11 @@
 use headers::HeaderValue;
 use lazy_static::lazy_static;
 use md5::Context;
-use uuid::Uuid;
 use std::{
     collections::HashMap,
     time::{SystemTime, UNIX_EPOCH},
 };
+use uuid::Uuid;
 
 use crate::BoxResult;
 
