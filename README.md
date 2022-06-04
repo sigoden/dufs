@@ -3,7 +3,7 @@
 [![CI](https://github.com/sigoden/duf/actions/workflows/ci.yaml/badge.svg)](https://github.com/sigoden/duf/actions/workflows/ci.yaml)
 [![Crates](https://img.shields.io/crates/v/duf.svg)](https://crates.io/crates/duf)
 
-Duf is a simple file server. Support static serve, search, upload, delete, webdav...
+Duf is a simple file server. Support static serve, search, upload, webdav...
 
 ![demo](https://user-images.githubusercontent.com/4012553/171526189-09afc2de-793f-4216-b3d5-31ea408d3610.png)
 
@@ -11,9 +11,8 @@ Duf is a simple file server. Support static serve, search, upload, delete, webda
 
 - Serve static files
 - Download folder as zip file
-- Search files
 - Upload files and folders (Drag & Drop)
-- Delete files
+- Search files
 - Basic authentication
 - Partial responses (Parallel/Resume download)
 - Support https
@@ -111,8 +110,6 @@ duf --tls-cert my.crt --tls-key my.key
 Download a file
 ```
 curl http://127.0.0.1:5000/some-file
-
-curl -o some-file2 http://127.0.0.1:5000/some-file
 ```
 
 Download a folder as zip file

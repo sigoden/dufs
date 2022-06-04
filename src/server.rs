@@ -89,7 +89,7 @@ pub async fn serve_https(args: Args) -> BoxResult<()> {
             }))
         }
     }));
-    print_listening(args.address.as_str(), args.port, true);
+    print_listening(args.address.as_str(), args.port, &args.uri_prefix, true);
     let graceful = server.with_graceful_shutdown(shutdown_signal());
     graceful.await?;
     Ok(())
@@ -108,7 +108,7 @@ pub async fn serve_http(args: Args) -> BoxResult<()> {
             }))
         }
     }));
-    print_listening(args.address.as_str(), args.port, false);
+    print_listening(args.address.as_str(), args.port, &args.uri_prefix, false);
     let graceful = server.with_graceful_shutdown(shutdown_signal());
     graceful.await?;
     Ok(())
@@ -172,11 +172,10 @@ impl InnerService {
 
         let query = req.uri().query().unwrap_or_default();
 
-        let meta = fs::metadata(path).await.ok();
-
-        let is_miss = meta.is_none();
-        let is_dir = meta.map(|v| v.is_dir()).unwrap_or_default();
-        let is_file = !is_miss && !is_dir;
+        let (is_miss, is_dir, is_file, size) = match fs::metadata(path).await.ok() {
+            Some(meta) => (false, meta.is_dir(), meta.is_file(), meta.len()),
+            None => (true, false, false, 0),
+        };
 
         let allow_upload = self.args.allow_upload;
         let allow_delete = self.args.allow_delete;
@@ -188,9 +187,10 @@ impl InnerService {
             return Ok(res);
         }
 
+        let headers = req.headers();
+
         match req.method() {
             &Method::GET => {
-                let headers = req.headers();
                 if is_dir {
                     if render_index || render_spa {
                         self.handle_render_index(path, headers, &mut res).await?;
@@ -215,7 +215,7 @@ impl InnerService {
                 self.handle_method_options(&mut res);
             }
             &Method::PUT => {
-                if !allow_upload || (!allow_delete && is_file) {
+                if !allow_upload || (!allow_delete && is_file && size > 0) {
                     status!(res, StatusCode::FORBIDDEN);
                 } else {
                     self.handle_upload(path, req, &mut res).await?;
@@ -230,11 +230,25 @@ impl InnerService {
                     status!(res, StatusCode::NOT_FOUND);
                 }
             }
+            &Method::HEAD => {
+                if is_miss {
+                    status!(res, StatusCode::NOT_FOUND);
+                } else {
+                    status!(res, StatusCode::OK);
+                }
+            }
             method => match method.as_str() {
                 "PROPFIND" => {
                     if is_dir {
-                        self.handle_propfind_dir(path, &mut res).await?;
+                        self.handle_propfind_dir(path, headers, &mut res).await?;
                     } else if is_file {
+                        self.handle_propfind_file(path, &mut res).await?;
+                    } else {
+                        status!(res, StatusCode::NOT_FOUND);
+                    }
+                }
+                "PROPPATCH" => {
+                    if is_file {
                         self.handle_propfind_file(path, &mut res).await?;
                     } else {
                         status!(res, StatusCode::NOT_FOUND);
@@ -242,10 +256,26 @@ impl InnerService {
                 }
                 "MKCOL" if allow_upload && is_miss => self.handle_mkcol(path, &mut res).await?,
                 "COPY" if allow_upload && !is_miss => {
-                    self.handle_copy(path, req.headers(), &mut res).await?
+                    self.handle_copy(path, headers, &mut res).await?
                 }
                 "MOVE" if allow_upload && allow_delete && !is_miss => {
-                    self.handle_move(path, req.headers(), &mut res).await?
+                    self.handle_move(path, headers, &mut res).await?
+                }
+                "LOCK" => {
+                    // Fake lock
+                    if is_file {
+                        self.handle_lock(req_path, &mut res).await?;
+                    } else {
+                        status!(res, StatusCode::NOT_FOUND);
+                    }
+                }
+                "UNLOCK" => {
+                    // Fake unlock
+                    if is_miss {
+                        status!(res, StatusCode::NOT_FOUND);
+                    } else {
+                        status!(res, StatusCode::OK);
+                    }
                 }
                 _ => {
                     status!(res, StatusCode::METHOD_NOT_ALLOWED);
@@ -292,7 +322,7 @@ impl InnerService {
     async fn handle_ls_dir(&self, path: &Path, exist: bool, res: &mut Response) -> BoxResult<()> {
         let mut paths = vec![];
         if exist {
-            paths = match self.list_dir(path, path, false).await {
+            paths = match self.list_dir(path, path).await {
                 Ok(paths) => paths,
                 Err(_) => {
                     status!(res, StatusCode::FORBIDDEN);
@@ -454,36 +484,46 @@ impl InnerService {
     }
 
     fn handle_method_options(&self, res: &mut Response) {
-        let allow_upload = self.args.allow_upload;
-        let allow_delete = self.args.allow_delete;
-        let mut methods = vec!["GET", "PROPFIND", "OPTIONS"];
-        if allow_upload {
-            methods.extend(["PUT", "COPY", "MKCOL"]);
-        }
-        if allow_delete {
-            methods.push("DELETE");
-        }
-        if allow_upload && allow_delete {
-            methods.push("COPY");
-        }
-        let value = methods.join(",").parse().unwrap();
-        res.headers_mut().insert("Allow", value);
+        res.headers_mut().insert(
+            "Allow",
+            "GET,HEAD,PUT,OPTIONS,DELETE,PROPFIND,COPY,MOVE"
+                .parse()
+                .unwrap(),
+        );
         res.headers_mut().insert("DAV", "1".parse().unwrap());
 
         status!(res, StatusCode::NO_CONTENT);
     }
 
-    async fn handle_propfind_dir(&self, path: &Path, res: &mut Response) -> BoxResult<()> {
-        let paths = match self.list_dir(path, &self.args.path, true).await {
-            Ok(paths) => paths,
-            Err(_) => {
-                status!(res, StatusCode::FORBIDDEN);
-                return Ok(());
-            }
+    async fn handle_propfind_dir(
+        &self,
+        path: &Path,
+        headers: &HeaderMap<HeaderValue>,
+        res: &mut Response,
+    ) -> BoxResult<()> {
+        let depth: u32 = match headers.get("depth") {
+            Some(v) => match v.to_str().ok().and_then(|v| v.parse().ok()) {
+                Some(v) => v,
+                None => {
+                    status!(res, StatusCode::BAD_REQUEST);
+                    return Ok(());
+                }
+            },
+            None => 1,
         };
+        let mut paths = vec![self.to_pathitem(path, &self.args.path).await?.unwrap()];
+        if depth > 0 {
+            match self.list_dir(path, &self.args.path).await {
+                Ok(child) => paths.extend(child),
+                Err(_) => {
+                    status!(res, StatusCode::FORBIDDEN);
+                    return Ok(());
+                }
+            }
+        }
         let output = paths
             .iter()
-            .map(|v| v.xml(self.args.path_prefix.as_ref()))
+            .map(|v| v.to_dav_xml(self.args.uri_prefix.as_str()))
             .fold(String::new(), |mut acc, v| {
                 acc.push_str(&v);
                 acc
@@ -494,7 +534,7 @@ impl InnerService {
 
     async fn handle_propfind_file(&self, path: &Path, res: &mut Response) -> BoxResult<()> {
         if let Some(pathitem) = self.to_pathitem(path, &self.args.path).await? {
-            res_propfind(res, &pathitem.xml(self.args.path_prefix.as_ref()));
+            res_propfind(res, &pathitem.to_dav_xml(self.args.uri_prefix.as_str()));
         } else {
             status!(res, StatusCode::NOT_FOUND);
         }
@@ -554,6 +594,27 @@ impl InnerService {
         fs::rename(path, &dest).await?;
 
         status!(res, StatusCode::NO_CONTENT);
+        Ok(())
+    }
+
+    async fn handle_lock(&self, req_path: &str, res: &mut Response) -> BoxResult<()> {
+        let now = Utc::now().timestamp();
+        res.headers_mut().insert(
+            "content-type",
+            "application/xml; charset=utf-8".parse().unwrap(),
+        );
+        res.headers_mut()
+            .insert("lock-token", format!("<{}>", now).parse().unwrap());
+        *res.body_mut() = Body::from(format!(
+            r#"<?xml version="1.0" encoding="utf-8"?>
+<D:prop xmlns:D="DAV:"><D:lockdiscovery><D:activelock>
+	<D:locktype><D:write/></D:locktype>
+	<D:lockscope><D:exclusive/></D:lockscope>
+	<D:locktoken><D:href>{}</D:href></D:locktoken>
+	<D:lockroot><D:href>{}</D:href></D:lockroot>
+</D:activelock></D:lockdiscovery></D:prop>"#,
+            now, req_path
+        ));
         Ok(())
     }
 
@@ -652,25 +713,15 @@ impl InnerService {
 
     fn strip_path_prefix<'a, P: AsRef<Path>>(&self, path: &'a P) -> Option<&'a Path> {
         let path = path.as_ref();
-        match self.args.path_prefix.as_deref() {
-            Some(prefix) => {
-                let prefix = prefix.trim_start_matches('/');
-                path.strip_prefix(prefix).ok()
-            }
-            None => Some(path),
+        if self.args.path_prefix.is_empty() {
+            Some(path)
+        } else {
+            path.strip_prefix(&self.args.path_prefix).ok()
         }
     }
 
-    async fn list_dir(
-        &self,
-        entry_path: &Path,
-        base_path: &Path,
-        include_entry: bool,
-    ) -> BoxResult<Vec<PathItem>> {
+    async fn list_dir(&self, entry_path: &Path, base_path: &Path) -> BoxResult<Vec<PathItem>> {
         let mut paths: Vec<PathItem> = vec![];
-        if include_entry {
-            paths.push(self.to_pathitem(entry_path, base_path).await?.unwrap())
-        }
         let mut rd = fs::read_dir(entry_path).await?;
         while let Ok(Some(entry)) = rd.next_entry().await {
             let entry_path = entry.path();
@@ -740,11 +791,7 @@ struct PathItem {
 }
 
 impl PathItem {
-    pub fn xml(&self, prefix: Option<&String>) -> String {
-        let prefix = match prefix {
-            Some(value) => format!("/{}/", value),
-            None => "/".to_owned(),
-        };
+    pub fn to_dav_xml(&self, prefix: &str) -> String {
         let mtime = Utc.timestamp_millis(self.mtime as i64).to_rfc2822();
         match self.path_type {
             PathType::Dir | PathType::SymlinkDir => format!(
@@ -755,9 +802,6 @@ impl PathItem {
 <D:displayname>{}</D:displayname>
 <D:getlastmodified>{}</D:getlastmodified>
 <D:resourcetype><D:collection/></D:resourcetype>
-<D:lockdiscovery/>
-<D:supportedlock>
-</D:supportedlock>
 </D:prop>
 <D:status>HTTP/1.1 200 OK</D:status>
 </D:propstat>
@@ -773,9 +817,6 @@ impl PathItem {
 <D:getcontentlength>{}</D:getcontentlength>
 <D:getlastmodified>{}</D:getlastmodified>
 <D:resourcetype></D:resourcetype>
-<D:lockdiscovery/>
-<D:supportedlock>
-</D:supportedlock>
 </D:prop>
 <D:status>HTTP/1.1 200 OK</D:status>
 </D:propstat>
@@ -834,6 +875,10 @@ fn add_cors(res: &mut Response) {
 
 fn res_propfind(res: &mut Response, content: &str) {
     *res.status_mut() = StatusCode::MULTI_STATUS;
+    res.headers_mut().insert(
+        "content-type",
+        "application/xml; charset=utf-8".parse().unwrap(),
+    );
     *res.body_mut() = Body::from(format!(
         r#"<?xml version="1.0" encoding="utf-8" ?>
 <D:multistatus xmlns:D="DAV:">
@@ -910,15 +955,19 @@ fn to_content_range(range: &Range, complete_length: u64) -> Option<ContentRange>
     })
 }
 
-fn print_listening(address: &str, port: u16, tls: bool) {
+fn print_listening(address: &str, port: u16, prefix: &str, tls: bool) {
+    let prefix = prefix.trim_end_matches('/');
     let addrs = retrive_listening_addrs(address);
     let protocol = if tls { "https" } else { "http" };
     if addrs.len() == 1 {
-        eprintln!("Listening on {}://{}:{}", protocol, addrs[0], port);
+        eprintln!(
+            "Listening on {}://{}:{}{}",
+            protocol, addrs[0], port, prefix
+        );
     } else {
         eprintln!("Listening on:");
         for addr in addrs {
-            eprintln!("  {}://{}:{}", protocol, addr, port);
+            eprintln!("  {}://{}:{}{}", protocol, addr, port, prefix);
         }
         eprintln!();
     }
