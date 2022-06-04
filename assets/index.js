@@ -87,7 +87,7 @@ class Uploader {
 }
 
 /**
- * Add breadcumb
+ * Add breadcrumb
  * @param {string} value 
  */
 function addBreadcrumb(value) {
