@@ -4,7 +4,7 @@ use async_walkdir::WalkDir;
 use async_zip::read::seek::ZipFileReader;
 use async_zip::write::{EntryOptions, ZipFileWriter};
 use async_zip::Compression;
-use chrono::Local;
+use chrono::{Local, TimeZone, Utc};
 use futures::stream::StreamExt;
 use futures::TryStreamExt;
 use get_if_addrs::get_if_addrs;
@@ -18,7 +18,7 @@ use hyper::header::{
     WWW_AUTHENTICATE,
 };
 use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Method, StatusCode};
+use hyper::{Body, Method, StatusCode, Uri};
 use percent_encoding::percent_decode;
 use rustls::ServerConfig;
 use serde::Serialize;
@@ -189,8 +189,8 @@ impl InnerService {
             return Ok(res);
         }
 
-        match *req.method() {
-            Method::GET => {
+        match req.method() {
+            &Method::GET => {
                 let headers = req.headers();
                 if is_dir {
                     if render_index || render_spa {
@@ -212,28 +212,46 @@ impl InnerService {
                     status!(res, StatusCode::NOT_FOUND);
                 }
             }
-            Method::OPTIONS => {
-                status!(res, StatusCode::NO_CONTENT);
+            &Method::OPTIONS => {
+                self.handle_method_options(&mut res);
             }
-            Method::PUT => {
+            &Method::PUT => {
                 if !allow_upload || (!allow_delete && is_file) {
                     status!(res, StatusCode::FORBIDDEN);
                 } else {
                     self.handle_upload(path, req, &mut res).await?;
                 }
             }
-            Method::DELETE => {
+            &Method::DELETE => {
                 if !allow_delete {
                     status!(res, StatusCode::FORBIDDEN);
                 } else if !is_miss {
-                    self.handle_delete(path, is_dir).await?
+                    self.handle_delete(path, is_dir, &mut res).await?
                 } else {
                     status!(res, StatusCode::NOT_FOUND);
                 }
             }
-            _ => {
-                status!(res, StatusCode::METHOD_NOT_ALLOWED);
-            }
+            method => match method.as_str() {
+                "PROPFIND" => {
+                    if is_dir {
+                        self.handle_propfind_dir(path, &mut res).await?;
+                    } else if is_file {
+                        self.handle_propfind_file(path, &mut res).await?;
+                    } else {
+                        status!(res, StatusCode::NOT_FOUND);
+                    }
+                }
+                "MKCOL" if allow_upload && is_miss => self.handle_mkcol(path, &mut res).await?,
+                "COPY" if allow_upload && !is_miss => {
+                    self.handle_copy(path, req.headers(), &mut res).await?
+                }
+                "MOVE" if allow_upload && allow_delete && !is_miss => {
+                    self.handle_move(path, req.headers(), &mut res).await?
+                }
+                _ => {
+                    status!(res, StatusCode::METHOD_NOT_ALLOWED);
+                }
+            },
         }
         Ok(res)
     }
@@ -244,20 +262,7 @@ impl InnerService {
         mut req: Request,
         res: &mut Response,
     ) -> BoxResult<()> {
-        let ensure_parent = match path.parent() {
-            Some(parent) => match fs::metadata(parent).await {
-                Ok(meta) => meta.is_dir(),
-                Err(_) => {
-                    fs::create_dir_all(parent).await?;
-                    true
-                }
-            },
-            None => false,
-        };
-        if !ensure_parent {
-            status!(res, StatusCode::FORBIDDEN);
-            return Ok(());
-        }
+        ensure_path_parent(path).await?;
 
         let mut file = fs::File::create(&path).await?;
 
@@ -280,34 +285,31 @@ impl InnerService {
             fs::remove_file(&path).await?;
         }
 
+        status!(res, StatusCode::CREATED);
         Ok(())
     }
 
-    async fn handle_delete(&self, path: &Path, is_dir: bool) -> BoxResult<()> {
+    async fn handle_delete(&self, path: &Path, is_dir: bool, res: &mut Response) -> BoxResult<()> {
         match is_dir {
             true => fs::remove_dir_all(path).await?,
             false => fs::remove_file(path).await?,
         }
+
+        status!(res, StatusCode::NO_CONTENT);
         Ok(())
     }
 
     async fn handle_ls_dir(&self, path: &Path, exist: bool, res: &mut Response) -> BoxResult<()> {
-        let mut paths: Vec<PathItem> = vec![];
+        let mut paths = vec![];
         if exist {
-            let mut rd = match fs::read_dir(path).await {
-                Ok(rd) => rd,
+            paths = match self.list_dir(path, path, false).await {
+                Ok(paths) => paths,
                 Err(_) => {
                     status!(res, StatusCode::FORBIDDEN);
                     return Ok(());
                 }
-            };
-            while let Some(entry) = rd.next_entry().await? {
-                let entry_path = entry.path();
-                if let Ok(Some(item)) = self.to_pathitem(entry_path, path.to_path_buf()).await {
-                    paths.push(item);
-                }
             }
-        }
+        };
         self.send_index(path, paths, res)
     }
 
@@ -461,6 +463,110 @@ impl InnerService {
         Ok(())
     }
 
+    fn handle_method_options(&self, res: &mut Response) {
+        let allow_upload = self.args.allow_upload;
+        let allow_delete = self.args.allow_delete;
+        let mut methods = vec!["GET", "PROPFIND", "OPTIONS"];
+        if allow_upload {
+            methods.extend(["PUT", "COPY", "MKCOL"]);
+        }
+        if allow_delete {
+            methods.push("DELETE");
+        }
+        if allow_upload && allow_delete {
+            methods.push("COPY");
+        }
+        let value = methods.join(",").parse().unwrap();
+        res.headers_mut().insert("Allow", value);
+        res.headers_mut().insert("DAV", "1".parse().unwrap());
+
+        status!(res, StatusCode::NO_CONTENT);
+    }
+
+    async fn handle_propfind_dir(&self, path: &Path, res: &mut Response) -> BoxResult<()> {
+        let paths = match self.list_dir(path, &self.args.path, true).await {
+            Ok(paths) => paths,
+            Err(_) => {
+                status!(res, StatusCode::FORBIDDEN);
+                return Ok(());
+            }
+        };
+        let output = paths
+            .iter()
+            .map(|v| v.xml(self.args.path_prefix.as_ref()))
+            .fold(String::new(), |mut acc, v| {
+                acc.push_str(&v);
+                acc
+            });
+        res_propfind(res, &output);
+        Ok(())
+    }
+
+    async fn handle_propfind_file(&self, path: &Path, res: &mut Response) -> BoxResult<()> {
+        if let Some(pathitem) = self.to_pathitem(path, &self.args.path).await? {
+            res_propfind(res, &pathitem.xml(self.args.path_prefix.as_ref()));
+        } else {
+            status!(res, StatusCode::NOT_FOUND);
+        }
+        Ok(())
+    }
+
+    async fn handle_mkcol(&self, path: &Path, res: &mut Response) -> BoxResult<()> {
+        fs::create_dir_all(path).await?;
+        status!(res, StatusCode::CREATED);
+        Ok(())
+    }
+
+    async fn handle_copy(
+        &self,
+        path: &Path,
+        headers: &HeaderMap<HeaderValue>,
+        res: &mut Response,
+    ) -> BoxResult<()> {
+        let dest = match self.extract_dest(headers) {
+            Some(dest) => dest,
+            None => {
+                status!(res, StatusCode::BAD_REQUEST);
+                return Ok(());
+            }
+        };
+
+        let meta = fs::symlink_metadata(path).await?;
+        if meta.is_dir() {
+            status!(res, StatusCode::BAD_REQUEST);
+            return Ok(());
+        }
+
+        ensure_path_parent(&dest).await?;
+
+        fs::copy(path, &dest).await?;
+
+        status!(res, StatusCode::NO_CONTENT);
+        Ok(())
+    }
+
+    async fn handle_move(
+        &self,
+        path: &Path,
+        headers: &HeaderMap<HeaderValue>,
+        res: &mut Response,
+    ) -> BoxResult<()> {
+        let dest = match self.extract_dest(headers) {
+            Some(dest) => dest,
+            None => {
+                status!(res, StatusCode::BAD_REQUEST);
+                return Ok(());
+            }
+        };
+
+        ensure_path_parent(&dest).await?;
+
+        fs::rename(path, &dest).await?;
+
+        status!(res, StatusCode::NO_CONTENT);
+        Ok(())
+    }
+
     fn send_index(
         &self,
         path: &Path,
@@ -547,17 +653,19 @@ impl InnerService {
                 if !self.args.allow_delete && fs::metadata(&entry_path).await.is_ok() {
                     continue;
                 }
-                if let Some(parent) = entry_path.parent() {
-                    if fs::symlink_metadata(parent).await.is_err() {
-                        fs::create_dir_all(&parent).await?;
-                    }
-                }
+                ensure_path_parent(&entry_path).await?;
                 let mut outfile = fs::File::create(&entry_path).await?;
                 let mut reader = zip.entry_reader(i).await?;
                 io::copy(&mut reader, &mut outfile).await?;
             }
         }
         Ok(())
+    }
+
+    fn extract_dest(&self, headers: &HeaderMap<HeaderValue>) -> Option<PathBuf> {
+        let dest = headers.get("Destination")?.to_str().ok()?;
+        let uri: Uri = dest.parse().ok()?;
+        self.extract_path(uri.path())
     }
 
     fn extract_path(&self, path: &str) -> Option<PathBuf> {
@@ -585,6 +693,26 @@ impl InnerService {
         }
     }
 
+    async fn list_dir(
+        &self,
+        entry_path: &Path,
+        base_path: &Path,
+        include_entry: bool,
+    ) -> BoxResult<Vec<PathItem>> {
+        let mut paths: Vec<PathItem> = vec![];
+        if include_entry {
+            paths.push(self.to_pathitem(entry_path, base_path).await?.unwrap())
+        }
+        let mut rd = fs::read_dir(entry_path).await?;
+        while let Ok(Some(entry)) = rd.next_entry().await {
+            let entry_path = entry.path();
+            if let Ok(Some(item)) = self.to_pathitem(entry_path.as_path(), base_path).await {
+                paths.push(item);
+            }
+        }
+        Ok(paths)
+    }
+
     async fn to_pathitem<P: AsRef<Path>>(
         &self,
         path: P,
@@ -610,9 +738,15 @@ impl InnerService {
             PathType::Dir | PathType::SymlinkDir => None,
             PathType::File | PathType::SymlinkFile => Some(meta.len()),
         };
+        let base_name = rel_path
+            .file_name()
+            .and_then(|v| v.to_str())
+            .unwrap_or("/")
+            .to_owned();
         let name = normalize_path(rel_path);
         Ok(Some(PathItem {
             path_type,
+            base_name,
             name,
             mtime,
             size,
@@ -620,7 +754,7 @@ impl InnerService {
     }
 }
 
-#[derive(Debug, Serialize, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Serialize)]
 struct IndexData {
     breadcrumb: String,
     paths: Vec<PathItem>,
@@ -631,9 +765,61 @@ struct IndexData {
 #[derive(Debug, Serialize, Eq, PartialEq, Ord, PartialOrd)]
 struct PathItem {
     path_type: PathType,
+    base_name: String,
     name: String,
     mtime: u64,
     size: Option<u64>,
+}
+
+impl PathItem {
+    pub fn xml(&self, prefix: Option<&String>) -> String {
+        let prefix = match prefix {
+            Some(value) => format!("/{}/", value),
+            None => "/".to_owned(),
+        };
+        let mtime = Utc.timestamp_millis(self.mtime as i64).to_rfc2822();
+        match self.path_type {
+            PathType::Dir | PathType::SymlinkDir => format!(
+                r#"<D:response>
+<D:href>{}{}</D:href>
+<D:propstat>
+<D:prop>
+<D:displayname>{}</D:displayname>
+<D:getlastmodified>{}</D:getlastmodified>
+<D:resourcetype><D:collection/></D:resourcetype>
+<D:lockdiscovery/>
+<D:supportedlock>
+</D:supportedlock>
+</D:prop>
+<D:status>HTTP/1.1 200 OK</D:status>
+</D:propstat>
+</D:response>"#,
+                prefix, self.name, self.base_name, mtime
+            ),
+            PathType::File | PathType::SymlinkFile => format!(
+                r#"<D:response>
+<D:href>{}{}</D:href>
+<D:propstat>
+<D:prop>
+<D:displayname>{}</D:displayname>
+<D:getcontentlength>{}</D:getcontentlength>
+<D:getlastmodified>{}</D:getlastmodified>
+<D:resourcetype></D:resourcetype>
+<D:lockdiscovery/>
+<D:supportedlock>
+</D:supportedlock>
+</D:prop>
+<D:status>HTTP/1.1 200 OK</D:status>
+</D:propstat>
+</D:response>"#,
+                prefix,
+                self.name,
+                self.base_name,
+                self.size.unwrap_or_default(),
+                mtime
+            ),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq, Ord, PartialOrd)]
@@ -659,6 +845,15 @@ fn normalize_path<P: AsRef<Path>>(path: P) -> String {
     }
 }
 
+async fn ensure_path_parent(path: &Path) -> BoxResult<()> {
+    if let Some(parent) = path.parent() {
+        if fs::symlink_metadata(parent).await.is_err() {
+            fs::create_dir_all(&parent).await?;
+        }
+    }
+    Ok(())
+}
+
 fn add_cors(res: &mut Response) {
     res.headers_mut()
         .typed_insert(AccessControlAllowOrigin::ANY);
@@ -667,6 +862,17 @@ fn add_cors(res: &mut Response) {
             .into_iter()
             .collect::<AccessControlAllowHeaders>(),
     );
+}
+
+fn res_propfind(res: &mut Response, content: &str) {
+    *res.status_mut() = StatusCode::MULTI_STATUS;
+    *res.body_mut() = Body::from(format!(
+        r#"<?xml version="1.0" encoding="utf-8" ?>
+<D:multistatus xmlns:D="DAV:">
+{}
+</D:multistatus>"#,
+        content,
+    ));
 }
 
 async fn zip_dir<W: AsyncWrite + Unpin>(writer: &mut W, dir: &Path) -> BoxResult<()> {

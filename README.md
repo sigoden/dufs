@@ -18,6 +18,7 @@ Duf is a fully functional file server.
 - Upload zip file then unzip
 - Partial responses (Parallel/Resume download)
 - Support https/tls
+- Support webdav
 - Easy to use with curl
 
 ## Install
