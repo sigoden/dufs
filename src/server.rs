@@ -966,7 +966,7 @@ fn to_content_range(range: &Range, complete_length: u64) -> Option<ContentRange>
 
 fn print_listening(address: &str, port: u16, prefix: &str, tls: bool) {
     let prefix = prefix.trim_end_matches('/');
-    let addrs = retrive_listening_addrs(address);
+    let addrs = retrieve_listening_addrs(address);
     let protocol = if tls { "https" } else { "http" };
     if addrs.len() == 1 {
         eprintln!(
@@ -982,7 +982,7 @@ fn print_listening(address: &str, port: u16, prefix: &str, tls: bool) {
     }
 }
 
-fn retrive_listening_addrs(address: &str) -> Vec<String> {
+fn retrieve_listening_addrs(address: &str) -> Vec<String> {
     if address == "0.0.0.0" {
         if let Ok(interfaces) = get_if_addrs() {
             let mut ifaces: Vec<IpAddr> = interfaces
