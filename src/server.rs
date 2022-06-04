@@ -619,8 +619,6 @@ impl InnerService {
         *res.body_mut() = Body::from(format!(
             r#"<?xml version="1.0" encoding="utf-8"?>
 <D:prop xmlns:D="DAV:"><D:lockdiscovery><D:activelock>
-	<D:locktype><D:write/></D:locktype>
-	<D:lockscope><D:exclusive/></D:lockscope>
 	<D:locktoken><D:href>{}</D:href></D:locktoken>
 	<D:lockroot><D:href>{}</D:href></D:lockroot>
 </D:activelock></D:lockdiscovery></D:prop>"#,
