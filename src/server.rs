@@ -1,7 +1,6 @@
 use crate::{Args, BoxResult};
 
 use async_walkdir::WalkDir;
-use async_zip::read::seek::ZipFileReader;
 use async_zip::write::{EntryOptions, ZipFileWriter};
 use async_zip::Compression;
 use chrono::{Local, TimeZone, Utc};
@@ -275,15 +274,6 @@ impl InnerService {
         futures::pin_mut!(body_reader);
 
         io::copy(&mut body_reader, &mut file).await?;
-
-        let query = req.uri().query().unwrap_or_default();
-        if query == "unzip" {
-            if let Err(e) = self.unzip_file(path).await {
-                eprintln!("Failed to unzip {}, {}", path.display(), e);
-                status!(res, StatusCode::BAD_REQUEST);
-            }
-            fs::remove_file(&path).await?;
-        }
 
         status!(res, StatusCode::CREATED);
         Ok(())
@@ -638,28 +628,6 @@ impl InnerService {
             .ok()
             .map(|v| v.starts_with(&self.args.path))
             .unwrap_or_default()
-    }
-
-    async fn unzip_file(&self, path: &Path) -> BoxResult<()> {
-        let root = path.parent().unwrap();
-        let mut zip = ZipFileReader::new(File::open(&path).await?).await?;
-        for i in 0..zip.entries().len() {
-            let entry = &zip.entries()[i];
-            let entry_name = entry.name();
-            let entry_path = root.join(entry_name);
-            if entry_name.ends_with('/') {
-                fs::create_dir_all(entry_path).await?;
-            } else {
-                if !self.args.allow_delete && fs::metadata(&entry_path).await.is_ok() {
-                    continue;
-                }
-                ensure_path_parent(&entry_path).await?;
-                let mut outfile = fs::File::create(&entry_path).await?;
-                let mut reader = zip.entry_reader(i).await?;
-                io::copy(&mut reader, &mut outfile).await?;
-            }
-        }
-        Ok(())
     }
 
     fn extract_dest(&self, headers: &HeaderMap<HeaderValue>) -> Option<PathBuf> {

@@ -45,9 +45,6 @@ class Uploader {
   upload() {
     const { file, idx, name } = this;
     let url = getUrl(name);
-    if (file.name == baseDir + ".zip") {
-      url += "?unzip";
-    }
     $uploadersTable.insertAdjacentHTML("beforeend", `
   <tr id="upload${idx}" class="uploader">
     <td class="path cell-name">
