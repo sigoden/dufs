@@ -1,4 +1,15 @@
 /**
+ * @typedef {object} PathItem
+ * @property {"Dir"|"SymlinkDir"|"File"|"SymlinkFile"} path_type
+ * @property {boolean} is_symlink
+ * @property {string} base_name
+ * @property {string} name
+ * @property {number} mtime
+ * @property {number} size
+ */
+
+
+/**
  * @type Element
  */
 let $pathsTable, $pathsTableBody, $uploadersTable;
@@ -8,9 +19,21 @@ let $pathsTable, $pathsTableBody, $uploadersTable;
 let baseDir;
 
 class Uploader {
+  /**
+   * @type number
+   */
   idx;
+  /**
+   * @type File
+   */
   file;
+  /**
+   * @type string
+   */
   name;
+  /**
+   * @type Element
+   */
   $uploadStatus;
   static globalIdx = 0;
   constructor(file, dirs) {
@@ -40,7 +63,7 @@ class Uploader {
     ajax.upload.addEventListener("progress", e => this.progress(e), false);
     ajax.addEventListener("readystatechange", () => {
       if(ajax.readyState === 4) {
-        if (ajax.status == 200) {
+        if (ajax.status >= 200 && ajax.status < 300) {
           this.complete();
         } else {
           this.fail();
@@ -67,6 +90,10 @@ class Uploader {
   }
 }
 
+/**
+ * Add breadcumb
+ * @param {string} value 
+ */
 function addBreadcrumb(value) {
   const $breadcrumb = document.querySelector(".breadcrumb");
   const parts = value.split("/").filter(v => !!v);
@@ -89,6 +116,11 @@ function addBreadcrumb(value) {
   }
 }
 
+/**
+ * Add pathitem
+ * @param {PathItem} file 
+ * @param {number} index 
+ */
 function addPath(file, index) {
   const url = getUrl(file.name)
   let actionDelete = "";
@@ -123,7 +155,7 @@ function addPath(file, index) {
   $pathsTableBody.insertAdjacentHTML("beforeend", `
 <tr id="addPath${index}">
   <td class="path cell-name">
-    <div>${getSvg(file.path_type)}</div>
+    <div>${getSvg(file)}</div>
     <a href="${url}" title="${file.name}">${file.name}</a>
   </td>
   <td class="cell-mtime">${formatMtime(file.mtime)}</td>
@@ -132,6 +164,11 @@ function addPath(file, index) {
 </tr>`)
 }
 
+/**
+ * Delete pathitem
+ * @param {number} index 
+ * @returns 
+ */
 async function deletePath(index) {
   const file = DATA.paths[index];
   if (!file) return;
@@ -142,7 +179,7 @@ async function deletePath(index) {
     const res = await fetch(getUrl(file.name), {
       method: "DELETE",
     });
-    if (res.status === 200) {
+    if (res.status >= 200 && res.status < 300) {
         document.getElementById(`addPath${index}`).remove();
         DATA.paths[index] = null;
         if (!DATA.paths.find(v => !!v)) {
@@ -201,8 +238,13 @@ function getUrl(name) {
     return url;
 }
 
-function getSvg(path_type) {
-  switch (path_type) {
+/**
+ * Get svg icon
+ * @param {PathItem} file
+ * @returns 
+ */
+function getSvg(file) {
+  switch (file.path_type) {
     case "Dir":
       return `<svg height="16" viewBox="0 0 14 16" width="14"><path fill-rule="evenodd" d="M13 4H7V3c0-.66-.31-1-1-1H1c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1V5c0-.55-.45-1-1-1zM6 4H1V3h5v1z"></path></svg>`;
     case "File":

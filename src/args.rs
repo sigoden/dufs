@@ -134,7 +134,9 @@ impl Args {
         let address = matches.value_of("address").unwrap_or_default().to_owned();
         let port = matches.value_of_t::<u16>("port")?;
         let path = Args::parse_path(matches.value_of_os("path").unwrap_or_default())?;
-        let path_prefix = matches.value_of("path-prefix").map(|v| v.to_owned());
+        let path_prefix = matches
+            .value_of("path-prefix")
+            .map(|v| v.trim_matches('/').to_owned());
         let cors = matches.is_present("cors");
         let auth = matches.value_of("auth").map(|v| v.to_owned());
         let no_auth_access = matches.is_present("no-auth-access");
