@@ -15,9 +15,8 @@ Duf is a fully functional file server.
 - Upload files and folders (Drag & Drop)
 - Delete files
 - Basic authentication
-- Upload zip file then unzip
 - Partial responses (Parallel/Resume download)
-- Support https/tls
+- Support https
 - Support webdav
 - Easy to use with curl
 
@@ -126,12 +125,6 @@ Upload a file
 
 ```
 curl --upload-file some-file http://127.0.0.1:5000/some-file
-```
-
-Unzip zip file when unload
-
-```
-curl --upload-file some-folder.zip http://127.0.0.1:5000/some-folder.zip?unzip
 ```
 
 Delete a file/folder
