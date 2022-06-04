@@ -2,7 +2,6 @@
  * @typedef {object} PathItem
  * @property {"Dir"|"SymlinkDir"|"File"|"SymlinkFile"} path_type
  * @property {boolean} is_symlink
- * @property {string} base_name
  * @property {string} name
  * @property {number} mtime
  * @property {number} size
@@ -152,7 +151,7 @@ function addPath(file, index) {
   $pathsTableBody.insertAdjacentHTML("beforeend", `
 <tr id="addPath${index}">
   <td class="path cell-name">
-    <div>${getSvg(file)}</div>
+    <div>${getSvg(file.path_type)}</div>
     <a href="${url}" title="${file.name}">${file.name}</a>
   </td>
   <td class="cell-mtime">${formatMtime(file.mtime)}</td>
@@ -235,13 +234,8 @@ function getUrl(name) {
     return url;
 }
 
-/**
- * Get svg icon
- * @param {PathItem} file
- * @returns 
- */
-function getSvg(file) {
-  switch (file.path_type) {
+function getSvg(path_type) {
+  switch (path_type) {
     case "Dir":
       return `<svg height="16" viewBox="0 0 14 16" width="14"><path fill-rule="evenodd" d="M13 4H7V3c0-.66-.31-1-1-1H1c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1V5c0-.55-.45-1-1-1zM6 4H1V3h5v1z"></path></svg>`;
     case "File":
