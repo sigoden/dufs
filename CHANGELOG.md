@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.0] - 2022-06-04
+
+### Features
+
+- Support webdav ([#10](https://github.com/sigoden/duf/issues/10))
+- Remove unzip uploaded feature ([#11](https://github.com/sigoden/duf/issues/11))
+
 ## [0.11.0] - 2022-06-03
 
 ### Features

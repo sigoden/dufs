@@ -3,7 +3,7 @@
 [![CI](https://github.com/sigoden/duf/actions/workflows/ci.yaml/badge.svg)](https://github.com/sigoden/duf/actions/workflows/ci.yaml)
 [![Crates](https://img.shields.io/crates/v/duf.svg)](https://crates.io/crates/duf)
 
-Duf is a fully functional file server.
+Duf is a simple file server. Support static serve, search, upload, delete, webdav...
 
 ![demo](https://user-images.githubusercontent.com/4012553/171526189-09afc2de-793f-4216-b3d5-31ea408d3610.png)
 
@@ -41,7 +41,7 @@ Download from [Github Releases](https://github.com/sigoden/duf/releases), unzip 
 ## CLI
 
 ```
-Duf is a fully functional file server.
+Duf is a simple file server.
 
 USAGE:
     duf [OPTIONS] [path]
