@@ -251,7 +251,7 @@ impl InnerService {
                 }
                 "PROPPATCH" => {
                     if is_file {
-                        self.handle_propfind_file(path, &mut res).await?;
+                        self.handle_proppatch(req_path, &mut res).await?;
                     } else {
                         status!(res, StatusCode::NOT_FOUND);
                     }
@@ -533,13 +533,13 @@ impl InnerService {
                 acc.push_str(&v);
                 acc
             });
-        res_propfind(res, &output);
+        res_multistatus(res, &output);
         Ok(())
     }
 
     async fn handle_propfind_file(&self, path: &Path, res: &mut Response) -> BoxResult<()> {
         if let Some(pathitem) = self.to_pathitem(path, &self.args.path).await? {
-            res_propfind(res, &pathitem.to_dav_xml(self.args.uri_prefix.as_str()));
+            res_multistatus(res, &pathitem.to_dav_xml(self.args.uri_prefix.as_str()));
         } else {
             status!(res, StatusCode::NOT_FOUND);
         }
@@ -619,11 +619,24 @@ impl InnerService {
         *res.body_mut() = Body::from(format!(
             r#"<?xml version="1.0" encoding="utf-8"?>
 <D:prop xmlns:D="DAV:"><D:lockdiscovery><D:activelock>
-	<D:locktoken><D:href>{}</D:href></D:locktoken>
-	<D:lockroot><D:href>{}</D:href></D:lockroot>
+<D:locktoken><D:href>{}</D:href></D:locktoken>
+<D:lockroot><D:href>{}</D:href></D:lockroot>
 </D:activelock></D:lockdiscovery></D:prop>"#,
             token, req_path
         ));
+        Ok(())
+    }
+
+    async fn handle_proppatch(&self, req_path: &str, res: &mut Response) -> BoxResult<()> {
+        let output = format!(r#"<D:response>
+<D:href>{}</D:href>
+<D:propstat>
+<D:prop>
+</D:prop>
+<D:status>HTTP/1.1 403 Forbidden</D:status>
+</D:propstat>
+</D:response>"#, req_path);
+        res_multistatus(res, &output);
         Ok(())
     }
 
@@ -882,7 +895,7 @@ fn add_cors(res: &mut Response) {
     );
 }
 
-fn res_propfind(res: &mut Response, content: &str) {
+fn res_multistatus(res: &mut Response, content: &str) {
     *res.status_mut() = StatusCode::MULTI_STATUS;
     res.headers_mut().insert(
         "content-type",
