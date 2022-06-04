@@ -628,14 +628,17 @@ impl InnerService {
     }
 
     async fn handle_proppatch(&self, req_path: &str, res: &mut Response) -> BoxResult<()> {
-        let output = format!(r#"<D:response>
+        let output = format!(
+            r#"<D:response>
 <D:href>{}</D:href>
 <D:propstat>
 <D:prop>
 </D:prop>
 <D:status>HTTP/1.1 403 Forbidden</D:status>
 </D:propstat>
-</D:response>"#, req_path);
+</D:response>"#,
+            req_path
+        );
         res_multistatus(res, &output);
         Ok(())
     }
