@@ -1,3 +1,4 @@
+use crate::auth::{generate_www_auth, valid_digest};
 use crate::{Args, BoxResult};
 
 use async_walkdir::WalkDir;
@@ -34,6 +35,7 @@ use tokio::{fs, io};
 use tokio_rustls::TlsAcceptor;
 use tokio_util::codec::{BytesCodec, FramedRead};
 use tokio_util::io::{ReaderStream, StreamReader};
+use uuid::Uuid;
 
 type Request = hyper::Request<Body>;
 type Response = hyper::Response<Body>;
@@ -364,7 +366,10 @@ impl InnerService {
 
     async fn handle_zip_dir(&self, path: &Path, res: &mut Response) -> BoxResult<()> {
         let (mut writer, reader) = tokio::io::duplex(BUF_SIZE);
-        let filename = path.file_name().unwrap().to_str().unwrap();
+        let filename = path
+            .file_name()
+            .and_then(|v| v.to_str())
+            .ok_or_else(|| format!("Failed to get name of `{}`", path.display()))?;
         let path = path.to_owned();
         tokio::spawn(async move {
             if let Err(e) = zip_dir(&mut writer, &path).await {
@@ -509,7 +514,7 @@ impl InnerService {
                     return Ok(());
                 }
             },
-            None => 1,
+            None => 0,
         };
         let mut paths = vec![self.to_pathitem(path, &self.args.path).await?.unwrap()];
         if depth > 0 {
@@ -598,22 +603,26 @@ impl InnerService {
     }
 
     async fn handle_lock(&self, req_path: &str, res: &mut Response) -> BoxResult<()> {
-        let now = Utc::now().timestamp();
+        let token = if self.args.auth.is_none() {
+            Utc::now().timestamp().to_string()
+        } else {
+            format!("opaquelocktoken:{}", Uuid::new_v4())
+        };
+
         res.headers_mut().insert(
             "content-type",
             "application/xml; charset=utf-8".parse().unwrap(),
         );
         res.headers_mut()
-            .insert("lock-token", format!("<{}>", now).parse().unwrap());
+            .insert("lock-token", format!("<{}>", token).parse().unwrap());
+
         *res.body_mut() = Body::from(format!(
             r#"<?xml version="1.0" encoding="utf-8"?>
 <D:prop xmlns:D="DAV:"><D:lockdiscovery><D:activelock>
-	<D:locktype><D:write/></D:locktype>
-	<D:lockscope><D:exclusive/></D:lockscope>
 	<D:locktoken><D:href>{}</D:href></D:locktoken>
 	<D:lockroot><D:href>{}</D:href></D:lockroot>
 </D:activelock></D:lockdiscovery></D:prop>"#,
-            now, req_path
+            token, req_path
         ));
         Ok(())
     }
@@ -656,29 +665,29 @@ impl InnerService {
     }
 
     fn auth_guard(&self, req: &Request, res: &mut Response) -> bool {
+        let method = req.method();
         let pass = {
             match &self.args.auth {
                 None => true,
-                Some(auth) => match req.headers().get(AUTHORIZATION) {
-                    Some(value) => match value.to_str().ok().map(|v| {
-                        let mut it = v.split(' ');
-                        (it.next(), it.next())
-                    }) {
-                        Some((Some("Basic"), Some(tail))) => base64::decode(tail)
-                            .ok()
-                            .and_then(|v| String::from_utf8(v).ok())
-                            .map(|v| v.as_str() == auth)
-                            .unwrap_or_default(),
-                        _ => false,
-                    },
-                    None => self.args.no_auth_access && req.method() == Method::GET,
+                Some((user, pass)) => match req.headers().get(AUTHORIZATION) {
+                    Some(value) => {
+                        valid_digest(value, method.as_str(), user.as_str(), pass.as_str()).is_some()
+                    }
+                    None => {
+                        self.args.no_auth_access
+                            && (method == Method::GET
+                                || method == Method::OPTIONS
+                                || method == Method::HEAD
+                                || method.as_str() == "PROPFIND")
+                    }
                 },
             }
         };
         if !pass {
+            let value = generate_www_auth(false);
             status!(res, StatusCode::UNAUTHORIZED);
             res.headers_mut()
-                .insert(WWW_AUTHENTICATE, HeaderValue::from_static("Basic"));
+                .insert(WWW_AUTHENTICATE, value.parse().unwrap());
         }
         pass
     }

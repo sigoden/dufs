@@ -13,8 +13,8 @@ Duf is a simple file server. Support static serve, search, upload, webdav...
 - Download folder as zip file
 - Upload files and folders (Drag & Drop)
 - Search files
-- Basic authentication
 - Partial responses (Parallel/Resume download)
+- Authentication
 - Support https
 - Support webdav
 - Easy to use with curl

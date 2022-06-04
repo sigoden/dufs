@@ -5,6 +5,7 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::{env, fs, io};
 
+use crate::auth::parse_auth;
 use crate::BoxResult;
 
 const ABOUT: &str = concat!("\n", crate_description!()); // Add extra newline.
@@ -115,7 +116,7 @@ pub struct Args {
     pub path: PathBuf,
     pub path_prefix: String,
     pub uri_prefix: String,
-    pub auth: Option<String>,
+    pub auth: Option<(String, String)>,
     pub no_auth_access: bool,
     pub allow_upload: bool,
     pub allow_delete: bool,
@@ -145,7 +146,10 @@ impl Args {
             format!("/{}/", &path_prefix)
         };
         let cors = matches.is_present("cors");
-        let auth = matches.value_of("auth").map(|v| v.to_owned());
+        let auth = match matches.value_of("auth") {
+            Some(auth) => Some(parse_auth(auth)?),
+            None => None,
+        };
         let no_auth_access = matches.is_present("no-auth-access");
         let allow_upload = matches.is_present("allow-all") || matches.is_present("allow-upload");
         let allow_delete = matches.is_present("allow-all") || matches.is_present("allow-delete");
