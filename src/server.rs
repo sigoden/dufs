@@ -656,6 +656,7 @@ impl InnerService {
     }
 
     fn auth_guard(&self, req: &Request, res: &mut Response) -> bool {
+        let method = req.method();
         let pass = {
             match &self.args.auth {
                 None => true,
@@ -671,7 +672,14 @@ impl InnerService {
                             .unwrap_or_default(),
                         _ => false,
                     },
-                    None => self.args.no_auth_access && req.method() == Method::GET,
+                    None => {
+                        self.args.no_auth_access
+                            && (method == Method::GET
+                                || method == Method::OPTIONS
+                                || method == Method::HEAD
+                                || method.as_str() == "PROPFIND"
+                            )
+                    }
                 },
             }
         };
