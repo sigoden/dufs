@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.0] - 2022-06-05
+
+### Bug Fixes
+
+- Ctrl+c not exit sometimes
+
+### Features
+
+- Implement more webdav methods ([#13](https://github.com/sigoden/duf/issues/13))
+- Use digest auth ([#14](https://github.com/sigoden/duf/issues/14))
+- Add webdav proppatch handler ([#18](https://github.com/sigoden/duf/issues/18))
+
 ## [0.12.1] - 2022-06-04
 
 ### Features
