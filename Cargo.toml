@@ -34,6 +34,7 @@ rustls-pemfile = "1"
 md5 = "0.7.0"
 lazy_static = "1.4.0"
 uuid = { version = "1.1.1", features = ["v4", "fast-rng"] }
+xml-rs = "0.8.4"
 
 [profile.release]
 lto = true
