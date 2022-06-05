@@ -5,6 +5,6 @@ WORKDIR /app
 COPY . .
 RUN cargo build --target x86_64-unknown-linux-musl --release
 
-FROM alpine
+FROM scratch
 COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/duf /bin/
 ENTRYPOINT ["/bin/duf"]
