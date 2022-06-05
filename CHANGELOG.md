@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.1] - 2022-06-05
+
+### Bug Fixes
+
+- Escape filename ([#21](https://github.com/sigoden/duf/issues/21))
+
+### Refactor
+
+- Use logger ([#22](https://github.com/sigoden/duf/issues/22))
+
 ## [0.13.0] - 2022-06-05
 
 ### Bug Fixes
