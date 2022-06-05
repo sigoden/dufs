@@ -14,10 +14,23 @@ async fn main() {
 
 async fn run() -> BoxResult<()> {
     let args = Args::parse(matches())?;
-    serve(args).await
+    tokio::select! {
+        ret = serve(args) => {
+            ret
+        },
+        _ = shutdown_signal() => {
+            Ok(())
+        },
+    }
 }
 
 fn handle_err<T>(err: Box<dyn std::error::Error>) -> T {
     eprintln!("error: {}", err);
     std::process::exit(1);
+}
+
+async fn shutdown_signal() {
+    tokio::signal::ctrl_c()
+        .await
+        .expect("Failed to install CTRL+C signal handler")
 }
