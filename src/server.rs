@@ -1,5 +1,5 @@
 use crate::auth::{generate_www_auth, valid_digest};
-use crate::{Args, BoxResult};
+use crate::{encode_uri, Args, BoxResult};
 
 use async_walkdir::WalkDir;
 use async_zip::write::{EntryOptions, ZipFileWriter};
@@ -370,7 +370,11 @@ impl InnerService {
         *res.body_mut() = Body::wrap_stream(stream);
         res.headers_mut().insert(
             CONTENT_DISPOSITION,
-            HeaderValue::from_str(&format!("attachment; filename=\"{}.zip\"", filename,)).unwrap(),
+            HeaderValue::from_str(&format!(
+                "attachment; filename=\"{}.zip\"",
+                encode_uri(filename),
+            ))
+            .unwrap(),
         );
         Ok(())
     }
@@ -821,7 +825,10 @@ impl PathItem {
 <D:status>HTTP/1.1 200 OK</D:status>
 </D:propstat>
 </D:response>"#,
-                prefix, self.name, self.base_name, mtime
+                prefix,
+                encode_uri(&self.name),
+                urlencoding::encode(&self.base_name),
+                mtime
             ),
             PathType::File | PathType::SymlinkFile => format!(
                 r#"<D:response>
@@ -837,8 +844,8 @@ impl PathItem {
 </D:propstat>
 </D:response>"#,
                 prefix,
-                self.name,
-                self.base_name,
+                encode_uri(&self.name),
+                urlencoding::encode(&self.base_name),
                 self.size.unwrap_or_default(),
                 mtime
             ),
