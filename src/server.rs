@@ -4,7 +4,7 @@ use crate::{encode_uri, Args, BoxResult};
 use async_walkdir::WalkDir;
 use async_zip::write::{EntryOptions, ZipFileWriter};
 use async_zip::Compression;
-use chrono::{Local, TimeZone, Utc};
+use chrono::{TimeZone, Utc};
 use futures::stream::StreamExt;
 use futures::TryStreamExt;
 use get_if_addrs::get_if_addrs;
@@ -120,20 +120,16 @@ impl InnerService {
         let uri = req.uri().clone();
         let cors = self.args.cors;
 
-        let timestamp = Local::now().format("%d/%b/%Y %H:%M:%S");
         let mut res = match self.handle(req).await {
             Ok(res) => {
-                println!(r#"[{}] "{} {}" - {}"#, timestamp, method, uri, res.status());
+                info!(r#""{} {}" - {}"#, method, uri, res.status());
                 res
             }
             Err(err) => {
                 let mut res = Response::default();
                 let status = StatusCode::INTERNAL_SERVER_ERROR;
                 status!(res, status);
-                eprintln!(
-                    r#"[{}] "{} {}" - {} {}"#,
-                    timestamp, method, uri, status, err
-                );
+                error!(r#""{} {}" - {} {}"#, method, uri, status, err);
                 res
             }
         };
@@ -363,7 +359,7 @@ impl InnerService {
         let path = path.to_owned();
         tokio::spawn(async move {
             if let Err(e) = zip_dir(&mut writer, &path).await {
-                eprintln!("Failed to zip {}, {}", path.display(), e);
+                error!("Failed to zip {}, {}", path.display(), e);
             }
         });
         let stream = ReaderStream::new(reader);
