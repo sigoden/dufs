@@ -1,7 +1,7 @@
 use clap::crate_description;
 use clap::{Arg, ArgMatches};
 use rustls::{Certificate, PrivateKey};
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::{env, fs, io};
 
@@ -111,8 +111,7 @@ pub fn matches() -> ArgMatches {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Args {
-    pub address: String,
-    pub port: u16,
+    pub addr: SocketAddr,
     pub path: PathBuf,
     pub path_prefix: String,
     pub uri_prefix: String,
@@ -133,8 +132,9 @@ impl Args {
     /// If a parsing error ocurred, exit the process and print out informative
     /// error message to user.
     pub fn parse(matches: ArgMatches) -> BoxResult<Args> {
-        let address = matches.value_of("address").unwrap_or_default().to_owned();
+        let ip = matches.value_of("address").unwrap_or_default();
         let port = matches.value_of_t::<u16>("port")?;
+        let addr = to_addr(ip, port)?;
         let path = Args::parse_path(matches.value_of_os("path").unwrap_or_default())?;
         let path_prefix = matches
             .value_of("path-prefix")
@@ -166,8 +166,7 @@ impl Args {
         };
 
         Ok(Args {
-            address,
-            port,
+            addr,
             path,
             path_prefix,
             uri_prefix,
@@ -197,17 +196,15 @@ impl Args {
             })
             .map_err(|err| format!("Failed to access path `{}`: {}", path.display(), err,).into())
     }
+}
 
-    /// Construct socket address from arguments.
-    pub fn address(&self) -> BoxResult<SocketAddr> {
-        format!("{}:{}", self.address, self.port)
-            .parse()
-            .map_err(|_| format!("Invalid bind address `{}:{}`", self.address, self.port).into())
-    }
+fn to_addr(ip: &str, port: u16) -> BoxResult<SocketAddr> {
+    let ip: IpAddr = ip.parse()?;
+    Ok(SocketAddr::new(ip, port))
 }
 
 // Load public certificate from file.
-pub fn load_certs(filename: &str) -> BoxResult<Vec<Certificate>> {
+fn load_certs(filename: &str) -> BoxResult<Vec<Certificate>> {
     // Open certificate file.
     let certfile =
         fs::File::open(&filename).map_err(|e| format!("Failed to open {}: {}", &filename, e))?;
@@ -222,7 +219,7 @@ pub fn load_certs(filename: &str) -> BoxResult<Vec<Certificate>> {
 }
 
 // Load private key from file.
-pub fn load_private_key(filename: &str) -> BoxResult<PrivateKey> {
+fn load_private_key(filename: &str) -> BoxResult<PrivateKey> {
     // Open keyfile.
     let keyfile =
         fs::File::open(&filename).map_err(|e| format!("Failed to open {}: {}", &filename, e))?;
