@@ -25,7 +25,7 @@ use rustls::ServerConfig;
 use serde::Serialize;
 use std::convert::Infallible;
 use std::fs::Metadata;
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -56,7 +56,6 @@ macro_rules! status {
 
 pub async fn serve(args: Args) -> BoxResult<()> {
     let args = Arc::new(args);
-    let socket_addr = args.address()?;
     let inner = Arc::new(InnerService::new(args.clone()));
     match args.tls.clone() {
         Some((certs, key)) => {
@@ -66,7 +65,7 @@ pub async fn serve(args: Args) -> BoxResult<()> {
                 .with_single_cert(certs, key)?;
             let tls_acceptor = TlsAcceptor::from(Arc::new(config));
             let arc_acceptor = Arc::new(tls_acceptor);
-            let listener = TcpListener::bind(&socket_addr).await?;
+            let listener = TcpListener::bind(&args.addr).await?;
             let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
             let incoming =
                 hyper::server::accept::from_stream(incoming.filter_map(|socket| async {
@@ -87,11 +86,11 @@ pub async fn serve(args: Args) -> BoxResult<()> {
                     }))
                 }
             }));
-            print_listening(args.address.as_str(), args.port, &args.uri_prefix, true);
+            print_listening(&args.addr, &args.uri_prefix, true);
             server.await?;
         }
         None => {
-            let server = hyper::Server::try_bind(&socket_addr)?.serve(make_service_fn(move |_| {
+            let server = hyper::Server::try_bind(&args.addr)?.serve(make_service_fn(move |_| {
                 let inner = inner.clone();
                 async move {
                     Ok::<_, Infallible>(service_fn(move |req| {
@@ -100,7 +99,7 @@ pub async fn serve(args: Args) -> BoxResult<()> {
                     }))
                 }
             }));
-            print_listening(args.address.as_str(), args.port, &args.uri_prefix, false);
+            print_listening(&args.addr, &args.uri_prefix, false);
             server.await?;
         }
     }
@@ -974,37 +973,45 @@ fn to_content_range(range: &Range, complete_length: u64) -> Option<ContentRange>
     })
 }
 
-fn print_listening(address: &str, port: u16, prefix: &str, tls: bool) {
+fn print_listening(addr: &SocketAddr, prefix: &str, tls: bool) {
     let prefix = encode_uri(prefix.trim_end_matches('/'));
-    let addrs = retrieve_listening_addrs(address);
+    let addrs = retrieve_listening_addrs(addr);
     let protocol = if tls { "https" } else { "http" };
     if addrs.len() == 1 {
-        eprintln!(
-            "Listening on {}://{}:{}{}",
-            protocol, addrs[0], port, prefix
-        );
+        eprintln!("Listening on {}://{}{}", protocol, addr, prefix);
     } else {
         eprintln!("Listening on:");
         for addr in addrs {
-            eprintln!("  {}://{}:{}{}", protocol, addr, port, prefix);
+            eprintln!("  {}://{}{}", protocol, addr, prefix);
         }
         eprintln!();
     }
 }
 
-fn retrieve_listening_addrs(address: &str) -> Vec<String> {
-    if address == "0.0.0.0" {
+fn retrieve_listening_addrs(addr: &SocketAddr) -> Vec<SocketAddr> {
+    let ip = addr.ip();
+    let port = addr.port();
+    if ip.is_unspecified() {
         if let Ok(interfaces) = get_if_addrs() {
             let mut ifaces: Vec<IpAddr> = interfaces
                 .into_iter()
                 .map(|v| v.ip())
-                .filter(|v| v.is_ipv4())
+                .filter(|v| {
+                    if ip.is_ipv4() {
+                        v.is_ipv4()
+                    } else {
+                        v.is_ipv6()
+                    }
+                })
                 .collect();
             ifaces.sort();
-            return ifaces.into_iter().map(|v| v.to_string()).collect();
+            return ifaces
+                .into_iter()
+                .map(|v| SocketAddr::new(v, port))
+                .collect();
         }
     }
-    vec![address.to_owned()]
+    vec![addr.to_owned()]
 }
 
 fn encode_uri(v: &str) -> String {
