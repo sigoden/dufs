@@ -1,5 +1,5 @@
 use crate::auth::{generate_www_auth, valid_digest};
-use crate::{encode_uri, Args, BoxResult};
+use crate::{Args, BoxResult};
 use xml::escape::escape_str_pcdata;
 
 use async_walkdir::WalkDir;
@@ -822,7 +822,7 @@ impl PathItem {
 <D:status>HTTP/1.1 200 OK</D:status>
 </D:propstat>
 </D:response>"#,
-                prefix,
+                escape_str_pcdata(prefix),
                 escape_str_pcdata(&self.name),
                 escape_str_pcdata(&self.base_name),
                 mtime
@@ -840,7 +840,7 @@ impl PathItem {
 <D:status>HTTP/1.1 200 OK</D:status>
 </D:propstat>
 </D:response>"#,
-                prefix,
+                escape_str_pcdata(prefix),
                 escape_str_pcdata(&self.name),
                 escape_str_pcdata(&self.base_name),
                 self.size.unwrap_or_default(),
@@ -975,7 +975,7 @@ fn to_content_range(range: &Range, complete_length: u64) -> Option<ContentRange>
 }
 
 fn print_listening(address: &str, port: u16, prefix: &str, tls: bool) {
-    let prefix = prefix.trim_end_matches('/');
+    let prefix = encode_uri(prefix.trim_end_matches('/'));
     let addrs = retrieve_listening_addrs(address);
     let protocol = if tls { "https" } else { "http" };
     if addrs.len() == 1 {
@@ -1005,4 +1005,9 @@ fn retrieve_listening_addrs(address: &str) -> Vec<String> {
         }
     }
     vec![address.to_owned()]
+}
+
+fn encode_uri(v: &str) -> String {
+    let parts: Vec<_> = v.split('/').map(urlencoding::encode).collect();
+    parts.join("/")
 }

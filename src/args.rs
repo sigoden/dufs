@@ -143,7 +143,7 @@ impl Args {
         let uri_prefix = if path_prefix.is_empty() {
             "/".to_owned()
         } else {
-            format!("/{}/", encode_uri(&path_prefix))
+            format!("/{}/", &path_prefix)
         };
         let cors = matches.is_present("cors");
         let auth = match matches.value_of("auth") {
@@ -236,9 +236,4 @@ pub fn load_private_key(filename: &str) -> BoxResult<PrivateKey> {
         return Err("Expected a single private key".into());
     }
     Ok(PrivateKey(keys[0].to_owned()))
-}
-
-pub fn encode_uri(v: &str) -> String {
-    let parts: Vec<_> = v.split('/').map(urlencoding::encode).collect();
-    parts.join("/")
 }

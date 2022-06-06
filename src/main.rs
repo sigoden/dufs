@@ -10,7 +10,7 @@ pub type BoxResult<T> = Result<T, Box<dyn std::error::Error>>;
 use std::env;
 use std::io::Write;
 
-use crate::args::{encode_uri, matches, Args};
+use crate::args::{matches, Args};
 use crate::server::serve;
 
 #[tokio::main]
