@@ -666,7 +666,8 @@ impl InnerService {
             ),
         );
         *res.body_mut() = output.into();
-
+        res.headers_mut()
+            .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
         Ok(())
     }
 
