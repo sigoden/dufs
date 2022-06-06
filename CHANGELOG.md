@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.2] - 2022-06-06
+
+### Bug Fixes
+
+- Filename xml escaping
+- Escape path-prefix/url-prefix different
+
 ## [0.13.1] - 2022-06-05
 
 ### Bug Fixes

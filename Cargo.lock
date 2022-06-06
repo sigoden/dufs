@@ -286,7 +286,7 @@ dependencies = [
 
 [[package]]
 name = "duf"
-version = "0.13.1"
+version = "0.13.2"
 dependencies = [
  "async-walkdir",
  "async_zip",
