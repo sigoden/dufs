@@ -44,6 +44,7 @@ type Response = hyper::Response<Body>;
 const INDEX_HTML: &str = include_str!("../assets/index.html");
 const INDEX_CSS: &str = include_str!("../assets/index.css");
 const INDEX_JS: &str = include_str!("../assets/index.js");
+const FAVICON_ICO: &[u8] = include_bytes!("../assets/favicon.ico");
 const INDEX_NAME: &str = "index.html";
 const BUF_SIZE: usize = 1024 * 16;
 
@@ -172,6 +173,12 @@ impl InnerService {
 
         if !self.args.allow_symlink && !is_miss && !self.is_root_contained(path).await {
             status!(res, StatusCode::NOT_FOUND);
+            return Ok(res);
+        }
+        if is_miss && path.ends_with("favicon.ico") {
+            *res.body_mut() = Body::from(FAVICON_ICO);
+            res.headers_mut()
+                .insert("content-type", "image/x-icon".parse().unwrap());
             return Ok(res);
         }
 
