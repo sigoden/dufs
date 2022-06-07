@@ -145,7 +145,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: ${{ needs.release.outputs.rc == 'false' }}
-          tags: sigoden/duf:latest, sigoden/duf:${{ github.ref_name }}
+          tags: ${{ github.repository }}:latest, ${{ github.repository }}:${{ github.ref_name }}
           
   publish-crate:
     name: Publish to crates.io

@@ -286,7 +286,7 @@ dependencies = [
 
 [[package]]
 name = "duf"
-version = "0.13.2"
+version = "0.14.0"
 dependencies = [
  "async-walkdir",
  "async_zip",
@@ -343,13 +343,11 @@ dependencies = [
 
 [[package]]
 name = "flate2"
-version = "1.0.23"
+version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b39522e96686d38f4bc984b9198e3a0613264abaebaff2c5c918bfa6b6da09af"
+checksum = "f82b0f4c27ad9f8bfd1f3208d882da2b09c301bc1c828fd3a00d0216d2fbbff6"
 dependencies = [
- "cfg-if",
  "crc32fast",
- "libc",
  "miniz_oxide",
 ]
 
@@ -554,9 +552,9 @@ dependencies = [
 
 [[package]]
 name = "http"
-version = "0.2.7"
+version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff8670570af52249509a86f5e3e18a08c60b177071826898fde8997cf5f6bfbb"
+checksum = "75f43d41e26995c17e71ee126451dd3941010b0514a81a9d11f3b341debc2399"
 dependencies = [
  "bytes",
  "fnv",
@@ -681,9 +679,9 @@ dependencies = [
 
 [[package]]
 name = "lzma-sys"
-version = "0.1.17"
+version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bdb4b7c3eddad11d3af9e86c487607d2d2442d185d848575365c4856ba96d619"
+checksum = "e06754c4acf47d49c727d5665ca9fb828851cda315ed3bd51edd148ef78a8772"
 dependencies = [
  "cc",
  "libc",
@@ -720,9 +718,9 @@ dependencies = [
 
 [[package]]
 name = "miniz_oxide"
-version = "0.5.1"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2b29bd4bc3f33391105ebee3589c19197c4271e3e5a9ec9bfe8127eeff8f082"
+checksum = "6f5c75688da582b8ffc1f1799e9db273f32133c49e048f614d22ec3256773ccc"
 dependencies = [
  "adler",
 ]
@@ -991,9 +989,9 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
 name = "syn"
-version = "1.0.95"
+version = "1.0.96"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fbaf6116ab8924f39d52792136fb74fd60a80194cf1b1c6ffa6453eef1c3f942"
+checksum = "0748dd251e24453cb8717f0354206b91557e4ec8703673a4b30208f2abaf1ebf"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1039,9 +1037,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.18.2"
+version = "1.19.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4903bf0427cf68dddd5aa6a93220756f8be0c34fcfa9f5e6191e103e15a31395"
+checksum = "c51a52ed6686dd62c320f9b89299e9dfb46f730c7a48e635c19f21d116cb1439"
 dependencies = [
  "bytes",
  "libc",
@@ -1058,9 +1056,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-macros"
-version = "1.7.0"
+version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b557f72f448c511a979e2564e55d74e6c4432fc96ff4f6241bc6bded342643b7"
+checksum = "9724f9a975fb987ef7a3cd9be0350edcbe130698af5b8f7a631e23d42d052484"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1080,9 +1078,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-stream"
-version = "0.1.8"
+version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50145484efff8818b5ccd256697f36863f587da82cf8b409c53adf1e840798e3"
+checksum = "df54d54117d6fdc4e4fea40fe1e4e566b3505700e148a6827e59b34b0d2600d9"
 dependencies = [
  "futures-core",
  "pin-project-lite",
@@ -1091,9 +1089,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.2"
+version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f988a1a1adc2fb21f9c12aa96441da33a1728193ae0b95d2be22dbd17fcb4e5c"
+checksum = "cc463cd8deddc3770d20f9852143d50bf6094e640b485cb2e189a2099085ff45"
 dependencies = [
  "bytes",
  "futures-core",
@@ -1117,19 +1115,7 @@ checksum = "5d0ecdcb44a79f0fe9844f0c4f33a342cbcbb5117de8001e6ba0dc2351327d09"
 dependencies = [
  "cfg-if",
  "pin-project-lite",
- "tracing-attributes",
  "tracing-core",
-]
-
-[[package]]
-name = "tracing-attributes"
-version = "0.1.21"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc6b8ad3567499f98a1db7a752b07a7c8c7c7c34c332ec00effb2b0027974b7c"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -1377,9 +1363,9 @@ checksum = "d2d7d3948613f75c98fd9328cfdcc45acc4d360655289d0a7d4ec931392200a3"
 
 [[package]]
 name = "xz2"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c179869f34fc7c01830d3ce7ea2086bc3a07e0d35289b667d0a8bf910258926c"
+checksum = "388c44dc09d76f1536602ead6d325eb532f5c122f17782bd57fb47baeeb767e2"
 dependencies = [
  "lzma-sys",
 ]

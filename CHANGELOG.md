@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.14.0] - 2022-06-07
+
+### Bug Fixes
+
+- Send index page with content-type ([#26](https://github.com/sigoden/duf/issues/26))
+
+### Features
+
+- Support ipv6 ([#25](https://github.com/sigoden/duf/issues/25))
+- Add favicon ([#27](https://github.com/sigoden/duf/issues/27))
+
 ## [0.13.2] - 2022-06-06
 
 ### Bug Fixes
