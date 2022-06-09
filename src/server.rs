@@ -325,7 +325,7 @@ impl InnerService {
                 }
             }
         };
-        self.send_index(path, paths, res)
+        self.send_index(path, paths, res, exist)
     }
 
     async fn handle_query_dir(
@@ -354,7 +354,7 @@ impl InnerService {
                 }
             }
         }
-        self.send_index(path, paths, res)
+        self.send_index(path, paths, res, true)
     }
 
     async fn handle_zip_dir(&self, path: &Path, res: &mut Response) -> BoxResult<()> {
@@ -645,6 +645,7 @@ impl InnerService {
         path: &Path,
         mut paths: Vec<PathItem>,
         res: &mut Response,
+        exist: bool,
     ) -> BoxResult<()> {
         paths.sort_unstable();
         let rel_path = match self.args.path.parent() {
@@ -656,6 +657,7 @@ impl InnerService {
             paths,
             allow_upload: self.args.allow_upload,
             allow_delete: self.args.allow_delete,
+            dir_exists: exist,
         };
         let data = serde_json::to_string(&data).unwrap();
         let output = INDEX_HTML.replace(
@@ -802,6 +804,7 @@ struct IndexData {
     paths: Vec<PathItem>,
     allow_upload: bool,
     allow_delete: bool,
+    dir_exists: bool,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq, Ord, PartialOrd)]
