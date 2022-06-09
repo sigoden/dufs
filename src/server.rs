@@ -816,10 +816,12 @@ struct PathItem {
 impl PathItem {
     pub fn to_dav_xml(&self, prefix: &str) -> String {
         let mtime = Utc.timestamp_millis(self.mtime as i64).to_rfc2822();
+        let href = encode_uri(&format!("{}{}", prefix, &self.name));
+        let displayname = escape_str_pcdata(&self.base_name);
         match self.path_type {
             PathType::Dir | PathType::SymlinkDir => format!(
                 r#"<D:response>
-<D:href>{}{}</D:href>
+<D:href>{}</D:href>
 <D:propstat>
 <D:prop>
 <D:displayname>{}</D:displayname>
@@ -829,14 +831,11 @@ impl PathItem {
 <D:status>HTTP/1.1 200 OK</D:status>
 </D:propstat>
 </D:response>"#,
-                prefix,
-                encode_uri(&self.name),
-                escape_str_pcdata(&self.base_name),
-                mtime
+                href, displayname, mtime
             ),
             PathType::File | PathType::SymlinkFile => format!(
                 r#"<D:response>
-<D:href>{}{}</D:href>
+<D:href>{}</D:href>
 <D:propstat>
 <D:prop>
 <D:displayname>{}</D:displayname>
@@ -847,9 +846,8 @@ impl PathItem {
 <D:status>HTTP/1.1 200 OK</D:status>
 </D:propstat>
 </D:response>"#,
-                prefix,
-                encode_uri(&self.name),
-                escape_str_pcdata(&self.base_name),
+                href,
+                displayname,
                 self.size.unwrap_or_default(),
                 mtime
             ),
