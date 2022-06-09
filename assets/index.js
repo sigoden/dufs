@@ -7,6 +7,12 @@
  * @property {number} size
  */
 
+// https://stackoverflow.com/a/901144/3642588
+const params = new Proxy(new URLSearchParams(window.location.search), {
+  get: (searchParams, prop) => searchParams.get(prop),
+});
+
+const dirEmptyNote = params.q ? 'No results' : DATA.dir_exists ? 'Empty folder' : 'Folder will be created when a file is uploaded';
 
 /**
  * @type Element
@@ -54,6 +60,7 @@ class Uploader {
   </tr>`);
     $uploadersTable.classList.remove("hidden");
     this.$uploadStatus = document.getElementById(`uploadStatus${idx}`);
+    document.querySelector('.main i.empty-folder').remove();
 
     const ajax = new XMLHttpRequest();
     ajax.upload.addEventListener("progress", e => this.progress(e), false);
@@ -180,6 +187,8 @@ async function deletePath(index) {
         DATA.paths[index] = null;
         if (!DATA.paths.find(v => !!v)) {
           $pathsTable.classList.add("hidden");
+          document.querySelector('.main').insertAdjacentHTML("afterbegin", '<i class="empty-folder"></i>');
+          document.querySelector('.main .empty-folder').textContent = dirEmptyNote;
         }
     } else {
       throw new Error(await res.text())
@@ -275,6 +284,10 @@ function ready() {
   $pathsTableBody = document.querySelector(".paths-table tbody");
   $uploadersTable = document.querySelector(".uploaders-table");
 
+  if (params.q) {
+    document.getElementById('search').value = params.q;
+  }
+
   addBreadcrumb(DATA.breadcrumb);
   if (Array.isArray(DATA.paths)) {
     const len = DATA.paths.length;
@@ -283,6 +296,10 @@ function ready() {
     }
     for (let i = 0; i < len; i++) {
       addPath(DATA.paths[i], i);
+    }
+    if (len == 0) {
+      document.querySelector('.main').insertAdjacentHTML("afterbegin", '<i class="empty-folder"></i>');
+      document.querySelector('.main .empty-folder').textContent = dirEmptyNote;
     }
   }
   if (DATA.allow_upload) {
