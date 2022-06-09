@@ -173,3 +173,39 @@ body {
 .uploader {
   padding-right: 1em;
 }
+
+/* dark theme */
+@media (prefers-color-scheme: dark) {
+  body {
+    background-color: #000;
+  }
+
+  html,
+  .breadcrumb>b,
+  .searchbar #search {
+    color: #fff;
+  }
+
+  .uploaders-table th,
+  .paths-table th {
+    color: #ddd;
+  }
+
+  svg,
+  .path svg {
+    fill: #d0e6ff;
+  }
+
+  .searchbar {
+    background-color: #111;
+    border-color: #fff6;
+  }
+
+  .searchbar svg {
+    fill: #fff6;
+  }
+
+  .path a {
+    color: #3191ff;
+  }
+} 
