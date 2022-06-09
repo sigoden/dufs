@@ -1,6 +1,5 @@
 use crate::auth::{generate_www_auth, valid_digest};
 use crate::{Args, BoxResult};
-use xml::escape::escape_str_pcdata;
 
 use async_walkdir::WalkDir;
 use async_zip::write::{EntryOptions, ZipFileWriter};
@@ -829,9 +828,9 @@ impl PathItem {
 <D:status>HTTP/1.1 200 OK</D:status>
 </D:propstat>
 </D:response>"#,
-                escape_str_pcdata(prefix),
-                escape_str_pcdata(&self.name),
-                escape_str_pcdata(&self.base_name),
+                prefix,
+                encode_uri(&self.name),
+                urlencoding::encode(&self.base_name),
                 mtime
             ),
             PathType::File | PathType::SymlinkFile => format!(
@@ -847,9 +846,9 @@ impl PathItem {
 <D:status>HTTP/1.1 200 OK</D:status>
 </D:propstat>
 </D:response>"#,
-                escape_str_pcdata(prefix),
-                escape_str_pcdata(&self.name),
-                escape_str_pcdata(&self.base_name),
+                prefix,
+                encode_uri(&self.name),
+                urlencoding::encode(&self.base_name),
                 self.size.unwrap_or_default(),
                 mtime
             ),
