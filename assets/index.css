@@ -97,6 +97,11 @@ body {
   padding: 0 1em;
 }
 
+.empty-folder {
+  display: block;
+  padding-top: 1rem;
+}
+
 .uploaders-table th,
 .paths-table th {
   text-align: left;

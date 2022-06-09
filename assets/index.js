@@ -54,6 +54,7 @@ class Uploader {
   </tr>`);
     $uploadersTable.classList.remove("hidden");
     this.$uploadStatus = document.getElementById(`uploadStatus${idx}`);
+    document.querySelector('.main i.empty-folder').remove();
 
     const ajax = new XMLHttpRequest();
     ajax.upload.addEventListener("progress", e => this.progress(e), false);
@@ -180,6 +181,7 @@ async function deletePath(index) {
         DATA.paths[index] = null;
         if (!DATA.paths.find(v => !!v)) {
           $pathsTable.classList.add("hidden");
+          document.querySelector('.main').insertAdjacentHTML("afterbegin", '<i class="empty-folder">Empty folder</i>');
         }
     } else {
       throw new Error(await res.text())
@@ -283,6 +285,9 @@ function ready() {
     }
     for (let i = 0; i < len; i++) {
       addPath(DATA.paths[i], i);
+    }
+    if (len == 0) {
+      document.querySelector('.main').insertAdjacentHTML("afterbegin", '<i class="empty-folder">Empty folder</i>')
     }
   }
   if (DATA.allow_upload) {
