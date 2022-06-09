@@ -829,8 +829,8 @@ impl PathItem {
 <D:status>HTTP/1.1 200 OK</D:status>
 </D:propstat>
 </D:response>"#,
-                escape_str_pcdata(prefix),
-                escape_str_pcdata(&self.name),
+                prefix,
+                encode_uri(&self.name),
                 escape_str_pcdata(&self.base_name),
                 mtime
             ),
@@ -847,8 +847,8 @@ impl PathItem {
 <D:status>HTTP/1.1 200 OK</D:status>
 </D:propstat>
 </D:response>"#,
-                escape_str_pcdata(prefix),
-                escape_str_pcdata(&self.name),
+                prefix,
+                encode_uri(&self.name),
                 escape_str_pcdata(&self.base_name),
                 self.size.unwrap_or_default(),
                 mtime
