@@ -191,8 +191,8 @@ impl InnerService {
                         self.handle_render_index(path, headers, &mut res).await?;
                     } else if query == "zip" {
                         self.handle_zip_dir(path, &mut res).await?;
-                    } else if query.starts_with("q=") {
-                        self.handle_query_dir(path, &query[3..], &mut res).await?;
+                    } else if let Some(q) = query.strip_prefix("q=") {
+                        self.handle_query_dir(path, q, &mut res).await?;
                     } else {
                         self.handle_ls_dir(path, true, &mut res).await?;
                     }
