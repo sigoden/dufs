@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.15.0] - 2022-06-10
+
+### Bug Fixes
+
+- Encode webdav href as uri ([#28](https://github.com/sigoden/duf/issues/28))
+- Query dir param
+
+### Features
+
+- Add basic dark theme ([#29](https://github.com/sigoden/duf/issues/29))
+- Add empty state placeholder to page([#30](https://github.com/sigoden/duf/issues/30))
+
 ## [0.14.0] - 2022-06-07
 
 ### Bug Fixes
