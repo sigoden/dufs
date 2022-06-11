@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.15.1] - 2022-06-11
+
+### Bug Fixes
+
+- Cannot upload ([#32](https://github.com/sigoden/duf/issues/32))
+
 ## [0.15.0] - 2022-06-10
 
 ### Bug Fixes
