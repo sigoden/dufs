@@ -213,7 +213,7 @@ fn load_certs(filename: &str) -> BoxResult<Vec<Certificate>> {
     // Load and return certificate.
     let certs = rustls_pemfile::certs(&mut reader).map_err(|_| "Failed to load certificate")?;
     if certs.is_empty() {
-        return Err("Expected at least one certificate".into());
+        return Err("No supported certificate in file".into());
     }
     Ok(certs.into_iter().map(Certificate).collect())
 }
@@ -226,11 +226,14 @@ fn load_private_key(filename: &str) -> BoxResult<PrivateKey> {
     let mut reader = io::BufReader::new(keyfile);
 
     // Load and return a single private key.
-    let keys = rustls_pemfile::rsa_private_keys(&mut reader)
-        .map_err(|e| format!("There was a problem with reading private key: {:?}", e))?;
+    let keys = rustls_pemfile::read_all(&mut reader)
+        .map_err(|e| format!("There was a problem with reading private key: {:?}", e))?
+        .into_iter()
+        .find_map(|item| match item {
+            rustls_pemfile::Item::RSAKey(key) | rustls_pemfile::Item::PKCS8Key(key) => Some(key),
+            _ => None,
+        })
+        .ok_or("No supported private key in file")?;
 
-    if keys.len() != 1 {
-        return Err("Expected a single private key".into());
-    }
-    Ok(PrivateKey(keys[0].to_owned()))
+    Ok(PrivateKey(keys))
 }
