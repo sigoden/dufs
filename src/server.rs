@@ -149,6 +149,13 @@ impl InnerService {
         }
 
         let req_path = req.uri().path();
+        let headers = req.headers();
+        let method = req.method().clone();
+
+        if req_path == "/favicon.ico" && method == Method::GET {
+            self.handle_send_favicon(req.headers(), &mut res).await?;
+            return Ok(res);
+        }
 
         let path = match self.extract_path(req_path) {
             Some(v) => v,
@@ -175,15 +182,6 @@ impl InnerService {
             status!(res, StatusCode::NOT_FOUND);
             return Ok(res);
         }
-        if is_miss && path.ends_with("favicon.ico") {
-            *res.body_mut() = Body::from(FAVICON_ICO);
-            res.headers_mut()
-                .insert("content-type", "image/x-icon".parse().unwrap());
-            return Ok(res);
-        }
-
-        let headers = req.headers();
-        let method = req.method().clone();
 
         match method {
             Method::GET | Method::HEAD => {
@@ -286,7 +284,13 @@ impl InnerService {
     ) -> BoxResult<()> {
         ensure_path_parent(path).await?;
 
-        let mut file = fs::File::create(&path).await?;
+        let mut file = match fs::File::create(&path).await {
+            Ok(v) => v,
+            Err(_) => {
+                status!(res, StatusCode::FORBIDDEN);
+                return Ok(());
+            }
+        };
 
         let body_with_io_error = req
             .body_mut()
@@ -436,6 +440,25 @@ impl InnerService {
         Ok(())
     }
 
+    async fn handle_send_favicon(
+        &self,
+        headers: &HeaderMap<HeaderValue>,
+        res: &mut Response,
+    ) -> BoxResult<()> {
+        let path = self.args.path.join("favicon.ico");
+        let meta = fs::metadata(&path).await.ok();
+        let is_file = meta.map(|v| v.is_file()).unwrap_or_default();
+        if is_file {
+            self.handle_send_file(path.as_path(), headers, false, res)
+                .await?;
+        } else {
+            *res.body_mut() = Body::from(FAVICON_ICO);
+            res.headers_mut()
+                .insert("content-type", "image/x-icon".parse().unwrap());
+        }
+        Ok(())
+    }
+
     async fn handle_send_file(
         &self,
         path: &Path,
@@ -534,10 +557,10 @@ impl InnerService {
                     return Ok(());
                 }
             },
-            None => 0,
+            None => 1,
         };
         let mut paths = vec![self.to_pathitem(path, &self.args.path).await?.unwrap()];
-        if depth > 0 {
+        if depth != 0 {
             match self.list_dir(path, &self.args.path).await {
                 Ok(child) => paths.extend(child),
                 Err(_) => {
@@ -588,7 +611,7 @@ impl InnerService {
 
         let meta = fs::symlink_metadata(path).await?;
         if meta.is_dir() {
-            status!(res, StatusCode::BAD_REQUEST);
+            status!(res, StatusCode::FORBIDDEN);
             return Ok(());
         }
 
@@ -690,7 +713,10 @@ impl InnerService {
                 r#"
 <title>Files in {}/ - Duf</title>
 <style>{}</style>
-<script>var DATA = {}; {}</script>
+<script>
+const DATA = 
+{}
+{}</script>
 "#,
                 rel_path.display(),
                 INDEX_CSS,
@@ -811,15 +837,9 @@ impl InnerService {
             PathType::Dir | PathType::SymlinkDir => None,
             PathType::File | PathType::SymlinkFile => Some(meta.len()),
         };
-        let base_name = rel_path
-            .file_name()
-            .and_then(|v| v.to_str())
-            .unwrap_or("/")
-            .to_owned();
         let name = normalize_path(rel_path);
         Ok(Some(PathItem {
             path_type,
-            base_name,
             name,
             mtime,
             size,
@@ -839,7 +859,6 @@ struct IndexData {
 #[derive(Debug, Serialize, Eq, PartialEq, Ord, PartialOrd)]
 struct PathItem {
     path_type: PathType,
-    base_name: String,
     name: String,
     mtime: u64,
     size: Option<u64>,
@@ -849,7 +868,7 @@ impl PathItem {
     pub fn to_dav_xml(&self, prefix: &str) -> String {
         let mtime = Utc.timestamp_millis(self.mtime as i64).to_rfc2822();
         let href = encode_uri(&format!("{}{}", prefix, &self.name));
-        let displayname = escape_str_pcdata(&self.base_name);
+        let displayname = escape_str_pcdata(self.base_name());
         match self.path_type {
             PathType::Dir | PathType::SymlinkDir => format!(
                 r#"<D:response>
@@ -884,6 +903,12 @@ impl PathItem {
                 mtime
             ),
         }
+    }
+    fn base_name(&self) -> &str {
+        Path::new(&self.name)
+            .file_name()
+            .and_then(|v| v.to_str())
+            .unwrap_or_default()
     }
 }
 
@@ -1016,13 +1041,14 @@ fn print_listening(addr: &SocketAddr, prefix: &str, tls: bool) {
     let addrs = retrieve_listening_addrs(addr);
     let protocol = if tls { "https" } else { "http" };
     if addrs.len() == 1 {
-        eprintln!("Listening on {}://{}{}", protocol, addr, prefix);
+        println!("Listening on {}://{}{}", protocol, addr, prefix);
     } else {
-        eprintln!("Listening on:");
-        for addr in addrs {
-            eprintln!("  {}://{}{}", protocol, addr, prefix);
-        }
-        eprintln!();
+        let message = addrs
+            .iter()
+            .map(|addr| format!("  {}://{}{}", protocol, addr, prefix))
+            .collect::<Vec<String>>()
+            .join("\n");
+        println!("Listening on:\n{}\n", message);
     }
 }
 

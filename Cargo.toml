@@ -7,7 +7,6 @@ description = "Duf is a simple file server."
 license = "MIT OR Apache-2.0"
 homepage = "https://github.com/sigoden/duf"
 repository = "https://github.com/sigoden/duf"
-autotests = false
 categories = ["command-line-utilities", "web-programming::http-server"]
 keywords = ["static", "file", "server", "webdav", "cli"]
 
@@ -38,6 +37,18 @@ urlencoding = "2.1"
 xml-rs = "0.8"
 env_logger = { version = "0.9", default-features = false, features = ["humantime"] }
 log = "0.4"
+
+[dev-dependencies]
+assert_cmd = "2"
+reqwest = { version = "0.11", features = ["blocking", "multipart", "rustls-tls"], default-features = false }
+assert_fs = "1"
+select = "0.5"
+port_check = "0.1"
+rstest = "0.13"
+regex = "1"
+pretty_assertions = "1.2"
+url = "2"
+predicates = "2"
 
 [profile.release]
 lto = true

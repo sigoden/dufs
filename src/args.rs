@@ -206,8 +206,8 @@ fn to_addr(ip: &str, port: u16) -> BoxResult<SocketAddr> {
 // Load public certificate from file.
 fn load_certs(filename: &str) -> BoxResult<Vec<Certificate>> {
     // Open certificate file.
-    let certfile =
-        fs::File::open(&filename).map_err(|e| format!("Failed to open {}: {}", &filename, e))?;
+    let certfile = fs::File::open(&filename)
+        .map_err(|e| format!("Failed to access `{}`, {}", &filename, e))?;
     let mut reader = io::BufReader::new(certfile);
 
     // Load and return certificate.
@@ -221,8 +221,8 @@ fn load_certs(filename: &str) -> BoxResult<Vec<Certificate>> {
 // Load private key from file.
 fn load_private_key(filename: &str) -> BoxResult<PrivateKey> {
     // Open keyfile.
-    let keyfile =
-        fs::File::open(&filename).map_err(|e| format!("Failed to open {}: {}", &filename, e))?;
+    let keyfile = fs::File::open(&filename)
+        .map_err(|e| format!("Failed to access `{}`, {}", &filename, e))?;
     let mut reader = io::BufReader::new(keyfile);
 
     // Load and return a single private key.
