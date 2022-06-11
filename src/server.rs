@@ -183,53 +183,51 @@ impl InnerService {
         }
 
         let headers = req.headers();
+        let method = req.method().clone();
 
-        match req.method() {
-            &Method::GET => {
+        match method {
+            Method::GET | Method::HEAD => {
+                let head_only = method == Method::HEAD;
                 if is_dir {
                     if render_index || render_spa {
-                        self.handle_render_index(path, headers, &mut res).await?;
+                        self.handle_render_index(path, headers, head_only, &mut res)
+                            .await?;
                     } else if query == "zip" {
-                        self.handle_zip_dir(path, &mut res).await?;
+                        self.handle_zip_dir(path, head_only, &mut res).await?;
                     } else if let Some(q) = query.strip_prefix("q=") {
-                        self.handle_query_dir(path, q, &mut res).await?;
+                        self.handle_query_dir(path, q, head_only, &mut res).await?;
                     } else {
-                        self.handle_ls_dir(path, true, &mut res).await?;
+                        self.handle_ls_dir(path, true, head_only, &mut res).await?;
                     }
                 } else if is_file {
-                    self.handle_send_file(path, headers, &mut res).await?;
+                    self.handle_send_file(path, headers, head_only, &mut res)
+                        .await?;
                 } else if render_spa {
-                    self.handle_render_spa(path, headers, &mut res).await?;
+                    self.handle_render_spa(path, headers, head_only, &mut res)
+                        .await?;
                 } else if allow_upload && req_path.ends_with('/') {
-                    self.handle_ls_dir(path, false, &mut res).await?;
+                    self.handle_ls_dir(path, false, head_only, &mut res).await?;
                 } else {
                     status!(res, StatusCode::NOT_FOUND);
                 }
             }
-            &Method::OPTIONS => {
+            Method::OPTIONS => {
                 self.handle_method_options(&mut res);
             }
-            &Method::PUT => {
+            Method::PUT => {
                 if !allow_upload || (!allow_delete && is_file && size > 0) {
                     status!(res, StatusCode::FORBIDDEN);
                 } else {
                     self.handle_upload(path, req, &mut res).await?;
                 }
             }
-            &Method::DELETE => {
+            Method::DELETE => {
                 if !allow_delete {
                     status!(res, StatusCode::FORBIDDEN);
                 } else if !is_miss {
                     self.handle_delete(path, is_dir, &mut res).await?
                 } else {
                     status!(res, StatusCode::NOT_FOUND);
-                }
-            }
-            &Method::HEAD => {
-                if is_miss {
-                    status!(res, StatusCode::NOT_FOUND);
-                } else {
-                    status!(res, StatusCode::OK);
                 }
             }
             method => match method.as_str() {
@@ -314,7 +312,13 @@ impl InnerService {
         Ok(())
     }
 
-    async fn handle_ls_dir(&self, path: &Path, exist: bool, res: &mut Response) -> BoxResult<()> {
+    async fn handle_ls_dir(
+        &self,
+        path: &Path,
+        exist: bool,
+        head_only: bool,
+        res: &mut Response,
+    ) -> BoxResult<()> {
         let mut paths = vec![];
         if exist {
             paths = match self.list_dir(path, path).await {
@@ -325,13 +329,14 @@ impl InnerService {
                 }
             }
         };
-        self.send_index(path, paths, res, exist)
+        self.send_index(path, paths, exist, head_only, res)
     }
 
     async fn handle_query_dir(
         &self,
         path: &Path,
         query: &str,
+        head_only: bool,
         res: &mut Response,
     ) -> BoxResult<()> {
         let mut paths: Vec<PathItem> = vec![];
@@ -354,23 +359,20 @@ impl InnerService {
                 }
             }
         }
-        self.send_index(path, paths, res, true)
+        self.send_index(path, paths, true, head_only, res)
     }
 
-    async fn handle_zip_dir(&self, path: &Path, res: &mut Response) -> BoxResult<()> {
+    async fn handle_zip_dir(
+        &self,
+        path: &Path,
+        head_only: bool,
+        res: &mut Response,
+    ) -> BoxResult<()> {
         let (mut writer, reader) = tokio::io::duplex(BUF_SIZE);
         let filename = path
             .file_name()
             .and_then(|v| v.to_str())
             .ok_or_else(|| format!("Failed to get name of `{}`", path.display()))?;
-        let path = path.to_owned();
-        tokio::spawn(async move {
-            if let Err(e) = zip_dir(&mut writer, &path).await {
-                error!("Failed to zip {}, {}", path.display(), e);
-            }
-        });
-        let stream = ReaderStream::new(reader);
-        *res.body_mut() = Body::wrap_stream(stream);
         res.headers_mut().insert(
             CONTENT_DISPOSITION,
             HeaderValue::from_str(&format!(
@@ -379,6 +381,19 @@ impl InnerService {
             ))
             .unwrap(),
         );
+        res.headers_mut()
+            .insert("content-type", "application/zip".parse().unwrap());
+        if head_only {
+            return Ok(());
+        }
+        let path = path.to_owned();
+        tokio::spawn(async move {
+            if let Err(e) = zip_dir(&mut writer, &path).await {
+                error!("Failed to zip {}, {}", path.display(), e);
+            }
+        });
+        let stream = ReaderStream::new(reader);
+        *res.body_mut() = Body::wrap_stream(stream);
         Ok(())
     }
 
@@ -386,6 +401,7 @@ impl InnerService {
         &self,
         path: &Path,
         headers: &HeaderMap<HeaderValue>,
+        head_only: bool,
         res: &mut Response,
     ) -> BoxResult<()> {
         let path = path.join(INDEX_NAME);
@@ -395,7 +411,8 @@ impl InnerService {
             .map(|v| v.is_file())
             .unwrap_or_default()
         {
-            self.handle_send_file(&path, headers, res).await?;
+            self.handle_send_file(&path, headers, head_only, res)
+                .await?;
         } else {
             status!(res, StatusCode::NOT_FOUND);
         }
@@ -406,11 +423,13 @@ impl InnerService {
         &self,
         path: &Path,
         headers: &HeaderMap<HeaderValue>,
+        head_only: bool,
         res: &mut Response,
     ) -> BoxResult<()> {
         if path.extension().is_none() {
             let path = self.args.path.join(INDEX_NAME);
-            self.handle_send_file(&path, headers, res).await?;
+            self.handle_send_file(&path, headers, head_only, res)
+                .await?;
         } else {
             status!(res, StatusCode::NOT_FOUND);
         }
@@ -421,6 +440,7 @@ impl InnerService {
         &self,
         path: &Path,
         headers: &HeaderMap<HeaderValue>,
+        head_only: bool,
         res: &mut Response,
     ) -> BoxResult<()> {
         let (file, meta) = tokio::join!(fs::File::open(path), fs::metadata(path),);
@@ -469,6 +489,13 @@ impl InnerService {
         if let Some(mime) = mime_guess::from_path(&path).first() {
             res.headers_mut().typed_insert(ContentType::from(mime));
         }
+        res.headers_mut().typed_insert(AcceptRanges::bytes());
+        res.headers_mut()
+            .typed_insert(ContentLength(meta.len() as u64));
+        if head_only {
+            return Ok(());
+        }
+
         let body = if let Some((begin, end)) = file_range {
             file.seek(io::SeekFrom::Start(begin)).await?;
             let stream = FramedRead::new(file.take(end - begin + 1), BytesCodec::new());
@@ -478,10 +505,6 @@ impl InnerService {
             Body::wrap_stream(stream)
         };
         *res.body_mut() = body;
-        res.headers_mut().typed_insert(AcceptRanges::bytes());
-        res.headers_mut()
-            .typed_insert(ContentLength(meta.len() as u64));
-
         Ok(())
     }
 
@@ -644,8 +667,9 @@ impl InnerService {
         &self,
         path: &Path,
         mut paths: Vec<PathItem>,
-        res: &mut Response,
         exist: bool,
+        head_only: bool,
+        res: &mut Response,
     ) -> BoxResult<()> {
         paths.sort_unstable();
         let rel_path = match self.args.path.parent() {
@@ -674,9 +698,14 @@ impl InnerService {
                 INDEX_JS
             ),
         );
-        *res.body_mut() = output.into();
         res.headers_mut()
             .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
+        res.headers_mut()
+            .typed_insert(ContentLength(output.as_bytes().len() as u64));
+        if head_only {
+            return Ok(());
+        }
+        *res.body_mut() = output.into();
         Ok(())
     }
 
