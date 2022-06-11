@@ -52,6 +52,14 @@ class Uploader {
    * @type Element
    */
   $uploadStatus;
+  /**
+   * @type number
+   */
+  uploaded = 0;
+  /**
+   * @type number
+   */
+  lastUptime = 0;
   static globalIdx = 0;
   constructor(file, dirs) {
     this.name = [...dirs, file.name].join("/");
@@ -68,11 +76,12 @@ class Uploader {
       <div>${getSvg("File")}</div>
       <a href="${url}">${name}</a>
     </td>
-    <td class="cell-status" id="uploadStatus${idx}"></td>
+    <td class="cell-status upload-status" id="uploadStatus${idx}"></td>
   </tr>`);
     $uploadersTable.classList.remove("hidden");
     $emptyFolder.classList.add("hidden");
     this.$uploadStatus = document.getElementById(`uploadStatus${idx}`);
+    this.lastUptime = Date.now();
 
     const ajax = new XMLHttpRequest();
     ajax.upload.addEventListener("progress", e => this.progress(e), false);
@@ -92,8 +101,15 @@ class Uploader {
   }
 
   progress(event) {
-    const percent = (event.loaded / event.total) * 100;
-    this.$uploadStatus.innerHTML = `${percent.toFixed(2)}%`;
+    let now = Date.now();
+    let speed = (event.loaded - this.uploaded) / (now - this.lastUptime) * 1000;
+    let [speedValue, speedUnit] = formatSize(speed);
+    const speedText = `${speedValue}${speedUnit.toLowerCase()}/s`;
+    const progress = formatPercent((event.loaded / event.total) * 100);
+    const duration = formatDuration((event.total - event.loaded) / speed)
+    this.$uploadStatus.innerHTML = `<span>${speedText}</span><span>${progress}</span><span>${duration}</span>`;
+    this.uploaded = event.loaded;
+    this.lastUptime = now;
   }
 
   complete() {
@@ -174,7 +190,7 @@ function addPath(file, index) {
     <a href="${url}" title="${file.name}">${file.name}</a>
   </td>
   <td class="cell-mtime">${formatMtime(file.mtime)}</td>
-  <td class="cell-size">${formatSize(file.size)}</td>
+  <td class="cell-size">${formatSize(file.size).join(" ")}</td>
   ${actionCell}
 </tr>`)
 }
@@ -284,11 +300,27 @@ function padZero(value, size) {
 }
 
 function formatSize(size) {
-  if (!size) return ""
+  if (!size) return []
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  if (size == 0) return '0 Byte';
+  if (size == 0) return [0, "Byte"];
   const i = parseInt(Math.floor(Math.log(size) / Math.log(1024)));
-  return Math.round(size / Math.pow(1024, i), 2) + ' ' + sizes[i];
+  return [Math.round(size / Math.pow(1024, i), 2), sizes[i]];
+}
+
+function formatDuration(seconds) {
+  seconds = Math.ceil(seconds);
+  let h = Math.floor(seconds / 3600);
+  let m = Math.floor((seconds - h * 3600) / 60);
+  let s = seconds - h * 3600 - m * 60
+  return `${padZero(h, 2)}:${padZero(m, 2)}:${padZero(s, 2)}`;
+}
+
+function formatPercent(precent) {
+  if (precent > 10) {
+    return precent.toFixed(1) + "%";
+  } else {
+    return precent.toFixed(2) + "%";
+  }
 }
 
 function ready() {
