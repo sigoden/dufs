@@ -93,6 +93,11 @@ body {
   display: none;
 }
 
+.upload-status span {
+  width: 70px;
+  display: inline-block;
+}
+
 .main {
   padding: 0 1em;
 }
