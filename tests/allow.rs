@@ -1,64 +1,61 @@
 mod fixtures;
+mod utils;
 
 use fixtures::{server, Error, TestServer};
 use rstest::rstest;
 
 #[rstest]
-fn default_no_upload(server: TestServer) -> Result<(), Error> {
+fn default_not_allow_upload(server: TestServer) -> Result<(), Error> {
+    let url = format!("{}file1", server.url());
+    let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
+    assert_eq!(resp.status(), 403);
     Ok(())
 }
 
 #[rstest]
-fn default_no_delete(server: TestServer) -> Result<(), Error> {
+fn default_not_allow_delete(server: TestServer) -> Result<(), Error> {
+    let url = format!("{}test.html", server.url());
+    let resp = fetch!(b"DELETE", &url).send()?;
+    assert_eq!(resp.status(), 403);
     Ok(())
 }
 
 #[rstest]
-fn default_no_symlink(server: TestServer) -> Result<(), Error> {
+fn default_not_exist_dir(server: TestServer) -> Result<(), Error> {
+    let resp = reqwest::blocking::get(format!("{}404/", server.url()))?;
+    assert_eq!(resp.status(), 404);
     Ok(())
 }
 
 #[rstest]
-fn default_none_exist_dir(server: TestServer) -> Result<(), Error> {
+fn allow_upload_not_exist_dir(
+    #[with(&["--allow-upload"])] server: TestServer,
+) -> Result<(), Error> {
+    let resp = reqwest::blocking::get(format!("{}404/", server.url()))?;
+    assert_eq!(resp.status(), 200);
     Ok(())
 }
 
 #[rstest]
-fn allow_upload(server: TestServer) -> Result<(), Error> {
+fn allow_upload_no_override(#[with(&["--allow-upload"])] server: TestServer) -> Result<(), Error> {
+    let url = format!("{}index.html", server.url());
+    let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
+    assert_eq!(resp.status(), 403);
     Ok(())
 }
 
 #[rstest]
-fn allow_upload_no_delete(server: TestServer) -> Result<(), Error> {
+fn allow_delete_no_override(#[with(&["--allow-delete"])] server: TestServer) -> Result<(), Error> {
+    let url = format!("{}index.html", server.url());
+    let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
+    assert_eq!(resp.status(), 403);
     Ok(())
 }
 
 #[rstest]
-fn allow_upload_no_override(server: TestServer) -> Result<(), Error> {
-    Ok(())
-}
-
-#[rstest]
-fn allow_upload_none_exist_dir(server: TestServer) -> Result<(), Error> {
-    Ok(())
-}
-
-#[rstest]
-fn allow_delete(server: TestServer) -> Result<(), Error> {
-    Ok(())
-}
-
-#[rstest]
-fn allow_delete_no_upload(server: TestServer) -> Result<(), Error> {
-    Ok(())
-}
-
-#[rstest]
-fn allow_uplad_delete_can_override(server: TestServer) -> Result<(), Error> {
-    Ok(())
-}
-
-#[rstest]
-fn allow_symlink(server: TestServer) -> Result<(), Error> {
+fn allow_upload_delete_can_override(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let url = format!("{}index.html", server.url());
+    let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
+    assert_eq!(resp.status(), 201);
     Ok(())
 }

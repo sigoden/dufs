@@ -245,12 +245,30 @@ impl InnerService {
                         status!(res, StatusCode::NOT_FOUND);
                     }
                 }
-                "MKCOL" if allow_upload && is_miss => self.handle_mkcol(path, &mut res).await?,
-                "COPY" if allow_upload && !is_miss => {
-                    self.handle_copy(path, headers, &mut res).await?
+                "MKCOL" => {
+                    if !allow_upload || !is_miss {
+                        status!(res, StatusCode::FORBIDDEN);
+                    } else {
+                        self.handle_mkcol(path, &mut res).await?;
+                    }
                 }
-                "MOVE" if allow_upload && allow_delete && !is_miss => {
-                    self.handle_move(path, headers, &mut res).await?
+                "COPY" => {
+                    if !allow_upload {
+                        status!(res, StatusCode::FORBIDDEN);
+                    } else if is_miss {
+                        status!(res, StatusCode::NOT_FOUND);
+                    } else {
+                        self.handle_copy(path, headers, &mut res).await?
+                    }
+                }
+                "MOVE" => {
+                    if !allow_upload || !allow_delete {
+                        status!(res, StatusCode::FORBIDDEN);
+                    } else if is_miss {
+                        status!(res, StatusCode::NOT_FOUND);
+                    } else {
+                        self.handle_move(path, headers, &mut res).await?
+                    }
                 }
                 "LOCK" => {
                     // Fake lock

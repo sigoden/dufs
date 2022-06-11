@@ -48,6 +48,7 @@ rstest = "0.13"
 regex = "1"
 pretty_assertions = "1.2"
 url = "2"
+diqwest = { version = "1", features = ["blocking"] }
 predicates = "2"
 
 [profile.release]

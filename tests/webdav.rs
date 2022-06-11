@@ -87,6 +87,13 @@ fn mkcol_dir(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn mkcol_not_allow_upload(server: TestServer) -> Result<(), Error> {
+    let resp = fetch!(b"MKCOL", format!("{}newdir", server.url())).send()?;
+    assert_eq!(resp.status(), 403);
+    Ok(())
+}
+
+#[rstest]
 fn copy_file(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let new_url = format!("{}test2.html", server.url());
     let resp = fetch!(b"COPY", format!("{}test.html", server.url()))
@@ -99,12 +106,22 @@ fn copy_file(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn copy_not_allow_upload(server: TestServer) -> Result<(), Error> {
+    let new_url = format!("{}test2.html", server.url());
+    let resp = fetch!(b"COPY", format!("{}test.html", server.url()))
+        .header("Destination", &new_url)
+        .send()?;
+    assert_eq!(resp.status(), 403);
+    Ok(())
+}
+
+#[rstest]
 fn copy_file_404(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let new_url = format!("{}test2.html", server.url());
     let resp = fetch!(b"COPY", format!("{}404", server.url()))
         .header("Destination", &new_url)
         .send()?;
-    assert_eq!(resp.status(), 405);
+    assert_eq!(resp.status(), 404);
     Ok(())
 }
 
@@ -124,12 +141,34 @@ fn move_file(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn move_not_allow_upload(#[with(&["--allow-delete"])] server: TestServer) -> Result<(), Error> {
+    let origin_url = format!("{}test.html", server.url());
+    let new_url = format!("{}test2.html", server.url());
+    let resp = fetch!(b"MOVE", &origin_url)
+        .header("Destination", &new_url)
+        .send()?;
+    assert_eq!(resp.status(), 403);
+    Ok(())
+}
+
+#[rstest]
+fn move_not_allow_delete(#[with(&["--allow-upload"])] server: TestServer) -> Result<(), Error> {
+    let origin_url = format!("{}test.html", server.url());
+    let new_url = format!("{}test2.html", server.url());
+    let resp = fetch!(b"MOVE", &origin_url)
+        .header("Destination", &new_url)
+        .send()?;
+    assert_eq!(resp.status(), 403);
+    Ok(())
+}
+
+#[rstest]
 fn move_file_404(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let new_url = format!("{}test2.html", server.url());
     let resp = fetch!(b"MOVE", format!("{}404", server.url()))
         .header("Destination", &new_url)
         .send()?;
-    assert_eq!(resp.status(), 405);
+    assert_eq!(resp.status(), 404);
     Ok(())
 }
 

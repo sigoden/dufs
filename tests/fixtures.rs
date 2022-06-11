@@ -8,6 +8,7 @@ use std::process::{Child, Command, Stdio};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
+#[allow(dead_code)]
 pub type Error = Box<dyn std::error::Error>;
 
 /// File names for testing purpose
