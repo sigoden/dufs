@@ -17,7 +17,19 @@ const dirEmptyNote = params.q ? 'No results' : DATA.dir_exists ? 'Empty folder' 
 /**
  * @type Element
  */
-let $pathsTable, $pathsTableBody, $uploadersTable;
+let $pathsTable;
+/**
+ * @type Element
+ */
+let $pathsTableBody;
+/**
+ * @type Element
+ */
+let $uploadersTable;
+/**
+ * @type Element
+ */
+let $emptyFolder;
 /**
  * @type string
  */
@@ -59,8 +71,8 @@ class Uploader {
     <td class="cell-status" id="uploadStatus${idx}"></td>
   </tr>`);
     $uploadersTable.classList.remove("hidden");
+    $emptyFolder.classList.add("hidden");
     this.$uploadStatus = document.getElementById(`uploadStatus${idx}`);
-    document.querySelector('.main i.empty-folder').remove();
 
     const ajax = new XMLHttpRequest();
     ajax.upload.addEventListener("progress", e => this.progress(e), false);
@@ -187,8 +199,8 @@ async function deletePath(index) {
         DATA.paths[index] = null;
         if (!DATA.paths.find(v => !!v)) {
           $pathsTable.classList.add("hidden");
-          document.querySelector('.main').insertAdjacentHTML("afterbegin", '<i class="empty-folder"></i>');
-          document.querySelector('.main .empty-folder').textContent = dirEmptyNote;
+          $emptyFolder.textContent = dirEmptyNote;
+          $emptyFolder.classList.remove("hidden");
         }
     } else {
       throw new Error(await res.text())
@@ -283,6 +295,7 @@ function ready() {
   $pathsTable = document.querySelector(".paths-table")
   $pathsTableBody = document.querySelector(".paths-table tbody");
   $uploadersTable = document.querySelector(".uploaders-table");
+  $emptyFolder = document.querySelector(".empty-folder");
 
   if (params.q) {
     document.getElementById('search').value = params.q;
@@ -298,8 +311,8 @@ function ready() {
       addPath(DATA.paths[i], i);
     }
     if (len == 0) {
-      document.querySelector('.main').insertAdjacentHTML("afterbegin", '<i class="empty-folder"></i>');
-      document.querySelector('.main .empty-folder').textContent = dirEmptyNote;
+      $emptyFolder.textContent = dirEmptyNote;
+      $emptyFolder.classList.remove("hidden");
     }
   }
   if (DATA.allow_upload) {

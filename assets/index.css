@@ -98,8 +98,8 @@ body {
 }
 
 .empty-folder {
-  display: block;
   padding-top: 1rem;
+  font-style: italic;
 }
 
 .uploaders-table th,
