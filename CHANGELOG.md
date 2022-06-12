@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.16.0] - 2022-06-12
+
+### Features
+
+- Implement head method ([#33](https://github.com/sigoden/duf/issues/33))
+- Display upload speed and time left ([#34](https://github.com/sigoden/duf/issues/34))
+- Support tls-key in pkcs#8 format ([#35](https://github.com/sigoden/duf/issues/35))
+- Options method return status 200
+
+### Testing
+
+- Add integration tests ([#36](https://github.com/sigoden/duf/issues/36))
+
 ## [0.15.1] - 2022-06-11
 
 ### Bug Fixes
