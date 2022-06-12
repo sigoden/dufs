@@ -19,7 +19,7 @@ fn bind_fails(tmpdir: TempDir, port: u16, #[case] args: &[&str]) -> Result<(), E
         .arg(port.to_string())
         .args(args)
         .assert()
-        .stderr(predicates::str::contains("Cannot assign requested address"))
+        .stderr(predicates::str::contains("creating server listener"))
         .failure();
 
     Ok(())
