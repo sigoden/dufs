@@ -129,7 +129,7 @@ fn head_file_404(server: TestServer) -> Result<(), Error> {
 #[rstest]
 fn options_dir(server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"OPTIONS", format!("{}index.html", server.url())).send()?;
-    assert_eq!(resp.status(), 204);
+    assert_eq!(resp.status(), 200);
     assert_eq!(
         resp.headers().get("allow").unwrap(),
         "GET,HEAD,PUT,OPTIONS,DELETE,PROPFIND,COPY,MOVE"

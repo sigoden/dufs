@@ -210,7 +210,7 @@ impl InnerService {
                 }
             }
             Method::OPTIONS => {
-                self.handle_method_options(&mut res);
+                self.handle_options(&mut res);
             }
             Method::PUT => {
                 if !allow_upload || (!allow_delete && is_file && size > 0) {
@@ -549,7 +549,7 @@ impl InnerService {
         Ok(())
     }
 
-    fn handle_method_options(&self, res: &mut Response) {
+    fn handle_options(&self, res: &mut Response) {
         res.headers_mut().insert(
             "Allow",
             "GET,HEAD,PUT,OPTIONS,DELETE,PROPFIND,COPY,MOVE"
@@ -557,8 +557,6 @@ impl InnerService {
                 .unwrap(),
         );
         res.headers_mut().insert("DAV", "1".parse().unwrap());
-
-        status!(res, StatusCode::NO_CONTENT);
     }
 
     async fn handle_propfind_dir(
