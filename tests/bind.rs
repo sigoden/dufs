@@ -38,11 +38,7 @@ fn bind_ipv4(server: TestServer) -> Result<(), Error> {
 fn bind_ipv6(#[with(&["-b", "::"])] server: TestServer) -> Result<(), Error> {
     assert_eq!(
         reqwest::blocking::get(format!("http://127.0.0.1:{}", server.port()).as_str()).is_ok(),
-        if cfg!(windows) {
-            false
-        } else {
-            true
-        }
+        if cfg!(windows) { false } else { true }
     );
     assert_eq!(
         reqwest::blocking::get(format!("http://[::1]:{}", server.port()).as_str()).is_ok(),
