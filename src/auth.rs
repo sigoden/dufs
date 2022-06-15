@@ -23,7 +23,7 @@ lazy_static! {
 pub fn generate_www_auth(stale: bool) -> String {
     let str_stale = if stale { "stale=true," } else { "" };
     format!(
-        "Digest realm=\"{}\",nonce=\"{}\",{}qop=\"auth\",algorithm=\"MD5\"",
+        "Digest realm=\"{}\",nonce=\"{}\",{}qop=\"auth\"",
         REALM,
         create_nonce(),
         str_stale
