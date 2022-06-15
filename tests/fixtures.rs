@@ -79,7 +79,7 @@ pub fn port() -> u16 {
     free_local_port().expect("Couldn't find a free local port")
 }
 
-/// Run miniserve as a server; Start with a temporary directory, a free port and some
+/// Run duf as a server; Start with a temporary directory, a free port and some
 /// optional arguments then wait for a while for the server setup to complete.
 #[fixture]
 #[allow(dead_code)]
