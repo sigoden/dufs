@@ -1,24 +1,29 @@
-use clap::crate_description;
-use clap::{Arg, ArgMatches};
+use clap::{Arg, ArgMatches, Command};
 use rustls::{Certificate, PrivateKey};
-use std::net::{IpAddr, SocketAddr};
+use std::env;
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
-use std::{env, fs, io};
 
 use crate::auth::parse_auth;
+use crate::tls::{load_certs, load_private_key};
 use crate::BoxResult;
 
-const ABOUT: &str = concat!("\n", crate_description!()); // Add extra newline.
-
-fn app() -> clap::Command<'static> {
-    clap::command!()
-        .about(ABOUT)
+fn app() -> Command<'static> {
+    Command::new(env!("CARGO_CRATE_NAME"))
+        .version(env!("CARGO_PKG_VERSION"))
+        .author(env!("CARGO_PKG_AUTHORS"))
+        .about(concat!(
+            env!("CARGO_PKG_DESCRIPTION"),
+            " - ",
+            env!("CARGO_PKG_REPOSITORY")
+        ))
         .arg(
             Arg::new("address")
                 .short('b')
                 .long("bind")
-                .default_value("0.0.0.0")
                 .help("Specify bind address")
+                .multiple_values(true)
+                .multiple_occurrences(true)
                 .value_name("address"),
         )
         .arg(
@@ -111,7 +116,8 @@ pub fn matches() -> ArgMatches {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Args {
-    pub addr: SocketAddr,
+    pub addrs: Vec<IpAddr>,
+    pub port: u16,
     pub path: PathBuf,
     pub path_prefix: String,
     pub uri_prefix: String,
@@ -132,9 +138,12 @@ impl Args {
     /// If a parsing error ocurred, exit the process and print out informative
     /// error message to user.
     pub fn parse(matches: ArgMatches) -> BoxResult<Args> {
-        let ip = matches.value_of("address").unwrap_or_default();
         let port = matches.value_of_t::<u16>("port")?;
-        let addr = to_addr(ip, port)?;
+        let addrs = matches
+            .values_of("address")
+            .map(|v| v.collect())
+            .unwrap_or_else(|| vec!["0.0.0.0", "::"]);
+        let addrs: Vec<IpAddr> = Args::parse_addrs(&addrs)?;
         let path = Args::parse_path(matches.value_of_os("path").unwrap_or_default())?;
         let path_prefix = matches
             .value_of("path-prefix")
@@ -166,7 +175,8 @@ impl Args {
         };
 
         Ok(Args {
-            addr,
+            addrs,
+            port,
             path,
             path_prefix,
             uri_prefix,
@@ -182,7 +192,25 @@ impl Args {
         })
     }
 
-    /// Parse path.
+    fn parse_addrs(addrs: &[&str]) -> BoxResult<Vec<IpAddr>> {
+        let mut ip_addrs = vec![];
+        let mut invalid_addrs = vec![];
+        for addr in addrs {
+            match addr.parse::<IpAddr>() {
+                Ok(v) => {
+                    ip_addrs.push(v);
+                }
+                Err(_) => {
+                    invalid_addrs.push(*addr);
+                }
+            }
+        }
+        if !invalid_addrs.is_empty() {
+            return Err(format!("Invalid bind address `{}`", invalid_addrs.join(",")).into());
+        }
+        Ok(ip_addrs)
+    }
+
     fn parse_path<P: AsRef<Path>>(path: P) -> BoxResult<PathBuf> {
         let path = path.as_ref();
         if !path.exists() {
@@ -196,44 +224,4 @@ impl Args {
             })
             .map_err(|err| format!("Failed to access path `{}`: {}", path.display(), err,).into())
     }
-}
-
-fn to_addr(ip: &str, port: u16) -> BoxResult<SocketAddr> {
-    let ip: IpAddr = ip.parse()?;
-    Ok(SocketAddr::new(ip, port))
-}
-
-// Load public certificate from file.
-fn load_certs(filename: &str) -> BoxResult<Vec<Certificate>> {
-    // Open certificate file.
-    let certfile = fs::File::open(&filename)
-        .map_err(|e| format!("Failed to access `{}`, {}", &filename, e))?;
-    let mut reader = io::BufReader::new(certfile);
-
-    // Load and return certificate.
-    let certs = rustls_pemfile::certs(&mut reader).map_err(|_| "Failed to load certificate")?;
-    if certs.is_empty() {
-        return Err("No supported certificate in file".into());
-    }
-    Ok(certs.into_iter().map(Certificate).collect())
-}
-
-// Load private key from file.
-fn load_private_key(filename: &str) -> BoxResult<PrivateKey> {
-    // Open keyfile.
-    let keyfile = fs::File::open(&filename)
-        .map_err(|e| format!("Failed to access `{}`, {}", &filename, e))?;
-    let mut reader = io::BufReader::new(keyfile);
-
-    // Load and return a single private key.
-    let keys = rustls_pemfile::read_all(&mut reader)
-        .map_err(|e| format!("There was a problem with reading private key: {:?}", e))?
-        .into_iter()
-        .find_map(|item| match item {
-            rustls_pemfile::Item::RSAKey(key) | rustls_pemfile::Item::PKCS8Key(key) => Some(key),
-            _ => None,
-        })
-        .ok_or("No supported private key in file")?;
-
-    Ok(PrivateKey(keys))
 }

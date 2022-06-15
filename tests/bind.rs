@@ -19,25 +19,30 @@ fn bind_fails(tmpdir: TempDir, port: u16, #[case] args: &[&str]) -> Result<(), E
         .arg(port.to_string())
         .args(args)
         .assert()
-        .stderr(predicates::str::contains("creating server listener"))
+        .stderr(predicates::str::contains("Failed to bind"))
         .failure();
 
     Ok(())
 }
 
 #[rstest]
-fn bind_ipv4(server: TestServer) -> Result<(), Error> {
-    assert!(reqwest::blocking::get(format!("http://127.0.0.1:{}", server.port()).as_str()).is_ok());
-    Ok(())
-}
-
-#[rstest]
-fn bind_ipv6(#[with(&["-b", "::"])] server: TestServer) -> Result<(), Error> {
+#[case(server(&[] as &[&str]), true, true)]
+#[case(server(&["-b", "0.0.0.0"]), true, false)]
+#[case(server(&["-b", "127.0.0.1", "-b", "::1"]), true, true)]
+fn bind_ipv4_ipv6(
+    #[case] server: TestServer,
+    #[case] bind_ipv4: bool,
+    #[case] bind_ipv6: bool,
+) -> Result<(), Error> {
     assert_eq!(
         reqwest::blocking::get(format!("http://127.0.0.1:{}", server.port()).as_str()).is_ok(),
-        !cfg!(windows)
+        bind_ipv4
     );
-    assert!(reqwest::blocking::get(format!("http://[::1]:{}", server.port()).as_str()).is_ok());
+    assert_eq!(
+        reqwest::blocking::get(format!("http://[::1]:{}", server.port()).as_str()).is_ok(),
+        bind_ipv6
+    );
+
     Ok(())
 }
 

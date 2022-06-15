@@ -8,7 +8,6 @@ use async_zip::Compression;
 use chrono::{TimeZone, Utc};
 use futures::stream::StreamExt;
 use futures::TryStreamExt;
-use get_if_addrs::get_if_addrs;
 use headers::{
     AcceptRanges, AccessControlAllowHeaders, AccessControlAllowOrigin, ContentLength, ContentRange,
     ContentType, ETag, HeaderMap, HeaderMapExt, IfModifiedSince, IfNoneMatch, IfRange,
@@ -18,28 +17,23 @@ use hyper::header::{
     HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_DISPOSITION, CONTENT_TYPE, ORIGIN, RANGE,
     WWW_AUTHENTICATE,
 };
-use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Method, StatusCode, Uri};
 use percent_encoding::percent_decode;
-use rustls::ServerConfig;
 use serde::Serialize;
-use std::convert::Infallible;
 use std::fs::Metadata;
-use std::net::{IpAddr, SocketAddr};
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::SystemTime;
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWrite};
-use tokio::net::TcpListener;
 use tokio::{fs, io};
-use tokio_rustls::TlsAcceptor;
 use tokio_util::codec::{BytesCodec, FramedRead};
 use tokio_util::io::{ReaderStream, StreamReader};
 use uuid::Uuid;
 
-type Request = hyper::Request<Body>;
-type Response = hyper::Response<Body>;
+pub type Request = hyper::Request<Body>;
+pub type Response = hyper::Response<Body>;
 
 const INDEX_HTML: &str = include_str!("../assets/index.html");
 const INDEX_CSS: &str = include_str!("../assets/index.css");
@@ -55,82 +49,34 @@ macro_rules! status {
     };
 }
 
-pub async fn serve(args: Args) -> BoxResult<()> {
-    let args = Arc::new(args);
-    let inner = Arc::new(InnerService::new(args.clone()));
-    match args.tls.clone() {
-        Some((certs, key)) => {
-            let config = ServerConfig::builder()
-                .with_safe_defaults()
-                .with_no_client_auth()
-                .with_single_cert(certs, key)?;
-            let tls_acceptor = TlsAcceptor::from(Arc::new(config));
-            let arc_acceptor = Arc::new(tls_acceptor);
-            let listener = TcpListener::bind(&args.addr).await?;
-            let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
-            let incoming =
-                hyper::server::accept::from_stream(incoming.filter_map(|socket| async {
-                    match socket {
-                        Ok(stream) => match arc_acceptor.clone().accept(stream).await {
-                            Ok(val) => Some(Ok::<_, Infallible>(val)),
-                            Err(_) => None,
-                        },
-                        Err(_) => None,
-                    }
-                }));
-            let server = hyper::Server::builder(incoming).serve(make_service_fn(move |_| {
-                let inner = inner.clone();
-                async move {
-                    Ok::<_, Infallible>(service_fn(move |req| {
-                        let inner = inner.clone();
-                        inner.call(req)
-                    }))
-                }
-            }));
-            print_listening(&args.addr, &args.uri_prefix, true);
-            server.await?;
-        }
-        None => {
-            let server = hyper::Server::try_bind(&args.addr)?.serve(make_service_fn(move |_| {
-                let inner = inner.clone();
-                async move {
-                    Ok::<_, Infallible>(service_fn(move |req| {
-                        let inner = inner.clone();
-                        inner.call(req)
-                    }))
-                }
-            }));
-            print_listening(&args.addr, &args.uri_prefix, false);
-            server.await?;
-        }
-    }
-    Ok(())
-}
-
-struct InnerService {
+pub struct Server {
     args: Arc<Args>,
 }
 
-impl InnerService {
+impl Server {
     pub fn new(args: Arc<Args>) -> Self {
         Self { args }
     }
 
-    pub async fn call(self: Arc<Self>, req: Request) -> Result<Response, hyper::Error> {
+    pub async fn call(
+        self: Arc<Self>,
+        req: Request,
+        addr: SocketAddr,
+    ) -> Result<Response, hyper::Error> {
         let method = req.method().clone();
         let uri = req.uri().clone();
         let cors = self.args.cors;
 
         let mut res = match self.handle(req).await {
             Ok(res) => {
-                info!(r#""{} {}" - {}"#, method, uri, res.status());
+                info!(r#"{} "{} {}" - {}"#, addr, method, uri, res.status());
                 res
             }
             Err(err) => {
                 let mut res = Response::default();
                 let status = StatusCode::INTERNAL_SERVER_ERROR;
                 status!(res, status);
-                error!(r#""{} {}" - {} {}"#, method, uri, status, err);
+                error!(r#"{} "{} {}" - {} {}"#, addr, method, uri, status, err);
                 res
             }
         };
@@ -1050,48 +996,6 @@ fn to_content_range(range: &Range, complete_length: u64) -> Option<ContentRange>
         }
         _ => None,
     })
-}
-
-fn print_listening(addr: &SocketAddr, prefix: &str, tls: bool) {
-    let prefix = encode_uri(prefix.trim_end_matches('/'));
-    let addrs = retrieve_listening_addrs(addr);
-    let protocol = if tls { "https" } else { "http" };
-    if addrs.len() == 1 {
-        println!("Listening on {}://{}{}", protocol, addr, prefix);
-    } else {
-        let message = addrs
-            .iter()
-            .map(|addr| format!("  {}://{}{}", protocol, addr, prefix))
-            .collect::<Vec<String>>()
-            .join("\n");
-        println!("Listening on:\n{}\n", message);
-    }
-}
-
-fn retrieve_listening_addrs(addr: &SocketAddr) -> Vec<SocketAddr> {
-    let ip = addr.ip();
-    let port = addr.port();
-    if ip.is_unspecified() {
-        if let Ok(interfaces) = get_if_addrs() {
-            let mut ifaces: Vec<IpAddr> = interfaces
-                .into_iter()
-                .map(|v| v.ip())
-                .filter(|v| {
-                    if ip.is_ipv4() {
-                        v.is_ipv4()
-                    } else {
-                        v.is_ipv6()
-                    }
-                })
-                .collect();
-            ifaces.sort();
-            return ifaces
-                .into_iter()
-                .map(|v| SocketAddr::new(v, port))
-                .collect();
-        }
-    }
-    vec![addr.to_owned()]
 }
 
 fn encode_uri(v: &str) -> String {
