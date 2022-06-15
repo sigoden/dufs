@@ -35,7 +35,7 @@ async fn run() -> BoxResult<()> {
     }
     env_logger::builder()
         .format(|buf, record| {
-            let timestamp = buf.timestamp();
+            let timestamp = buf.timestamp_millis();
             writeln!(buf, "[{} {}] {}", timestamp, record.level(), record.args())
         })
         .init();

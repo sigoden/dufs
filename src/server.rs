@@ -9,9 +9,9 @@ use chrono::{TimeZone, Utc};
 use futures::stream::StreamExt;
 use futures::TryStreamExt;
 use headers::{
-    AcceptRanges, AccessControlAllowHeaders, AccessControlAllowOrigin, ContentLength, ContentRange,
-    ContentType, ETag, HeaderMap, HeaderMapExt, IfModifiedSince, IfNoneMatch, IfRange,
-    LastModified, Range,
+    AcceptRanges, AccessControlAllowCredentials, AccessControlAllowHeaders,
+    AccessControlAllowOrigin, Connection, ContentLength, ContentRange, ContentType, ETag,
+    HeaderMap, HeaderMapExt, IfModifiedSince, IfNoneMatch, IfRange, LastModified, Range,
 };
 use hyper::header::{
     HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_DISPOSITION, CONTENT_TYPE, ORIGIN, RANGE,
@@ -42,13 +42,6 @@ const FAVICON_ICO: &[u8] = include_bytes!("../assets/favicon.ico");
 const INDEX_NAME: &str = "index.html";
 const BUF_SIZE: usize = 1024 * 16;
 
-macro_rules! status {
-    ($res:ident, $status:expr) => {
-        *$res.status_mut() = $status;
-        *$res.body_mut() = Body::from($status.canonical_reason().unwrap_or_default());
-    };
-}
-
 pub struct Server {
     args: Arc<Args>,
 }
@@ -69,14 +62,16 @@ impl Server {
 
         let mut res = match self.handle(req).await {
             Ok(res) => {
-                info!(r#"{} "{} {}" - {}"#, addr, method, uri, res.status());
+                let status = res.status().as_u16();
+                info!(r#"{} "{} {}" - {}"#, addr.ip(), method, uri, status,);
                 res
             }
             Err(err) => {
                 let mut res = Response::default();
                 let status = StatusCode::INTERNAL_SERVER_ERROR;
-                status!(res, status);
-                error!(r#"{} "{} {}" - {} {}"#, addr, method, uri, status, err);
+                *res.status_mut() = status;
+                let status = status.as_u16();
+                error!(r#"{} "{} {}" - {} {}"#, addr.ip(), method, uri, status, err);
                 res
             }
         };
@@ -106,7 +101,7 @@ impl Server {
         let path = match self.extract_path(req_path) {
             Some(v) => v,
             None => {
-                status!(res, StatusCode::FORBIDDEN);
+                status_forbid(&mut res);
                 return Ok(res);
             }
         };
@@ -125,7 +120,7 @@ impl Server {
         let render_spa = self.args.render_spa;
 
         if !self.args.allow_symlink && !is_miss && !self.is_root_contained(path).await {
-            status!(res, StatusCode::NOT_FOUND);
+            status_not_found(&mut res);
             return Ok(res);
         }
 
@@ -152,26 +147,26 @@ impl Server {
                 } else if allow_upload && req_path.ends_with('/') {
                     self.handle_ls_dir(path, false, head_only, &mut res).await?;
                 } else {
-                    status!(res, StatusCode::NOT_FOUND);
+                    status_not_found(&mut res);
                 }
             }
             Method::OPTIONS => {
-                self.handle_options(&mut res);
+                set_webdav_headers(&mut res);
             }
             Method::PUT => {
                 if !allow_upload || (!allow_delete && is_file && size > 0) {
-                    status!(res, StatusCode::FORBIDDEN);
+                    status_forbid(&mut res);
                 } else {
                     self.handle_upload(path, req, &mut res).await?;
                 }
             }
             Method::DELETE => {
                 if !allow_delete {
-                    status!(res, StatusCode::FORBIDDEN);
+                    status_forbid(&mut res);
                 } else if !is_miss {
                     self.handle_delete(path, is_dir, &mut res).await?
                 } else {
-                    status!(res, StatusCode::NOT_FOUND);
+                    status_not_found(&mut res);
                 }
             }
             method => match method.as_str() {
@@ -181,37 +176,37 @@ impl Server {
                     } else if is_file {
                         self.handle_propfind_file(path, &mut res).await?;
                     } else {
-                        status!(res, StatusCode::NOT_FOUND);
+                        status_not_found(&mut res);
                     }
                 }
                 "PROPPATCH" => {
                     if is_file {
                         self.handle_proppatch(req_path, &mut res).await?;
                     } else {
-                        status!(res, StatusCode::NOT_FOUND);
+                        status_not_found(&mut res);
                     }
                 }
                 "MKCOL" => {
                     if !allow_upload || !is_miss {
-                        status!(res, StatusCode::FORBIDDEN);
+                        status_forbid(&mut res);
                     } else {
                         self.handle_mkcol(path, &mut res).await?;
                     }
                 }
                 "COPY" => {
                     if !allow_upload {
-                        status!(res, StatusCode::FORBIDDEN);
+                        status_forbid(&mut res);
                     } else if is_miss {
-                        status!(res, StatusCode::NOT_FOUND);
+                        status_not_found(&mut res);
                     } else {
                         self.handle_copy(path, headers, &mut res).await?
                     }
                 }
                 "MOVE" => {
                     if !allow_upload || !allow_delete {
-                        status!(res, StatusCode::FORBIDDEN);
+                        status_forbid(&mut res);
                     } else if is_miss {
-                        status!(res, StatusCode::NOT_FOUND);
+                        status_not_found(&mut res);
                     } else {
                         self.handle_move(path, headers, &mut res).await?
                     }
@@ -221,19 +216,17 @@ impl Server {
                     if is_file {
                         self.handle_lock(req_path, &mut res).await?;
                     } else {
-                        status!(res, StatusCode::NOT_FOUND);
+                        status_not_found(&mut res);
                     }
                 }
                 "UNLOCK" => {
                     // Fake unlock
                     if is_miss {
-                        status!(res, StatusCode::NOT_FOUND);
-                    } else {
-                        status!(res, StatusCode::OK);
+                        status_not_found(&mut res);
                     }
                 }
                 _ => {
-                    status!(res, StatusCode::METHOD_NOT_ALLOWED);
+                    *res.status_mut() = StatusCode::METHOD_NOT_ALLOWED;
                 }
             },
         }
@@ -251,7 +244,7 @@ impl Server {
         let mut file = match fs::File::create(&path).await {
             Ok(v) => v,
             Err(_) => {
-                status!(res, StatusCode::FORBIDDEN);
+                status_forbid(res);
                 return Ok(());
             }
         };
@@ -266,7 +259,7 @@ impl Server {
 
         io::copy(&mut body_reader, &mut file).await?;
 
-        status!(res, StatusCode::CREATED);
+        *res.status_mut() = StatusCode::CREATED;
         Ok(())
     }
 
@@ -276,7 +269,7 @@ impl Server {
             false => fs::remove_file(path).await?,
         }
 
-        status!(res, StatusCode::NO_CONTENT);
+        status_no_content(res);
         Ok(())
     }
 
@@ -292,7 +285,7 @@ impl Server {
             paths = match self.list_dir(path, path).await {
                 Ok(paths) => paths,
                 Err(_) => {
-                    status!(res, StatusCode::FORBIDDEN);
+                    status_forbid(res);
                     return Ok(());
                 }
             }
@@ -350,7 +343,7 @@ impl Server {
             .unwrap(),
         );
         res.headers_mut()
-            .insert("content-type", "application/zip".parse().unwrap());
+            .insert("content-type", HeaderValue::from_static("application/zip"));
         if head_only {
             return Ok(());
         }
@@ -382,7 +375,7 @@ impl Server {
             self.handle_send_file(&path, headers, head_only, res)
                 .await?;
         } else {
-            status!(res, StatusCode::NOT_FOUND);
+            status_not_found(res)
         }
         Ok(())
     }
@@ -399,7 +392,7 @@ impl Server {
             self.handle_send_file(&path, headers, head_only, res)
                 .await?;
         } else {
-            status!(res, StatusCode::NOT_FOUND);
+            status_not_found(res)
         }
         Ok(())
     }
@@ -418,7 +411,7 @@ impl Server {
         } else {
             *res.body_mut() = Body::from(FAVICON_ICO);
             res.headers_mut()
-                .insert("content-type", "image/x-icon".parse().unwrap());
+                .insert("content-type", HeaderValue::from_static("image/x-icon"));
         }
         Ok(())
     }
@@ -446,7 +439,7 @@ impl Server {
             res.headers_mut().typed_insert(last_modified);
             res.headers_mut().typed_insert(etag.clone());
             if cached {
-                status!(res, StatusCode::NOT_MODIFIED);
+                *res.status_mut() = StatusCode::NOT_MODIFIED;
                 return Ok(());
             }
             if headers.typed_get::<Range>().is_some() {
@@ -495,16 +488,6 @@ impl Server {
         Ok(())
     }
 
-    fn handle_options(&self, res: &mut Response) {
-        res.headers_mut().insert(
-            "Allow",
-            "GET,HEAD,PUT,OPTIONS,DELETE,PROPFIND,COPY,MOVE"
-                .parse()
-                .unwrap(),
-        );
-        res.headers_mut().insert("DAV", "1".parse().unwrap());
-    }
-
     async fn handle_propfind_dir(
         &self,
         path: &Path,
@@ -515,7 +498,7 @@ impl Server {
             Some(v) => match v.to_str().ok().and_then(|v| v.parse().ok()) {
                 Some(v) => v,
                 None => {
-                    status!(res, StatusCode::BAD_REQUEST);
+                    *res.status_mut() = StatusCode::BAD_REQUEST;
                     return Ok(());
                 }
             },
@@ -526,7 +509,7 @@ impl Server {
             match self.list_dir(path, &self.args.path).await {
                 Ok(child) => paths.extend(child),
                 Err(_) => {
-                    status!(res, StatusCode::FORBIDDEN);
+                    status_forbid(res);
                     return Ok(());
                 }
             }
@@ -546,14 +529,14 @@ impl Server {
         if let Some(pathitem) = self.to_pathitem(path, &self.args.path).await? {
             res_multistatus(res, &pathitem.to_dav_xml(self.args.uri_prefix.as_str()));
         } else {
-            status!(res, StatusCode::NOT_FOUND);
+            status_not_found(res);
         }
         Ok(())
     }
 
     async fn handle_mkcol(&self, path: &Path, res: &mut Response) -> BoxResult<()> {
         fs::create_dir_all(path).await?;
-        status!(res, StatusCode::CREATED);
+        *res.status_mut() = StatusCode::CREATED;
         Ok(())
     }
 
@@ -566,14 +549,14 @@ impl Server {
         let dest = match self.extract_dest(headers) {
             Some(dest) => dest,
             None => {
-                status!(res, StatusCode::BAD_REQUEST);
+                *res.status_mut() = StatusCode::BAD_REQUEST;
                 return Ok(());
             }
         };
 
         let meta = fs::symlink_metadata(path).await?;
         if meta.is_dir() {
-            status!(res, StatusCode::FORBIDDEN);
+            status_forbid(res);
             return Ok(());
         }
 
@@ -581,7 +564,7 @@ impl Server {
 
         fs::copy(path, &dest).await?;
 
-        status!(res, StatusCode::NO_CONTENT);
+        status_no_content(res);
         Ok(())
     }
 
@@ -594,7 +577,7 @@ impl Server {
         let dest = match self.extract_dest(headers) {
             Some(dest) => dest,
             None => {
-                status!(res, StatusCode::BAD_REQUEST);
+                *res.status_mut() = StatusCode::BAD_REQUEST;
                 return Ok(());
             }
         };
@@ -603,7 +586,7 @@ impl Server {
 
         fs::rename(path, &dest).await?;
 
-        status!(res, StatusCode::NO_CONTENT);
+        status_no_content(res);
         Ok(())
     }
 
@@ -616,7 +599,7 @@ impl Server {
 
         res.headers_mut().insert(
             "content-type",
-            "application/xml; charset=utf-8".parse().unwrap(),
+            HeaderValue::from_static("application/xml; charset=utf-8"),
         );
         res.headers_mut()
             .insert("lock-token", format!("<{}>", token).parse().unwrap());
@@ -718,7 +701,9 @@ const DATA =
         };
         if !pass {
             let value = generate_www_auth(false);
-            status!(res, StatusCode::UNAUTHORIZED);
+            set_webdav_headers(res);
+            *res.status_mut() = StatusCode::UNAUTHORIZED;
+            res.headers_mut().typed_insert(Connection::close());
             res.headers_mut()
                 .insert(WWW_AUTHENTICATE, value.parse().unwrap());
         }
@@ -909,6 +894,9 @@ async fn ensure_path_parent(path: &Path) -> BoxResult<()> {
 fn add_cors(res: &mut Response) {
     res.headers_mut()
         .typed_insert(AccessControlAllowOrigin::ANY);
+    res.headers_mut()
+        .typed_insert(AccessControlAllowCredentials);
+
     res.headers_mut().typed_insert(
         vec![RANGE, CONTENT_TYPE, ACCEPT, ORIGIN, WWW_AUTHENTICATE]
             .into_iter()
@@ -920,7 +908,7 @@ fn res_multistatus(res: &mut Response, content: &str) {
     *res.status_mut() = StatusCode::MULTI_STATUS;
     res.headers_mut().insert(
         "content-type",
-        "application/xml; charset=utf-8".parse().unwrap(),
+        HeaderValue::from_static("application/xml; charset=utf-8"),
     );
     *res.body_mut() = Body::from(format!(
         r#"<?xml version="1.0" encoding="utf-8" ?>
@@ -1001,4 +989,25 @@ fn to_content_range(range: &Range, complete_length: u64) -> Option<ContentRange>
 fn encode_uri(v: &str) -> String {
     let parts: Vec<_> = v.split('/').map(urlencoding::encode).collect();
     parts.join("/")
+}
+
+fn status_forbid(res: &mut Response) {
+    *res.status_mut() = StatusCode::FORBIDDEN;
+}
+
+fn status_not_found(res: &mut Response) {
+    *res.status_mut() = StatusCode::NOT_FOUND;
+}
+
+fn status_no_content(res: &mut Response) {
+    *res.status_mut() = StatusCode::NO_CONTENT;
+}
+
+fn set_webdav_headers(res: &mut Response) {
+    res.headers_mut().insert(
+        "Allow",
+        HeaderValue::from_static("GET,HEAD,PUT,OPTIONS,DELETE,PROPFIND,COPY,MOVE"),
+    );
+    res.headers_mut()
+        .insert("DAV", HeaderValue::from_static("1,2"));
 }
