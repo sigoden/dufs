@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.17.0] - 2022-06-15
+
+### Bug Fixes
+
+- Webdav propfind dir with slash ([#42](https://github.com/sigoden/duf/issues/42))
+
+### Features
+
+- Listen both ipv4 and ipv6 by default ([#40](https://github.com/sigoden/duf/issues/40))
+
+### Refactor
+
+- Trival changes ([#41](https://github.com/sigoden/duf/issues/41))
+
 ## [0.16.0] - 2022-06-12
 
 ### Features

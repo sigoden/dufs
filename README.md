@@ -40,10 +40,10 @@ Download from [Github Releases](https://github.com/sigoden/duf/releases), unzip 
 ## CLI
 
 ```
-Duf is a simple file server.
+Duf is a simple file server. - https://github.com/sigoden/duf
 
 USAGE:
-    duf [OPTIONS] [path]
+    duf [OPTIONS] [--] [path]
 
 ARGS:
     <path>    Path to a root directory for serving files [default: .]
@@ -55,7 +55,7 @@ OPTIONS:
         --allow-delete          Allow delete files/folders
         --allow-symlink         Allow symlink to files/folders outside root directory
         --allow-upload          Allow upload files/folders
-    -b, --bind <address>        Specify bind address [default: 0.0.0.0]
+    -b, --bind <address>...     Specify bind address
         --cors                  Enable CORS, sets `Access-Control-Allow-Origin: *`
     -h, --help                  Print help information
     -p, --port <port>           Specify port to listen on [default: 5000]
