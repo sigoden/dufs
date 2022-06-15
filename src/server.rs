@@ -812,9 +812,16 @@ struct PathItem {
 }
 
 impl PathItem {
+    pub fn is_dir(&self) -> bool {
+        self.path_type == PathType::Dir || self.path_type == PathType::SymlinkDir
+    }
+
     pub fn to_dav_xml(&self, prefix: &str) -> String {
         let mtime = Utc.timestamp_millis(self.mtime as i64).to_rfc2822();
-        let href = encode_uri(&format!("{}{}", prefix, &self.name));
+        let mut href = encode_uri(&format!("{}{}", prefix, &self.name));
+        if self.is_dir() && !href.ends_with('/') {
+            href.push('/');
+        }
         let displayname = escape_str_pcdata(self.base_name());
         match self.path_type {
             PathType::Dir | PathType::SymlinkDir => format!(
