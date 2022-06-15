@@ -10,7 +10,7 @@ fn propfind_dir(server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"PROPFIND", format!("{}dira", server.url())).send()?;
     assert_eq!(resp.status(), 207);
     let body = resp.text()?;
-    assert!(body.contains("<D:href>/dira</D:href>"));
+    assert!(body.contains("<D:href>/dira/</D:href>"));
     assert!(body.contains("<D:displayname>dira</D:displayname>"));
     for f in FILES {
         assert!(body.contains(&format!("<D:href>/dira/{}</D:href>", utils::encode_uri(f))));
@@ -29,7 +29,7 @@ fn propfind_dir_depth0(server: TestServer) -> Result<(), Error> {
         .send()?;
     assert_eq!(resp.status(), 207);
     let body = resp.text()?;
-    assert!(body.contains("<D:href>/dira</D:href>"));
+    assert!(body.contains("<D:href>/dira/</D:href>"));
     assert!(body.contains("<D:displayname>dira</D:displayname>"));
     assert_eq!(
         body.lines()
