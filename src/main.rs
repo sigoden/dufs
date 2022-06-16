@@ -1,6 +1,7 @@
 mod args;
 mod auth;
 mod server;
+mod streamer;
 mod tls;
 
 #[macro_use]
