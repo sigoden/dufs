@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.17.1] - 2022-06-16
+
+### Bug Fixes
+
+- Range request ([#44](https://github.com/sigoden/duf/issues/44))
+
 ## [0.17.0] - 2022-06-15
 
 ### Bug Fixes
