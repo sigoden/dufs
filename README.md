@@ -70,31 +70,31 @@ OPTIONS:
 
 ## Examples
 
-You can run this command to start serving your current working directory on 127.0.0.1:5000 by default.
+Serve current working directory, no upload/delete
 
 ```
 duf
 ```
 
-...or specify which folder you want to serve.
+Allow upload/delete
 
 ```
-duf folder_name
+duf -A
 ```
 
-Allow all operations such as upload, delete
-
-```sh
-duf --allow-all
-```
-
-Only allow upload operation
+Listen on a specific port
 
 ```
-duf --allow-upload
+duf -p 80
 ```
 
-Serve a single page application (SPA)
+Protect with authentication
+
+```
+duf -a admin:admin
+```
+
+For a single page application (SPA)
 
 ```
 duf --render-spa
