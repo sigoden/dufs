@@ -59,7 +59,7 @@ OPTIONS:
         --allow-delete          Allow delete files/folders
         --allow-symlink         Allow symlink to files/folders outside root directory
         --render-index          Render index.html when requesting a directory
-        --render-try-index      Try rendering index.html when requesting a directory
+        --render-try-index      Render index.html if it exists when requesting a directory
         --render-spa            Render for single-page application
         --cors                  Enable CORS, sets `Access-Control-Allow-Origin: *`
         --tls-cert <path>       Path to an SSL/TLS certificate to serve with HTTPS

@@ -119,6 +119,7 @@ impl Server {
         let allow_delete = self.args.allow_delete;
         let render_index = self.args.render_index;
         let render_spa = self.args.render_spa;
+        let render_try_index = self.args.render_try_index;
 
         if !self.args.allow_symlink && !is_miss && !self.is_root_contained(path).await {
             status_not_found(&mut res);
@@ -129,7 +130,9 @@ impl Server {
             Method::GET | Method::HEAD => {
                 let head_only = method == Method::HEAD;
                 if is_dir {
-                    if render_index || render_spa {
+                    if render_try_index && query == "zip" {
+                        self.handle_zip_dir(path, head_only, &mut res).await?;
+                    } else if render_index || render_spa || render_try_index {
                         self.handle_render_index(path, headers, head_only, &mut res)
                             .await?;
                     } else if query == "zip" {
@@ -375,7 +378,7 @@ impl Server {
         {
             self.handle_send_file(&index_path, headers, head_only, res)
                 .await?;
-        } else if self.args.render_index_fallback {
+        } else if self.args.render_try_index {
             self.handle_ls_dir(path, true, head_only, res).await?;
         } else {
             status_not_found(res)

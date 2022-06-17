@@ -88,7 +88,7 @@ fn app() -> Command<'static> {
         .arg(
             Arg::new("render-try-index")
                 .long("render-try-index")
-                .help("Try rendering index.html when requesting a directory"),
+                .help("Render index.html if it exists when requesting a directory"),
         )
         .arg(
             Arg::new("render-spa")
@@ -132,7 +132,7 @@ pub struct Args {
     pub allow_symlink: bool,
     pub render_index: bool,
     pub render_spa: bool,
-    pub render_index_fallback: bool,
+    pub render_try_index: bool,
     pub cors: bool,
     pub tls: Option<(Vec<Certificate>, PrivateKey)>,
 }
@@ -168,9 +168,8 @@ impl Args {
         let allow_upload = matches.is_present("allow-all") || matches.is_present("allow-upload");
         let allow_delete = matches.is_present("allow-all") || matches.is_present("allow-delete");
         let allow_symlink = matches.is_present("allow-all") || matches.is_present("allow-symlink");
-        let render_index =
-            matches.is_present("render-index") || matches.is_present("render-try-index");
-        let render_index_fallback = matches.is_present("render-try-index");
+        let render_index = matches.is_present("render-index");
+        let render_try_index = matches.is_present("render-try-index");
         let render_spa = matches.is_present("render-spa");
         let tls = match (matches.value_of("tls-cert"), matches.value_of("tls-key")) {
             (Some(certs_file), Some(key_file)) => {
@@ -194,7 +193,7 @@ impl Args {
             allow_upload,
             allow_symlink,
             render_index,
-            render_index_fallback,
+            render_try_index,
             render_spa,
             tls,
         })
