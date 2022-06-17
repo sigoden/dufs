@@ -1,7 +1,6 @@
 /**
  * @typedef {object} PathItem
  * @property {"Dir"|"SymlinkDir"|"File"|"SymlinkFile"} path_type
- * @property {boolean} is_symlink
  * @property {string} name
  * @property {number} mtime
  * @property {number} size
@@ -153,10 +152,11 @@ function addBreadcrumb(value) {
  * @param {number} index 
  */
 function addPath(file, index) {
-  const url = getUrl(file.name)
+  let url = getUrl(file.name)
   let actionDelete = "";
   let actionDownload = "";
   if (file.path_type.endsWith("Dir")) {
+    url += "/";
     actionDownload = `
     <div class="action-btn">
       <a href="${url}?zip" title="Download folder as a .zip file">
