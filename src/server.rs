@@ -366,15 +366,17 @@ impl Server {
         head_only: bool,
         res: &mut Response,
     ) -> BoxResult<()> {
-        let path = path.join(INDEX_NAME);
-        if fs::metadata(&path)
+        let index_path = path.join(INDEX_NAME);
+        if fs::metadata(&index_path)
             .await
             .ok()
             .map(|v| v.is_file())
             .unwrap_or_default()
         {
-            self.handle_send_file(&path, headers, head_only, res)
+            self.handle_send_file(&index_path, headers, head_only, res)
                 .await?;
+        } else if self.args.render_index_fallback {
+            self.handle_ls_dir(path, true, head_only, res).await?;
         } else {
             status_not_found(res)
         }

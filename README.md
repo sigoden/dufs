@@ -49,21 +49,22 @@ ARGS:
     <path>    Path to a root directory for serving files [default: .]
 
 OPTIONS:
+    -b, --bind <addr>...        Specify bind address
+    -p, --port <port>           Specify port to listen on [default: 5000]
+        --path-prefix <path>    Specify an url path prefix
     -a, --auth <user:pass>      Use HTTP authentication
         --no-auth-access        Not required auth when access static files
     -A, --allow-all             Allow all operations
+        --allow-upload          Allow upload files/folders
         --allow-delete          Allow delete files/folders
         --allow-symlink         Allow symlink to files/folders outside root directory
-        --allow-upload          Allow upload files/folders
-    -b, --bind <address>...     Specify bind address
-        --cors                  Enable CORS, sets `Access-Control-Allow-Origin: *`
-    -h, --help                  Print help information
-    -p, --port <port>           Specify port to listen on [default: 5000]
-        --path-prefix <path>    Specify an url path prefix
         --render-index          Render index.html when requesting a directory
+        --render-try-index      Try rendering index.html when requesting a directory
         --render-spa            Render for single-page application
+        --cors                  Enable CORS, sets `Access-Control-Allow-Origin: *`
         --tls-cert <path>       Path to an SSL/TLS certificate to serve with HTTPS
         --tls-key <path>        Path to the SSL/TLS certificate's private key
+    -h, --help                  Print help information
     -V, --version               Print version information
 ```
 

@@ -29,7 +29,11 @@ pub static FILES: &[&str] = &[
     "foo\\bar.test",
 ];
 
-/// Directory names for testing purpose
+/// Directory names for testing diretory don't exist
+#[allow(dead_code)]
+pub static DIR_NO_FOUND: &str = "dir-no-found/";
+
+/// Directory names for testing diretory don't have index.html
 #[allow(dead_code)]
 pub static DIR_NO_INDEX: &str = "dir-no-index/";
 
@@ -55,7 +59,7 @@ pub fn tmpdir() -> TempDir {
     }
     for directory in DIRECTORIES {
         for file in FILES {
-            if *directory == DIR_NO_INDEX {
+            if *directory == DIR_NO_INDEX && *file == "index.html" {
                 continue;
             }
             tmpdir

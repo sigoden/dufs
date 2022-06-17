@@ -1,4 +1,4 @@
-use clap::{Arg, ArgMatches, Command};
+use clap::{AppSettings, Arg, ArgMatches, Command};
 use rustls::{Certificate, PrivateKey};
 use std::env;
 use std::net::IpAddr;
@@ -17,14 +17,15 @@ fn app() -> Command<'static> {
             " - ",
             env!("CARGO_PKG_REPOSITORY")
         ))
+        .global_setting(AppSettings::DeriveDisplayOrder)
         .arg(
-            Arg::new("address")
+            Arg::new("bind")
                 .short('b')
                 .long("bind")
                 .help("Specify bind address")
                 .multiple_values(true)
                 .multiple_occurrences(true)
-                .value_name("address"),
+                .value_name("addr"),
         )
         .arg(
             Arg::new("port")
@@ -45,6 +46,18 @@ fn app() -> Command<'static> {
                 .long("path-prefix")
                 .value_name("path")
                 .help("Specify an url path prefix"),
+        )
+        .arg(
+            Arg::new("auth")
+                .short('a')
+                .long("auth")
+                .help("Use HTTP authentication")
+                .value_name("user:pass"),
+        )
+        .arg(
+            Arg::new("no-auth-access")
+                .long("no-auth-access")
+                .help("Not required auth when access static files"),
         )
         .arg(
             Arg::new("allow-all")
@@ -73,23 +86,14 @@ fn app() -> Command<'static> {
                 .help("Render index.html when requesting a directory"),
         )
         .arg(
+            Arg::new("render-try-index")
+                .long("render-try-index")
+                .help("Try rendering index.html when requesting a directory"),
+        )
+        .arg(
             Arg::new("render-spa")
                 .long("render-spa")
                 .help("Render for single-page application"),
-        )
-        .arg(
-            Arg::new("auth")
-                .short('a')
-                .display_order(1)
-                .long("auth")
-                .help("Use HTTP authentication")
-                .value_name("user:pass"),
-        )
-        .arg(
-            Arg::new("no-auth-access")
-                .display_order(1)
-                .long("no-auth-access")
-                .help("Not required auth when access static files"),
         )
         .arg(
             Arg::new("cors")
@@ -128,6 +132,7 @@ pub struct Args {
     pub allow_symlink: bool,
     pub render_index: bool,
     pub render_spa: bool,
+    pub render_index_fallback: bool,
     pub cors: bool,
     pub tls: Option<(Vec<Certificate>, PrivateKey)>,
 }
@@ -140,7 +145,7 @@ impl Args {
     pub fn parse(matches: ArgMatches) -> BoxResult<Args> {
         let port = matches.value_of_t::<u16>("port")?;
         let addrs = matches
-            .values_of("address")
+            .values_of("bind")
             .map(|v| v.collect())
             .unwrap_or_else(|| vec!["0.0.0.0", "::"]);
         let addrs: Vec<IpAddr> = Args::parse_addrs(&addrs)?;
@@ -163,7 +168,9 @@ impl Args {
         let allow_upload = matches.is_present("allow-all") || matches.is_present("allow-upload");
         let allow_delete = matches.is_present("allow-all") || matches.is_present("allow-delete");
         let allow_symlink = matches.is_present("allow-all") || matches.is_present("allow-symlink");
-        let render_index = matches.is_present("render-index");
+        let render_index =
+            matches.is_present("render-index") || matches.is_present("render-try-index");
+        let render_index_fallback = matches.is_present("render-try-index");
         let render_spa = matches.is_present("render-spa");
         let tls = match (matches.value_of("tls-cert"), matches.value_of("tls-key")) {
             (Some(certs_file), Some(key_file)) => {
@@ -187,6 +194,7 @@ impl Args {
             allow_upload,
             allow_symlink,
             render_index,
+            render_index_fallback,
             render_spa,
             tls,
         })
