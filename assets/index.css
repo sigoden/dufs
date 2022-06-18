@@ -4,10 +4,6 @@ html {
   color: #24292e;
 }
 
-body {
-  width: 700px;
-}
-
 .hidden {
   display: none;
 }
@@ -152,10 +148,10 @@ body {
   height: 100%;
   fill: rgba(3,47,98,0.5);
   padding-right: 0.5em;
+  vertical-align: text-top;
 }
 
 .path {
-  display: flex;
   list-style: none;
 }
 
@@ -166,6 +162,8 @@ body {
   overflow: hidden;
   display: block;
   text-decoration: none;
+  max-width: calc(100vw - 375px);
+  min-width: 400px;
 }
 
 .path a:hover {
@@ -203,7 +201,7 @@ body {
 
   svg,
   .path svg {
-    fill: #d0e6ff;
+    fill: #fff;
   }
 
   .searchbar {

@@ -72,7 +72,7 @@ class Uploader {
     $uploadersTable.insertAdjacentHTML("beforeend", `
   <tr id="upload${idx}" class="uploader">
     <td class="path cell-name">
-      <div>${getSvg("File")}</div>
+      ${getSvg("File")}
       <a href="${url}">${name}</a>
     </td>
     <td class="cell-status upload-status" id="uploadStatus${idx}"></td>
@@ -185,8 +185,10 @@ function addPath(file, index) {
 
   $pathsTableBody.insertAdjacentHTML("beforeend", `
 <tr id="addPath${index}">
+  <td class="path cell-icon">
+    ${getSvg(file.path_type)}
+  </td>
   <td class="path cell-name">
-    <div>${getSvg(file.path_type)}</div>
     <a href="${url}" title="${file.name}">${file.name}</a>
   </td>
   <td class="cell-mtime">${formatMtime(file.mtime)}</td>
@@ -292,7 +294,7 @@ function formatMtime(mtime) {
   const day = padZero(date.getDate(), 2);
   const hours = padZero(date.getHours(), 2);
   const minutes = padZero(date.getMinutes(), 2);
-  return `${year}/${month}/${day} ${hours}:${minutes}`;
+  return `${year}-${month}-${day} ${hours}:${minutes}`;
 }
 
 function padZero(value, size) {
