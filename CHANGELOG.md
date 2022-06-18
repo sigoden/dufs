@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.18.0] - 2022-06-18
+
+### Features
+
+- Add option --render-try-index ([#47](https://github.com/sigoden/duf/issues/47))
+- Add slash to end of dir href
+
 ## [0.17.1] - 2022-06-16
 
 ### Bug Fixes

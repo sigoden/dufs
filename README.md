@@ -30,7 +30,7 @@ cargo install duf
 ### With docker
 
 ```
-docker run -v /tmp:/tmp -p 5000:5000 --rm -it docker.io/sigoden/duf /tmp
+docker run -v `pwd`:/data -p 5000:5000 --rm -it sigoden/duf /data
 ```
 
 ### Binaries on macOS, Linux, Windows
