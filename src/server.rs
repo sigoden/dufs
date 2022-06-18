@@ -1034,6 +1034,7 @@ fn status_forbid(res: &mut Response) {
 
 fn status_not_found(res: &mut Response) {
     *res.status_mut() = StatusCode::NOT_FOUND;
+    *res.body_mut() = Body::from("Not Found");
 }
 
 fn status_no_content(res: &mut Response) {
