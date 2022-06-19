@@ -125,23 +125,21 @@ Delete a file/folder
 curl -X DELETE http://127.0.0.1:5000/path-to-file
 ```
 
-
 ## Auth
 
-Duf supports path level access control through option `--auth`/`-a`.
+<details>
 
-Grammar rule:
+<summary>Duf supports path level access control with --auth/-a option.</summary>
 
 ```
-<path>@<readwrite>[@<readonly>]
+duf -a <path>@<readwrite>[@<readonly>]
 ```
 
 - `<path>`: Path to protected
-- `<readwrite>`: Account with readwrite permission
-- `<readonly>`: Account with readonly permission
+- `<readwrite>`: Account with readwrite permission, required
+- `<readonly>`: Account with readonly permission, optional
 
-> If `<readonly>` is `*`, means `<path>` is public, everyone can acess/download it.
-
+> `*` as `<readonly>` means `<path>` is public, everyone can acess/download it.
 
 For examples:
 
@@ -157,6 +155,8 @@ Curl with auth:
 ```
 curl --digest -u designer:pass1 http://127.0.0.1:5000/ui/path-to-file
 ```
+
+</details>
 
 ## License
 
