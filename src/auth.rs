@@ -1,4 +1,5 @@
 use headers::HeaderValue;
+use hyper::Method;
 use lazy_static::lazy_static;
 use md5::Context;
 use std::{
@@ -7,6 +8,7 @@ use std::{
 };
 use uuid::Uuid;
 
+use crate::utils::encode_uri;
 use crate::BoxResult;
 
 const REALM: &str = "DUF";
@@ -20,6 +22,151 @@ lazy_static! {
     };
 }
 
+#[derive(Debug, Clone)]
+pub struct AccessControl {
+    rules: HashMap<String, PathControl>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PathControl {
+    readwrite: Account,
+    readonly: Option<Account>,
+    share: bool,
+}
+
+impl AccessControl {
+    pub fn new(raw_rules: &[&str], uri_prefix: &str) -> BoxResult<Self> {
+        let mut rules = HashMap::default();
+        if raw_rules.is_empty() {
+            return Ok(Self { rules });
+        }
+        for rule in raw_rules {
+            let parts: Vec<&str> = rule.split('@').collect();
+            let create_err = || format!("Invalid auth `{}`", rule).into();
+            match parts.as_slice() {
+                [path, readwrite] => {
+                    let control = PathControl {
+                        readwrite: Account::new(readwrite).ok_or_else(create_err)?,
+                        readonly: None,
+                        share: false,
+                    };
+                    rules.insert(sanitize_path(path, uri_prefix), control);
+                }
+                [path, readwrite, readonly] => {
+                    let (readonly, share) = if *readonly == "*" {
+                        (None, true)
+                    } else {
+                        (Some(Account::new(readonly).ok_or_else(create_err)?), false)
+                    };
+                    let control = PathControl {
+                        readwrite: Account::new(readwrite).ok_or_else(create_err)?,
+                        readonly,
+                        share,
+                    };
+                    rules.insert(sanitize_path(path, uri_prefix), control);
+                }
+                _ => return Err(create_err()),
+            }
+        }
+        Ok(Self { rules })
+    }
+
+    pub fn guard(
+        &self,
+        path: &str,
+        method: &Method,
+        authorization: Option<&HeaderValue>,
+    ) -> GuardType {
+        if self.rules.is_empty() {
+            return GuardType::ReadWrite;
+        }
+        let mut controls = vec![];
+        for path in walk_path(path) {
+            if let Some(control) = self.rules.get(path) {
+                controls.push(control);
+                if let Some(authorization) = authorization {
+                    let Account { user, pass } = &control.readwrite;
+                    if valid_digest(authorization, method.as_str(), user, pass).is_some() {
+                        return GuardType::ReadWrite;
+                    }
+                }
+            }
+        }
+        if is_readonly_method(method) {
+            for control in controls.into_iter() {
+                if control.share {
+                    return GuardType::ReadOnly;
+                }
+                if let Some(authorization) = authorization {
+                    if let Some(Account { user, pass }) = &control.readonly {
+                        if valid_digest(authorization, method.as_str(), user, pass).is_some() {
+                            return GuardType::ReadOnly;
+                        }
+                    }
+                }
+            }
+        }
+        GuardType::Reject
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum GuardType {
+    Reject,
+    ReadWrite,
+    ReadOnly,
+}
+
+impl GuardType {
+    pub fn is_reject(&self) -> bool {
+        *self == GuardType::Reject
+    }
+}
+
+fn sanitize_path(path: &str, uri_prefix: &str) -> String {
+    encode_uri(&format!("{}{}", uri_prefix, path.trim_matches('/')))
+}
+
+fn walk_path(path: &str) -> impl Iterator<Item = &str> {
+    let mut idx = 0;
+    path.split('/').enumerate().map(move |(i, part)| {
+        let end = if i == 0 { 1 } else { idx + part.len() + i };
+        let value = &path[..end];
+        idx += part.len();
+        value
+    })
+}
+
+fn is_readonly_method(method: &Method) -> bool {
+    method == Method::GET
+        || method == Method::OPTIONS
+        || method == Method::HEAD
+        || method.as_str() == "PROPFIND"
+}
+
+#[derive(Debug, Clone)]
+struct Account {
+    user: String,
+    pass: String,
+}
+
+impl Account {
+    fn new(data: &str) -> Option<Self> {
+        let p: Vec<&str> = data.trim().split(':').collect();
+        if p.len() != 2 {
+            return None;
+        }
+        let user = p[0];
+        let pass = p[1];
+        let mut h = Context::new();
+        h.consume(format!("{}:{}:{}", user, REALM, pass).as_bytes());
+        Some(Account {
+            user: user.to_owned(),
+            pass: format!("{:x}", h.compute()),
+        })
+    }
+}
+
 pub fn generate_www_auth(stale: bool) -> String {
     let str_stale = if stale { "stale=true," } else { "" };
     format!(
@@ -30,26 +177,13 @@ pub fn generate_www_auth(stale: bool) -> String {
     )
 }
 
-pub fn parse_auth(auth: &str) -> BoxResult<(String, String)> {
-    let p: Vec<&str> = auth.trim().split(':').collect();
-    let err = "Invalid auth value";
-    if p.len() != 2 {
-        return Err(err.into());
-    }
-    let user = p[0];
-    let pass = p[1];
-    let mut h = Context::new();
-    h.consume(format!("{}:{}:{}", user, REALM, pass).as_bytes());
-    Ok((user.to_owned(), format!("{:x}", h.compute())))
-}
-
 pub fn valid_digest(
-    header_value: &HeaderValue,
+    authorization: &HeaderValue,
     method: &str,
     auth_user: &str,
     auth_pass: &str,
 ) -> Option<()> {
-    let digest_value = strip_prefix(header_value.as_bytes(), b"Digest ")?;
+    let digest_value = strip_prefix(authorization.as_bytes(), b"Digest ")?;
     let user_vals = to_headermap(digest_value).ok()?;
     if let (Some(username), Some(nonce), Some(user_response)) = (
         user_vals

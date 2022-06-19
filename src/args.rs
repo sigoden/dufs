@@ -4,7 +4,7 @@ use std::env;
 use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 
-use crate::auth::parse_auth;
+use crate::auth::AccessControl;
 use crate::tls::{load_certs, load_private_key};
 use crate::BoxResult;
 
@@ -51,13 +51,10 @@ fn app() -> Command<'static> {
             Arg::new("auth")
                 .short('a')
                 .long("auth")
-                .help("Use HTTP authentication")
-                .value_name("user:pass"),
-        )
-        .arg(
-            Arg::new("no-auth-access")
-                .long("no-auth-access")
-                .help("Not required auth when access static files"),
+                .help("Add auth for path")
+                .multiple_values(true)
+                .multiple_occurrences(true)
+                .value_name("rule"),
         )
         .arg(
             Arg::new("allow-all")
@@ -118,15 +115,14 @@ pub fn matches() -> ArgMatches {
     app().get_matches()
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Args {
     pub addrs: Vec<IpAddr>,
     pub port: u16,
     pub path: PathBuf,
     pub path_prefix: String,
     pub uri_prefix: String,
-    pub auth: Option<(String, String)>,
-    pub no_auth_access: bool,
+    pub auth: AccessControl,
     pub allow_upload: bool,
     pub allow_delete: bool,
     pub allow_symlink: bool,
@@ -160,11 +156,11 @@ impl Args {
             format!("/{}/", &path_prefix)
         };
         let cors = matches.is_present("cors");
-        let auth = match matches.value_of("auth") {
-            Some(auth) => Some(parse_auth(auth)?),
-            None => None,
-        };
-        let no_auth_access = matches.is_present("no-auth-access");
+        let auth: Vec<&str> = matches
+            .values_of("auth")
+            .map(|v| v.collect())
+            .unwrap_or_default();
+        let auth = AccessControl::new(&auth, &uri_prefix)?;
         let allow_upload = matches.is_present("allow-all") || matches.is_present("allow-upload");
         let allow_delete = matches.is_present("allow-all") || matches.is_present("allow-delete");
         let allow_symlink = matches.is_present("allow-all") || matches.is_present("allow-symlink");
@@ -187,7 +183,6 @@ impl Args {
             path_prefix,
             uri_prefix,
             auth,
-            no_auth_access,
             cors,
             allow_delete,
             allow_upload,
