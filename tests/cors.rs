@@ -5,7 +5,7 @@ use fixtures::{server, Error, TestServer};
 use rstest::rstest;
 
 #[rstest]
-fn cors(#[with(&["--cors"])] server: TestServer) -> Result<(), Error> {
+fn cors(#[with(&["--enable-cors"])] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(server.url())?;
 
     assert_eq!(
@@ -21,7 +21,7 @@ fn cors(#[with(&["--cors"])] server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
-fn cors_options(#[with(&["--cors"])] server: TestServer) -> Result<(), Error> {
+fn cors_options(#[with(&["--enable-cors"])] server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"OPTIONS", server.url()).send()?;
 
     assert_eq!(

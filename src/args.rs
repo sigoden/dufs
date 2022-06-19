@@ -78,6 +78,11 @@ fn app() -> Command<'static> {
                 .help("Allow symlink to files/folders outside root directory"),
         )
         .arg(
+            Arg::new("enable-cors")
+                .long("enable-cors")
+                .help("Enable CORS, sets `Access-Control-Allow-Origin: *`"),
+        )
+        .arg(
             Arg::new("render-index")
                 .long("render-index")
                 .help("Render index.html when requesting a directory"),
@@ -91,11 +96,6 @@ fn app() -> Command<'static> {
             Arg::new("render-spa")
                 .long("render-spa")
                 .help("Render for single-page application"),
-        )
-        .arg(
-            Arg::new("cors")
-                .long("cors")
-                .help("Enable CORS, sets `Access-Control-Allow-Origin: *`"),
         )
         .arg(
             Arg::new("tls-cert")
@@ -130,7 +130,7 @@ pub struct Args {
     pub render_index: bool,
     pub render_spa: bool,
     pub render_try_index: bool,
-    pub cors: bool,
+    pub enable_cors: bool,
     pub tls: Option<(Vec<Certificate>, PrivateKey)>,
 }
 
@@ -157,7 +157,7 @@ impl Args {
         } else {
             format!("/{}/", &path_prefix)
         };
-        let cors = matches.is_present("cors");
+        let enable_cors = matches.is_present("enable-cors");
         let auth: Vec<&str> = matches
             .values_of("auth")
             .map(|v| v.collect())
@@ -186,7 +186,7 @@ impl Args {
             path_prefix,
             uri_prefix,
             auth,
-            cors,
+            enable_cors,
             allow_delete,
             allow_upload,
             allow_symlink,

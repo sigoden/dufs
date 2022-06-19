@@ -52,16 +52,15 @@ OPTIONS:
     -b, --bind <addr>...        Specify bind address
     -p, --port <port>           Specify port to listen on [default: 5000]
         --path-prefix <path>    Specify an url path prefix
-    -a, --auth <user:pass>      Use HTTP authentication
-        --no-auth-access        Not required auth when access static files
+    -a, --auth <rule>...        Add auth for path
     -A, --allow-all             Allow all operations
         --allow-upload          Allow upload files/folders
         --allow-delete          Allow delete files/folders
         --allow-symlink         Allow symlink to files/folders outside root directory
+        --enable-cors           Enable CORS, sets `Access-Control-Allow-Origin: *`
         --render-index          Render index.html when requesting a directory
         --render-try-index      Render index.html if it exists when requesting a directory
         --render-spa            Render for single-page application
-        --cors                  Enable CORS, sets `Access-Control-Allow-Origin: *`
         --tls-cert <path>       Path to an SSL/TLS certificate to serve with HTTPS
         --tls-key <path>        Path to the SSL/TLS certificate's private key
     -h, --help                  Print help information
@@ -137,14 +136,14 @@ curl -X DELETE http://127.0.0.1:5000/path-to-file
 
 The default render logic is:
 
--  If request for a folder, rendering the folder index listing. 
+-  If request for a folder, rendering the directory listing. 
 -  If request for a file, rendering the file.
 -  If request target does not exist, returns 404.
 
 The `--render-*` options change the render logic:
 
 - `--render-index`: If request for a folder, rendering index.html in the folder. If the index.html file does not exist, return 404.
-- `--render-try-index`: Like `--render-index`, rendering the folder index listing if the index.html file does not exist, other than return 404.
+- `--render-try-index`: Like `--render-index`, rendering the directory listing if the index.html file does not exist, other than return 404.
 - `--render-spa`: If request target does not exist, rendering `/index.html`
 
 </details>

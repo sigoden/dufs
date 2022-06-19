@@ -59,7 +59,7 @@ impl Server {
     ) -> Result<Response, hyper::Error> {
         let method = req.method().clone();
         let uri = req.uri().clone();
-        let cors = self.args.cors;
+        let enable_cors = self.args.enable_cors;
 
         let mut res = match self.handle(req).await {
             Ok(res) => {
@@ -77,7 +77,7 @@ impl Server {
             }
         };
 
-        if cors {
+        if enable_cors {
             add_cors(&mut res);
         }
         Ok(res)
