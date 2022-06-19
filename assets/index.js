@@ -132,11 +132,14 @@ function addBreadcrumb(href, uri_prefix) {
     parts = href.split("/");
   }
   const len = parts.length;
-  let path = uri_prefix.slice(0, -1);
+  let path = uri_prefix;
   for (let i = 0; i < len; i++) {
     const name = parts[i];
     if (i > 0) {
-      path  += "/" + encodeURI(name);
+      if (!path.endsWith("/")) {
+        path  += "/";
+      }
+      path += encodeURI(name);
     }
     if (i === 0) {
       $breadcrumb.insertAdjacentHTML("beforeend", `<a href="${path}"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M6.5 14.5v-3.505c0-.245.25-.495.5-.495h2c.25 0 .5.25.5.5v3.5a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5v-7a.5.5 0 0 0-.146-.354L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.293L8.354 1.146a.5.5 0 0 0-.708 0l-6 6A.5.5 0 0 0 1.5 7.5v7a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5z"/></svg></a>`);
