@@ -125,11 +125,36 @@ Delete a file/folder
 curl -X DELETE http://127.0.0.1:5000/path-to-file
 ```
 
-## Auth
+## Details
 
 <details>
+<summary>
 
-<summary>Duf supports path level access control with --auth/-a option.</summary>
+#### 1. Control render logic
+
+</summary>
+
+
+The default render logic is:
+
+-  If request for a folder, rendering the folder index listing. 
+-  If request for a file, rendering the file.
+-  If request target does not exist, returns 404.
+
+The `--render-*` options change the render logic:
+
+- `--render-index`: If request for a folder, rendering index.html in the folder. If the index.html file does not exist, return 404.
+- `--render-try-index`: Like `--render-index`, rendering the folder index listing if the index.html file does not exist, other than return 404.
+- `--render-spa`: If request target does not exist, rendering `/index.html`
+
+</details>
+
+<details>
+<summary>
+
+#### 2. Path level access control
+
+</summary>
 
 ```
 duf -a <path>@<readwrite>[@<readonly>]
@@ -150,7 +175,7 @@ duf -a /@admin:pass@* -a /ui@designer:pass1 -A
 - Account `admin:pass` can upload/delete/download any files/folders.
 - Account `designer:pass1` can upload/delete/download any files/folders in the `ui` folder.
 
-Curl with auth:
+Curl with digest auth:
 
 ```
 curl --digest -u designer:pass1 http://127.0.0.1:5000/ui/path-to-file
