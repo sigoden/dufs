@@ -3,7 +3,7 @@ mod utils;
 
 use assert_cmd::prelude::*;
 use assert_fs::fixture::TempDir;
-use fixtures::{port, server, tmpdir, Error, TestServer};
+use fixtures::{port, server, tmpdir, wait_for_port, Error, TestServer};
 use rstest::rstest;
 use std::process::{Command, Stdio};
 
@@ -42,6 +42,8 @@ fn serve_single_file(tmpdir: TempDir, port: u16, #[case] file: &str) -> Result<(
         .arg(port.to_string())
         .stdout(Stdio::piped())
         .spawn()?;
+
+    wait_for_port(port);
 
     let resp = reqwest::blocking::get(format!("http://localhost:{}/index.html", port))?;
     assert_eq!(resp.text()?, "This is index.html");

@@ -142,7 +142,7 @@ where
 }
 
 /// Wait a max of 1s for the port to become available.
-fn wait_for_port(port: u16) {
+pub fn wait_for_port(port: u16) {
     let start_wait = Instant::now();
 
     while !port_check::is_port_reachable(format!("localhost:{}", port)) {

@@ -1,6 +1,6 @@
 mod fixtures;
 
-use fixtures::{port, server, tmpdir, Error, TestServer};
+use fixtures::{port, server, tmpdir, wait_for_port, Error, TestServer};
 
 use assert_cmd::prelude::*;
 use assert_fs::fixture::TempDir;
@@ -58,6 +58,8 @@ fn validate_printed_urls(tmpdir: TempDir, port: u16, #[case] args: &[&str]) -> R
         .args(args)
         .stdout(Stdio::piped())
         .spawn()?;
+
+    wait_for_port(port);
 
     // WARN assumes urls list is terminated by an empty line
     let url_lines = BufReader::new(child.stdout.take().unwrap())
