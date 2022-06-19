@@ -684,12 +684,10 @@ impl Server {
         res: &mut Response,
     ) -> BoxResult<()> {
         paths.sort_unstable();
-        let rel_path = match self.args.path.parent() {
-            Some(p) => path.strip_prefix(p).unwrap(),
-            None => path,
-        };
+        let href = format!("/{}", normalize_path(path.strip_prefix(&self.args.path)?));
         let data = IndexData {
-            breadcrumb: normalize_path(rel_path),
+            href: href.clone(),
+            uri_prefix: self.args.uri_prefix.clone(),
             paths,
             allow_upload: self.args.allow_upload,
             allow_delete: self.args.allow_delete,
@@ -700,17 +698,14 @@ impl Server {
             "__SLOT__",
             &format!(
                 r#"
-<title>Files in {}/ - Duf</title>
+<title>Index of {} - Duf</title>
 <style>{}</style>
 <script>
 const DATA = 
 {}
 {}</script>
 "#,
-                rel_path.display(),
-                INDEX_CSS,
-                data,
-                INDEX_JS
+                href, INDEX_CSS, data, INDEX_JS
             ),
         );
         res.headers_mut()
@@ -819,7 +814,8 @@ const DATA =
 
 #[derive(Debug, Serialize)]
 struct IndexData {
-    breadcrumb: String,
+    href: String,
+    uri_prefix: String,
     paths: Vec<PathItem>,
     allow_upload: bool,
     allow_delete: bool,

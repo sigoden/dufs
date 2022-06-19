@@ -21,6 +21,7 @@ body {
 
 .breadcrumb {
   font-size: 1.25em;
+  padding-right: 0.6em;
 }
 
 .breadcrumb > a {
@@ -45,8 +46,6 @@ body {
 .breadcrumb svg {
   height: 100%;
   fill: rgba(3,47,98,0.5);
-  padding-right: 0.5em;
-  padding-left: 0.5em;
 }
 
 .toolbox {
