@@ -148,13 +148,14 @@ For examples:
 ```
 duf -a /@admin:pass@* -a /ui@designer:pass1 -A
 ```
+- All files/folders are public to access/download.
+- Account `admin:pass` can upload/delete/download any files/folders.
+- Account `designer:pass1` can upload/delete/download any files/folders in the `ui` folder.
 
-All files/folders are public to access/download. Account `admin:pass` can upload/delete/download any files/folders, Account `designer:pass1` can upload/delete/download files/folders in the `ui` folder.
-
-Download a file with auth
+Curl with auth:
 
 ```
-curl --digest -u designer:pass1 http://127.0.0.1:5000/dist/path-to-file
+curl --digest -u designer:pass1 http://127.0.0.1:5000/ui/path-to-file
 ```
 
 ## License
