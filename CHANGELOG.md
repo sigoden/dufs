@@ -2,74 +2,88 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.19.0] - 2022-06-19
+
+### Features
+
+- [**breaking**] Path level access control ([#52](https://github.com/sigoden/dufs/issues/52))
+- Serve single file ([#54](https://github.com/sigoden/dufs/issues/54))
+- Ui hidden root dirname ([#58](https://github.com/sigoden/dufs/issues/58))
+- Reactive webpage ([#51](https://github.com/sigoden/dufs/issues/51))
+- [**breaking**] Rename to dufs ([#59](https://github.com/sigoden/dufs/issues/59))
+
+### Refactor
+
+- [**breaking**] Rename --cors to --enable-cors ([#57](https://github.com/sigoden/dufs/issues/57))
+
 ## [0.18.0] - 2022-06-18
 
 ### Features
 
-- Add option --render-try-index ([#47](https://github.com/sigoden/duf/issues/47))
+- Add option --render-try-index ([#47](https://github.com/sigoden/dufs/issues/47))
 - Add slash to end of dir href
 
 ## [0.17.1] - 2022-06-16
 
 ### Bug Fixes
 
-- Range request ([#44](https://github.com/sigoden/duf/issues/44))
+- Range request ([#44](https://github.com/sigoden/dufs/issues/44))
 
 ## [0.17.0] - 2022-06-15
 
 ### Bug Fixes
 
-- Webdav propfind dir with slash ([#42](https://github.com/sigoden/duf/issues/42))
+- Webdav propfind dir with slash ([#42](https://github.com/sigoden/dufs/issues/42))
 
 ### Features
 
-- Listen both ipv4 and ipv6 by default ([#40](https://github.com/sigoden/duf/issues/40))
+- Listen both ipv4 and ipv6 by default ([#40](https://github.com/sigoden/dufs/issues/40))
 
 ### Refactor
 
-- Trival changes ([#41](https://github.com/sigoden/duf/issues/41))
+- Trival changes ([#41](https://github.com/sigoden/dufs/issues/41))
 
 ## [0.16.0] - 2022-06-12
 
 ### Features
 
-- Implement head method ([#33](https://github.com/sigoden/duf/issues/33))
-- Display upload speed and time left ([#34](https://github.com/sigoden/duf/issues/34))
-- Support tls-key in pkcs#8 format ([#35](https://github.com/sigoden/duf/issues/35))
+- Implement head method ([#33](https://github.com/sigoden/dufs/issues/33))
+- Display upload speed and time left ([#34](https://github.com/sigoden/dufs/issues/34))
+- Support tls-key in pkcs#8 format ([#35](https://github.com/sigoden/dufs/issues/35))
 - Options method return status 200
 
 ### Testing
 
-- Add integration tests ([#36](https://github.com/sigoden/duf/issues/36))
+- Add integration tests ([#36](https://github.com/sigoden/dufs/issues/36))
 
 ## [0.15.1] - 2022-06-11
 
 ### Bug Fixes
 
-- Cannot upload ([#32](https://github.com/sigoden/duf/issues/32))
+- Cannot upload ([#32](https://github.com/sigoden/dufs/issues/32))
 
 ## [0.15.0] - 2022-06-10
 
 ### Bug Fixes
 
-- Encode webdav href as uri ([#28](https://github.com/sigoden/duf/issues/28))
+- Encode webdav href as uri ([#28](https://github.com/sigoden/dufs/issues/28))
 - Query dir param
 
 ### Features
 
-- Add basic dark theme ([#29](https://github.com/sigoden/duf/issues/29))
-- Add empty state placeholder to page([#30](https://github.com/sigoden/duf/issues/30))
+- Add basic dark theme ([#29](https://github.com/sigoden/dufs/issues/29))
+- Add empty state placeholder to page([#30](https://github.com/sigoden/dufs/issues/30))
 
 ## [0.14.0] - 2022-06-07
 
 ### Bug Fixes
 
-- Send index page with content-type ([#26](https://github.com/sigoden/duf/issues/26))
+- Send index page with content-type ([#26](https://github.com/sigoden/dufs/issues/26))
 
 ### Features
 
-- Support ipv6 ([#25](https://github.com/sigoden/duf/issues/25))
-- Add favicon ([#27](https://github.com/sigoden/duf/issues/27))
+- Support ipv6 ([#25](https://github.com/sigoden/dufs/issues/25))
+- Add favicon ([#27](https://github.com/sigoden/dufs/issues/27))
 
 ## [0.13.2] - 2022-06-06
 
@@ -82,11 +96,11 @@ All notable changes to this project will be documented in this file.
 
 ### Bug Fixes
 
-- Escape filename ([#21](https://github.com/sigoden/duf/issues/21))
+- Escape filename ([#21](https://github.com/sigoden/dufs/issues/21))
 
 ### Refactor
 
-- Use logger ([#22](https://github.com/sigoden/duf/issues/22))
+- Use logger ([#22](https://github.com/sigoden/dufs/issues/22))
 
 ## [0.13.0] - 2022-06-05
 
@@ -96,16 +110,16 @@ All notable changes to this project will be documented in this file.
 
 ### Features
 
-- Implement more webdav methods ([#13](https://github.com/sigoden/duf/issues/13))
-- Use digest auth ([#14](https://github.com/sigoden/duf/issues/14))
-- Add webdav proppatch handler ([#18](https://github.com/sigoden/duf/issues/18))
+- Implement more webdav methods ([#13](https://github.com/sigoden/dufs/issues/13))
+- Use digest auth ([#14](https://github.com/sigoden/dufs/issues/14))
+- Add webdav proppatch handler ([#18](https://github.com/sigoden/dufs/issues/18))
 
 ## [0.12.1] - 2022-06-04
 
 ### Features
 
-- Support webdav ([#10](https://github.com/sigoden/duf/issues/10))
-- Remove unzip uploaded feature ([#11](https://github.com/sigoden/duf/issues/11))
+- Support webdav ([#10](https://github.com/sigoden/dufs/issues/10))
+- Remove unzip uploaded feature ([#11](https://github.com/sigoden/dufs/issues/11))
 
 ## [0.11.0] - 2022-06-03
 
