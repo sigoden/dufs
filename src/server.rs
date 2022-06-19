@@ -90,16 +90,23 @@ impl Server {
         let headers = req.headers();
         let method = req.method().clone();
 
-        let authorization = headers.get(AUTHORIZATION);
-        let guard_type = self.args.auth.guard(req_path, &method, authorization);
-
         if req_path == "/favicon.ico" && method == Method::GET {
             self.handle_send_favicon(headers, &mut res).await?;
             return Ok(res);
         }
 
+        let authorization = headers.get(AUTHORIZATION);
+        let guard_type = self.args.auth.guard(req_path, &method, authorization);
         if guard_type.is_reject() {
             self.auth_reject(&mut res);
+            return Ok(res);
+        }
+
+        let head_only = method == Method::HEAD;
+
+        if self.args.path_is_file {
+            self.handle_send_file(&self.args.path, headers, head_only, &mut res)
+                .await?;
             return Ok(res);
         }
 
@@ -133,7 +140,6 @@ impl Server {
 
         match method {
             Method::GET | Method::HEAD => {
-                let head_only = method == Method::HEAD;
                 if is_dir {
                     if render_try_index && query == "zip" {
                         self.handle_zip_dir(path, head_only, &mut res).await?;
@@ -340,10 +346,7 @@ impl Server {
         res: &mut Response,
     ) -> BoxResult<()> {
         let (mut writer, reader) = tokio::io::duplex(BUF_SIZE);
-        let filename = path
-            .file_name()
-            .and_then(|v| v.to_str())
-            .ok_or_else(|| format!("Failed to get name of `{}`", path.display()))?;
+        let filename = get_file_name(path)?;
         res.headers_mut().insert(
             CONTENT_DISPOSITION,
             HeaderValue::from_str(&format!(
@@ -481,6 +484,13 @@ impl Server {
                 HeaderValue::from_static("application/octet-stream"),
             );
         }
+
+        let filename = get_file_name(path)?;
+        res.headers_mut().insert(
+            CONTENT_DISPOSITION,
+            HeaderValue::from_str(&format!("inline; filename=\"{}\"", encode_uri(filename),))
+                .unwrap(),
+        );
 
         res.headers_mut().typed_insert(AcceptRanges::bytes());
 
@@ -1020,6 +1030,12 @@ fn status_not_found(res: &mut Response) {
 
 fn status_no_content(res: &mut Response) {
     *res.status_mut() = StatusCode::NO_CONTENT;
+}
+
+fn get_file_name(path: &Path) -> BoxResult<&str> {
+    path.file_name()
+        .and_then(|v| v.to_str())
+        .ok_or_else(|| format!("Failed to get file name of `{}`", path.display()).into())
 }
 
 fn set_webdav_headers(res: &mut Response) {
