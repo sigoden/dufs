@@ -6,5 +6,5 @@ COPY . .
 RUN cargo build --target x86_64-unknown-linux-musl --release
 
 FROM scratch
-COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/duf /bin/
-ENTRYPOINT ["/bin/duf"]
+COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/dufs /bin/
+ENTRYPOINT ["/bin/dufs"]

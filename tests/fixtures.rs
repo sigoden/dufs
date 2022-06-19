@@ -83,7 +83,7 @@ pub fn port() -> u16 {
     free_local_port().expect("Couldn't find a free local port")
 }
 
-/// Run duf as a server; Start with a temporary directory, a free port and some
+/// Run dufs as a server; Start with a temporary directory, a free port and some
 /// optional arguments then wait for a while for the server setup to complete.
 #[fixture]
 #[allow(dead_code)]
@@ -94,7 +94,7 @@ where
 {
     let port = port();
     let tmpdir = tmpdir();
-    let child = Command::cargo_bin("duf")
+    let child = Command::cargo_bin("dufs")
         .expect("Couldn't find test binary")
         .env("RUST_LOG", "false")
         .arg(tmpdir.path())
@@ -122,7 +122,7 @@ where
 {
     let port = port();
     let tmpdir = tmpdir();
-    let child = Command::cargo_bin("duf")
+    let child = Command::cargo_bin("dufs")
         .expect("Couldn't find test binary")
         .env("RUST_LOG", "false")
         .arg(tmpdir.path())

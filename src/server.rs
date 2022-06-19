@@ -698,7 +698,7 @@ impl Server {
             "__SLOT__",
             &format!(
                 r#"
-<title>Index of {} - Duf</title>
+<title>Index of {} - Dufs</title>
 <style>{}</style>
 <script>
 const DATA = 

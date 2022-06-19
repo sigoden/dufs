@@ -1,12 +1,12 @@
 [package]
-name = "duf"
+name = "dufs"
 version = "0.18.0"
 edition = "2021"
 authors = ["sigoden <sigoden@gmail.com>"]
-description = "Duf is a simple file server."
+description = "Dufs is a simple file server."
 license = "MIT OR Apache-2.0"
-homepage = "https://github.com/sigoden/duf"
-repository = "https://github.com/sigoden/duf"
+homepage = "https://github.com/sigoden/dufs"
+repository = "https://github.com/sigoden/dufs"
 categories = ["command-line-utilities", "web-programming::http-server"]
 keywords = ["static", "file", "server", "webdav", "cli"]
 

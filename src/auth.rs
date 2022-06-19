@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::utils::encode_uri;
 use crate::BoxResult;
 
-const REALM: &str = "DUF";
+const REALM: &str = "DUFS";
 
 lazy_static! {
     static ref NONCESTARTHASH: Context = {

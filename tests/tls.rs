@@ -29,7 +29,7 @@ fn tls_works(#[case] server: TestServer) -> Result<(), Error> {
 /// Wrong path for cert throws error.
 #[rstest]
 fn wrong_path_cert() -> Result<(), Error> {
-    Command::cargo_bin("duf")?
+    Command::cargo_bin("dufs")?
         .args(&["--tls-cert", "wrong", "--tls-key", "tests/data/key.pem"])
         .assert()
         .failure()
@@ -41,7 +41,7 @@ fn wrong_path_cert() -> Result<(), Error> {
 /// Wrong paths for key throws errors.
 #[rstest]
 fn wrong_path_key() -> Result<(), Error> {
-    Command::cargo_bin("duf")?
+    Command::cargo_bin("dufs")?
         .args(&["--tls-cert", "tests/data/cert.pem", "--tls-key", "wrong"])
         .assert()
         .failure()
