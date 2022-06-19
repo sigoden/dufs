@@ -139,9 +139,9 @@ duf -a <path>@<readwrite>[@<readonly>]
 - `<readwrite>`: Account with readwrite permission, required
 - `<readonly>`: Account with readonly permission, optional
 
-> `*` as `<readonly>` means `<path>` is public, everyone can acess/download it.
+> `*` as `<readonly>` means `<path>` is public, everyone can access/download it.
 
-For examples:
+For example:
 
 ```
 duf -a /@admin:pass@* -a /ui@designer:pass1 -A
