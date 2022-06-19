@@ -46,6 +46,7 @@ html {
 
 .toolbox {
   display: flex;
+  margin-right: 10px;
 }
 
 .searchbar {
@@ -57,7 +58,7 @@ html {
   transition: all .15s;
   border: 1px #ddd solid;
   border-radius: 15px;
-  margin: 0 0 2px 10px;
+  margin-bottom: 2px;
 }
 
 .searchbar #search {

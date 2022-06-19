@@ -67,8 +67,10 @@ class Uploader {
     let url = getUrl(name);
     $uploadersTable.insertAdjacentHTML("beforeend", `
   <tr id="upload${idx}" class="uploader">
+    <td class="path cell-icon">
+      ${getSvg(file.path_type)}
+    </td>
     <td class="path cell-name">
-      ${getSvg("File")}
       <a href="${url}">${name}</a>
     </td>
     <td class="cell-status upload-status" id="uploadStatus${idx}"></td>
