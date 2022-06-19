@@ -91,10 +91,8 @@ impl AccessControl {
                         if valid_basic_auth(authorization, user, pass).is_some() {
                             return GuardType::ReadWrite;
                         }
-                    } else {
-                        if valid_digest(authorization, method.as_str(), user, pass).is_some() {
-                            return GuardType::ReadWrite;
-                        }
+                    } else if valid_digest(authorization, method.as_str(), user, pass).is_some() {
+                        return GuardType::ReadWrite;
                     }
                 }
             }
@@ -110,10 +108,8 @@ impl AccessControl {
                             if valid_basic_auth(authorization, user, pass).is_some() {
                                 return GuardType::ReadOnly;
                             }
-                        } else {
-                            if valid_digest(authorization, method.as_str(), user, pass).is_some() {
-                                return GuardType::ReadOnly;
-                            }
+                        } else if valid_digest(authorization, method.as_str(), user, pass).is_some() {
+                            return GuardType::ReadOnly;
                         }
                     }
                 }
