@@ -120,6 +120,7 @@ pub struct Args {
     pub addrs: Vec<IpAddr>,
     pub port: u16,
     pub path: PathBuf,
+    pub path_is_file: bool,
     pub path_prefix: String,
     pub uri_prefix: String,
     pub auth: AccessControl,
@@ -146,6 +147,7 @@ impl Args {
             .unwrap_or_else(|| vec!["0.0.0.0", "::"]);
         let addrs: Vec<IpAddr> = Args::parse_addrs(&addrs)?;
         let path = Args::parse_path(matches.value_of_os("path").unwrap_or_default())?;
+        let path_is_file = path.metadata()?.is_file();
         let path_prefix = matches
             .value_of("path-prefix")
             .map(|v| v.trim_matches('/').to_owned())
@@ -180,6 +182,7 @@ impl Args {
             addrs,
             port,
             path,
+            path_is_file,
             path_prefix,
             uri_prefix,
             auth,

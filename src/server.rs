@@ -90,16 +90,23 @@ impl Server {
         let headers = req.headers();
         let method = req.method().clone();
 
-        let authorization = headers.get(AUTHORIZATION);
-        let guard_type = self.args.auth.guard(req_path, &method, authorization);
-
         if req_path == "/favicon.ico" && method == Method::GET {
             self.handle_send_favicon(headers, &mut res).await?;
             return Ok(res);
         }
 
+        let authorization = headers.get(AUTHORIZATION);
+        let guard_type = self.args.auth.guard(req_path, &method, authorization);
         if guard_type.is_reject() {
             self.auth_reject(&mut res);
+            return Ok(res);
+        }
+
+        let head_only = method == Method::HEAD;
+
+        if self.args.path_is_file {
+            self.handle_send_file(&self.args.path, headers, head_only, &mut res)
+                .await?;
             return Ok(res);
         }
 
@@ -133,7 +140,6 @@ impl Server {
 
         match method {
             Method::GET | Method::HEAD => {
-                let head_only = method == Method::HEAD;
                 if is_dir {
                     if render_try_index && query == "zip" {
                         self.handle_zip_dir(path, head_only, &mut res).await?;
@@ -343,7 +349,7 @@ impl Server {
         let filename = path
             .file_name()
             .and_then(|v| v.to_str())
-            .ok_or_else(|| format!("Failed to get name of `{}`", path.display()))?;
+            .ok_or_else(|| format!("Failed to get file name of `{}`", path.display()))?;
         res.headers_mut().insert(
             CONTENT_DISPOSITION,
             HeaderValue::from_str(&format!(
