@@ -106,8 +106,14 @@ impl AccessControl {
                 }
                 if let Some(authorization) = authorization {
                     if let Some(Account { user, pass }) = &control.readonly {
-                        if valid_digest(authorization, method.as_str(), user, pass).is_some() {
-                            return GuardType::ReadOnly;
+                        if basic_auth {
+                            if valid_basic_auth(authorization, user, pass).is_some() {
+                                return GuardType::ReadOnly;
+                            }
+                        } else {
+                            if valid_digest(authorization, method.as_str(), user, pass).is_some() {
+                                return GuardType::ReadOnly;
+                            }
                         }
                     }
                 }
