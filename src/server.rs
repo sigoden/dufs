@@ -346,10 +346,7 @@ impl Server {
         res: &mut Response,
     ) -> BoxResult<()> {
         let (mut writer, reader) = tokio::io::duplex(BUF_SIZE);
-        let filename = path
-            .file_name()
-            .and_then(|v| v.to_str())
-            .ok_or_else(|| format!("Failed to get file name of `{}`", path.display()))?;
+        let filename = get_file_name(path)?;
         res.headers_mut().insert(
             CONTENT_DISPOSITION,
             HeaderValue::from_str(&format!(
@@ -487,6 +484,13 @@ impl Server {
                 HeaderValue::from_static("application/octet-stream"),
             );
         }
+
+        let filename = get_file_name(path)?;
+        res.headers_mut().insert(
+            CONTENT_DISPOSITION,
+            HeaderValue::from_str(&format!("inline; filename=\"{}\"", encode_uri(filename),))
+                .unwrap(),
+        );
 
         res.headers_mut().typed_insert(AcceptRanges::bytes());
 
@@ -1026,6 +1030,12 @@ fn status_not_found(res: &mut Response) {
 
 fn status_no_content(res: &mut Response) {
     *res.status_mut() = StatusCode::NO_CONTENT;
+}
+
+fn get_file_name(path: &Path) -> BoxResult<&str> {
+    path.file_name()
+        .and_then(|v| v.to_str())
+        .ok_or_else(|| format!("Failed to get file name of `{}`", path.display()).into())
 }
 
 fn set_webdav_headers(res: &mut Response) {

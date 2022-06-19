@@ -105,6 +105,7 @@ fn head_file(server: TestServer) -> Result<(), Error> {
     assert_eq!(resp.status(), 200);
     assert_eq!(resp.headers().get("content-type").unwrap(), "text/html");
     assert_eq!(resp.headers().get("accept-ranges").unwrap(), "bytes");
+    assert!(resp.headers().contains_key("content-disposition"));
     assert!(resp.headers().contains_key("etag"));
     assert!(resp.headers().contains_key("last-modified"));
     assert!(resp.headers().contains_key("content-length"));
