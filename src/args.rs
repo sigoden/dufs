@@ -48,6 +48,12 @@ fn app() -> Command<'static> {
                 .help("Specify an url path prefix"),
         )
         .arg(
+            Arg::new("basic-auth")
+                .short('B')
+                .long("basic-auth")
+                .help("Use HTTP basic auth instead of digest auth"),
+        )
+        .arg(
             Arg::new("auth")
                 .short('a')
                 .long("auth")
@@ -123,6 +129,7 @@ pub struct Args {
     pub path_is_file: bool,
     pub path_prefix: String,
     pub uri_prefix: String,
+    pub basic_auth: bool,
     pub auth: AccessControl,
     pub allow_upload: bool,
     pub allow_delete: bool,
@@ -162,6 +169,7 @@ impl Args {
             .values_of("auth")
             .map(|v| v.collect())
             .unwrap_or_default();
+        let basic_auth = matches.is_present("basic-auth");
         let auth = AccessControl::new(&auth, &uri_prefix)?;
         let allow_upload = matches.is_present("allow-all") || matches.is_present("allow-upload");
         let allow_delete = matches.is_present("allow-all") || matches.is_present("allow-delete");
@@ -185,6 +193,7 @@ impl Args {
             path_is_file,
             path_prefix,
             uri_prefix,
+            basic_auth,
             auth,
             enable_cors,
             allow_delete,

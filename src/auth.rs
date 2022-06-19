@@ -76,6 +76,7 @@ impl AccessControl {
         path: &str,
         method: &Method,
         authorization: Option<&HeaderValue>,
+        basic_auth: bool,
     ) -> GuardType {
         if self.rules.is_empty() {
             return GuardType::ReadWrite;
@@ -86,8 +87,14 @@ impl AccessControl {
                 controls.push(control);
                 if let Some(authorization) = authorization {
                     let Account { user, pass } = &control.readwrite;
-                    if valid_digest(authorization, method.as_str(), user, pass).is_some() {
-                        return GuardType::ReadWrite;
+                    if basic_auth {
+                        if valid_basic_auth(authorization, user, pass).is_some() {
+                            return GuardType::ReadWrite;
+                        }
+                    } else {
+                        if valid_digest(authorization, method.as_str(), user, pass).is_some() {
+                            return GuardType::ReadWrite;
+                        }
                     }
                 }
             }
@@ -167,14 +174,42 @@ impl Account {
     }
 }
 
-pub fn generate_www_auth(stale: bool) -> String {
-    let str_stale = if stale { "stale=true," } else { "" };
-    format!(
-        "Digest realm=\"{}\",nonce=\"{}\",{}qop=\"auth\"",
-        REALM,
-        create_nonce(),
-        str_stale
-    )
+pub fn generate_www_auth(stale: bool, basic_auth: bool) -> String {
+    if basic_auth {        
+        format!("Basic realm=\"{}\"", REALM)
+    } else {
+        let str_stale = if stale { "stale=true," } else { "" };
+        format!(
+            "Digest realm=\"{}\",nonce=\"{}\",{}qop=\"auth\"",
+            REALM,
+            create_nonce(),
+            str_stale
+        )
+    }
+}
+
+pub fn valid_basic_auth(
+    authorization: &HeaderValue,
+    auth_user: &str,
+    auth_pass: &str,
+) -> Option<()> {
+    let value: Vec<u8> = base64::decode(strip_prefix(authorization.as_bytes(), b"Basic ").unwrap()).unwrap();
+    let parts: Vec<&str> = std::str::from_utf8(&value).unwrap().split(":").collect();
+
+    if parts[0] != auth_user {
+        return None;
+    }
+
+    let mut h = Context::new();
+    h.consume(format!("{}:{}:{}", parts[0], REALM, parts[1]).as_bytes());
+
+    let http_pass = format!("{:x}", h.compute());
+
+    if http_pass == auth_pass {
+        return Some(());
+    }
+
+    return None;
 }
 
 pub fn valid_digest(

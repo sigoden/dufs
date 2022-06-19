@@ -96,7 +96,7 @@ impl Server {
         }
 
         let authorization = headers.get(AUTHORIZATION);
-        let guard_type = self.args.auth.guard(req_path, &method, authorization);
+        let guard_type = self.args.auth.guard(req_path, &method, authorization, self.args.basic_auth);
         if guard_type.is_reject() {
             self.auth_reject(&mut res);
             return Ok(res);
@@ -720,7 +720,7 @@ const DATA =
     }
 
     fn auth_reject(&self, res: &mut Response) {
-        let value = generate_www_auth(false);
+        let value = generate_www_auth(false, self.args.basic_auth);
         set_webdav_headers(res);
         res.headers_mut().typed_insert(Connection::close());
         res.headers_mut()
