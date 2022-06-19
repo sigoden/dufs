@@ -14,7 +14,7 @@ Duf is a simple file server. Support static serve, search, upload, webdav...
 - Upload files and folders (Drag & Drop)
 - Search files
 - Partial responses (Parallel/Resume download)
-- Authentication
+- Path level access control
 - Support https
 - Support webdav
 - Easy to use with curl
@@ -88,12 +88,6 @@ Listen on a specific port
 duf -p 80
 ```
 
-Protect with authentication
-
-```
-duf -a admin:admin
-```
-
 For a single page application (SPA)
 
 ```
@@ -110,26 +104,59 @@ duf --tls-cert my.crt --tls-key my.key
 
 Download a file
 ```
-curl http://127.0.0.1:5000/some-file
+curl http://127.0.0.1:5000/path-to-file
 ```
 
 Download a folder as zip file
 
 ```
-curl -o some-folder.zip http://127.0.0.1:5000/some-folder?zip
+curl -o path-to-folder.zip http://127.0.0.1:5000/path-to-folder?zip
 ```
 
 Upload a file
 
 ```
-curl --upload-file some-file http://127.0.0.1:5000/some-file
+curl --upload-file path-to-file http://127.0.0.1:5000/path-to-file
 ```
 
 Delete a file/folder
 
 ```
-curl -X DELETE http://127.0.0.1:5000/some-file
+curl -X DELETE http://127.0.0.1:5000/path-to-file
 ```
+
+## Auth
+
+<details>
+
+<summary>Duf supports path level access control with --auth/-a option.</summary>
+
+```
+duf -a <path>@<readwrite>[@<readonly>]
+```
+
+- `<path>`: Path to protected
+- `<readwrite>`: Account with readwrite permission, required
+- `<readonly>`: Account with readonly permission, optional
+
+> `*` as `<readonly>` means `<path>` is public, everyone can access/download it.
+
+For example:
+
+```
+duf -a /@admin:pass@* -a /ui@designer:pass1 -A
+```
+- All files/folders are public to access/download.
+- Account `admin:pass` can upload/delete/download any files/folders.
+- Account `designer:pass1` can upload/delete/download any files/folders in the `ui` folder.
+
+Curl with auth:
+
+```
+curl --digest -u designer:pass1 http://127.0.0.1:5000/ui/path-to-file
+```
+
+</details>
 
 ## License
 

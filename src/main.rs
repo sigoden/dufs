@@ -3,6 +3,7 @@ mod auth;
 mod server;
 mod streamer;
 mod tls;
+mod utils;
 
 #[macro_use]
 extern crate log;

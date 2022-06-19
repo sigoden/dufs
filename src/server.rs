@@ -1,5 +1,6 @@
-use crate::auth::{generate_www_auth, valid_digest};
+use crate::auth::generate_www_auth;
 use crate::streamer::Streamer;
+use crate::utils::{decode_uri, encode_uri};
 use crate::{Args, BoxResult};
 use xml::escape::escape_str_pcdata;
 
@@ -19,7 +20,6 @@ use hyper::header::{
     CONTENT_TYPE, ORIGIN, RANGE, WWW_AUTHENTICATE,
 };
 use hyper::{Body, Method, StatusCode, Uri};
-use percent_encoding::percent_decode;
 use serde::Serialize;
 use std::fs::Metadata;
 use std::io::SeekFrom;
@@ -86,16 +86,20 @@ impl Server {
     pub async fn handle(self: Arc<Self>, req: Request) -> BoxResult<Response> {
         let mut res = Response::default();
 
-        if !self.auth_guard(&req, &mut res) {
-            return Ok(res);
-        }
-
         let req_path = req.uri().path();
         let headers = req.headers();
         let method = req.method().clone();
 
+        let authorization = headers.get(AUTHORIZATION);
+        let guard_type = self.args.auth.guard(req_path, &method, authorization);
+
         if req_path == "/favicon.ico" && method == Method::GET {
-            self.handle_send_favicon(req.headers(), &mut res).await?;
+            self.handle_send_favicon(headers, &mut res).await?;
+            return Ok(res);
+        }
+
+        if guard_type.is_reject() {
+            self.auth_reject(&mut res);
             return Ok(res);
         }
 
@@ -106,6 +110,7 @@ impl Server {
                 return Ok(res);
             }
         };
+
         let path = path.as_path();
 
         let query = req.uri().query().unwrap_or_default();
@@ -218,7 +223,8 @@ impl Server {
                 "LOCK" => {
                     // Fake lock
                     if is_file {
-                        self.handle_lock(req_path, &mut res).await?;
+                        let has_auth = authorization.is_some();
+                        self.handle_lock(req_path, has_auth, &mut res).await?;
                     } else {
                         status_not_found(&mut res);
                     }
@@ -618,11 +624,11 @@ impl Server {
         Ok(())
     }
 
-    async fn handle_lock(&self, req_path: &str, res: &mut Response) -> BoxResult<()> {
-        let token = if self.args.auth.is_none() {
-            Utc::now().timestamp().to_string()
-        } else {
+    async fn handle_lock(&self, req_path: &str, auth: bool, res: &mut Response) -> BoxResult<()> {
+        let token = if auth {
             format!("opaquelocktoken:{}", Uuid::new_v4())
+        } else {
+            Utc::now().timestamp().to_string()
         };
 
         res.headers_mut().insert(
@@ -708,34 +714,13 @@ const DATA =
         Ok(())
     }
 
-    fn auth_guard(&self, req: &Request, res: &mut Response) -> bool {
-        let method = req.method();
-        let pass = {
-            match &self.args.auth {
-                None => true,
-                Some((user, pass)) => match req.headers().get(AUTHORIZATION) {
-                    Some(value) => {
-                        valid_digest(value, method.as_str(), user.as_str(), pass.as_str()).is_some()
-                    }
-                    None => {
-                        self.args.no_auth_access
-                            && (method == Method::GET
-                                || method == Method::OPTIONS
-                                || method == Method::HEAD
-                                || method.as_str() == "PROPFIND")
-                    }
-                },
-            }
-        };
-        if !pass {
-            let value = generate_www_auth(false);
-            set_webdav_headers(res);
-            *res.status_mut() = StatusCode::UNAUTHORIZED;
-            res.headers_mut().typed_insert(Connection::close());
-            res.headers_mut()
-                .insert(WWW_AUTHENTICATE, value.parse().unwrap());
-        }
-        pass
+    fn auth_reject(&self, res: &mut Response) {
+        let value = generate_www_auth(false);
+        set_webdav_headers(res);
+        res.headers_mut().typed_insert(Connection::close());
+        res.headers_mut()
+            .insert(WWW_AUTHENTICATE, value.parse().unwrap());
+        *res.status_mut() = StatusCode::UNAUTHORIZED;
     }
 
     async fn is_root_contained(&self, path: &Path) -> bool {
@@ -753,7 +738,7 @@ const DATA =
     }
 
     fn extract_path(&self, path: &str) -> Option<PathBuf> {
-        let decoded_path = percent_decode(path[1..].as_bytes()).decode_utf8().ok()?;
+        let decoded_path = decode_uri(&path[1..])?;
         let slashes_switched = if cfg!(windows) {
             decoded_path.replace('/', "\\")
         } else {
@@ -1023,13 +1008,9 @@ fn parse_range(headers: &HeaderMap<HeaderValue>) -> Option<RangeValue> {
     }
 }
 
-fn encode_uri(v: &str) -> String {
-    let parts: Vec<_> = v.split('/').map(urlencoding::encode).collect();
-    parts.join("/")
-}
-
 fn status_forbid(res: &mut Response) {
     *res.status_mut() = StatusCode::FORBIDDEN;
+    *res.body_mut() = Body::from("Forbidden");
 }
 
 fn status_not_found(res: &mut Response) {
