@@ -1,11 +1,11 @@
-# Duf
+# Dufs (Old Name: Duf)
 
-[![CI](https://github.com/sigoden/duf/actions/workflows/ci.yaml/badge.svg)](https://github.com/sigoden/duf/actions/workflows/ci.yaml)
-[![Crates](https://img.shields.io/crates/v/duf.svg)](https://crates.io/crates/duf)
+[![CI](https://github.com/sigoden/dufs/actions/workflows/ci.yaml/badge.svg)](https://github.com/sigoden/dufs/actions/workflows/ci.yaml)
+[![Crates](https://img.shields.io/crates/v/dufs.svg)](https://crates.io/crates/dufs)
 
-Duf is a simple file server. Support static serve, search, upload, webdav...
+Dufs is a simple file server. Support static serve, search, upload, webdav...
 
-![demo](https://user-images.githubusercontent.com/4012553/171526189-09afc2de-793f-4216-b3d5-31ea408d3610.png)
+![demo](https://user-images.githubusercontent.com/4012553/174486522-7af350e6-0195-4f4a-8480-d9464fc6452f.png)
 
 ## Features
 
@@ -24,26 +24,26 @@ Duf is a simple file server. Support static serve, search, upload, webdav...
 ### With cargo
 
 ```
-cargo install duf
+cargo install dufs
 ```
 
 ### With docker
 
 ```
-docker run -v `pwd`:/data -p 5000:5000 --rm -it sigoden/duf /data
+docker run -v `pwd`:/data -p 5000:5000 --rm -it sigoden/dufs /data
 ```
 
 ### Binaries on macOS, Linux, Windows
 
-Download from [Github Releases](https://github.com/sigoden/duf/releases), unzip and add duf to your $PATH.
+Download from [Github Releases](https://github.com/sigoden/dufs/releases), unzip and add dufs to your $PATH.
 
 ## CLI
 
 ```
-Duf is a simple file server. - https://github.com/sigoden/duf
+Dufs is a simple file server. - https://github.com/sigoden/dufs
 
 USAGE:
-    duf [OPTIONS] [--] [path]
+    dufs [OPTIONS] [--] [path]
 
 ARGS:
     <path>    Path to a root directory for serving files [default: .]
@@ -72,31 +72,31 @@ OPTIONS:
 Serve current working directory, no upload/delete
 
 ```
-duf
+dufs
 ```
 
 Allow upload/delete
 
 ```
-duf -A
+dufs -A
 ```
 
 Listen on a specific port
 
 ```
-duf -p 80
+dufs -p 80
 ```
 
 For a single page application (SPA)
 
 ```
-duf --render-spa
+dufs --render-spa
 ```
 
 Use https
 
 ```
-duf --tls-cert my.crt --tls-key my.key
+dufs --tls-cert my.crt --tls-key my.key
 ```
 
 ## API
@@ -156,7 +156,7 @@ The `--render-*` options change the render logic:
 </summary>
 
 ```
-duf -a <path>@<readwrite>[@<readonly>]
+dufs -a <path>@<readwrite>[@<readonly>]
 ```
 
 - `<path>`: Path to protected
@@ -168,7 +168,7 @@ duf -a <path>@<readwrite>[@<readonly>]
 For example:
 
 ```
-duf -a /@admin:pass@* -a /ui@designer:pass1 -A
+dufs -a /@admin:pass@* -a /ui@designer:pass1 -A
 ```
 - All files/folders are public to access/download.
 - Account `admin:pass` can upload/delete/download any files/folders.
@@ -184,8 +184,8 @@ curl --digest -u designer:pass1 http://127.0.0.1:5000/ui/path-to-file
 
 ## License
 
-Copyright (c) 2022 duf-developers.
+Copyright (c) 2022 dufs-developers.
 
-duf is made available under the terms of either the MIT License or the Apache License 2.0, at your option.
+dufs is made available under the terms of either the MIT License or the Apache License 2.0, at your option.
 
 See the LICENSE-APACHE and LICENSE-MIT files for license details.

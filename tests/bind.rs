@@ -12,7 +12,7 @@ use std::process::{Command, Stdio};
 #[rstest]
 #[case(&["-b", "20.205.243.166"])]
 fn bind_fails(tmpdir: TempDir, port: u16, #[case] args: &[&str]) -> Result<(), Error> {
-    Command::cargo_bin("duf")?
+    Command::cargo_bin("dufs")?
         .env("RUST_LOG", "false")
         .arg(tmpdir.path())
         .arg("-p")
@@ -50,7 +50,7 @@ fn bind_ipv4_ipv6(
 #[case(&[] as &[&str])]
 #[case(&["--path-prefix", "/prefix"])]
 fn validate_printed_urls(tmpdir: TempDir, port: u16, #[case] args: &[&str]) -> Result<(), Error> {
-    let mut child = Command::cargo_bin("duf")?
+    let mut child = Command::cargo_bin("dufs")?
         .env("RUST_LOG", "false")
         .arg(tmpdir.path())
         .arg("-p")
