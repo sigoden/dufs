@@ -684,9 +684,10 @@ impl Server {
         res: &mut Response,
     ) -> BoxResult<()> {
         paths.sort_unstable();
-        let breadcrumb = format!("/{}", normalize_path(path.strip_prefix(&self.args.path)?));
+        let href = format!("/{}", normalize_path(path.strip_prefix(&self.args.path)?));
         let data = IndexData {
-            breadcrumb: breadcrumb.clone(),
+            href: href.clone(),
+            uri_prefix: self.args.uri_prefix.clone(),
             paths,
             allow_upload: self.args.allow_upload,
             allow_delete: self.args.allow_delete,
@@ -704,7 +705,7 @@ const DATA =
 {}
 {}</script>
 "#,
-                breadcrumb, INDEX_CSS, data, INDEX_JS
+                href, INDEX_CSS, data, INDEX_JS
             ),
         );
         res.headers_mut()
@@ -813,7 +814,8 @@ const DATA =
 
 #[derive(Debug, Serialize)]
 struct IndexData {
-    breadcrumb: String,
+    href: String,
+    uri_prefix: String,
     paths: Vec<PathItem>,
     allow_upload: bool,
     allow_delete: bool,
