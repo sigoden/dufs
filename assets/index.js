@@ -29,10 +29,6 @@ let $uploadersTable;
  * @type Element
  */
 let $emptyFolder;
-/**
- * @type string
- */
-let baseDir;
 
 class Uploader {
   /**
@@ -126,7 +122,12 @@ class Uploader {
  */
 function addBreadcrumb(value) {
   const $breadcrumb = document.querySelector(".breadcrumb");
-  const parts = value.split("/").filter(v => !!v);
+  let parts = [];
+  if (value === "/") {
+    parts = [""];
+  } else {
+    parts = value.split("/");
+  }
   const len = parts.length;
   let path = "";
   for (let i = 0; i < len; i++) {
@@ -134,15 +135,16 @@ function addBreadcrumb(value) {
     if (i > 0) {
       path  += "/" + name;
     }
-    if (i === len - 1) {
+    if (i === 0) {
+      $breadcrumb.insertAdjacentHTML("beforeend", `<a href="/"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M6.5 14.5v-3.505c0-.245.25-.495.5-.495h2c.25 0 .5.25.5.5v3.5a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5v-7a.5.5 0 0 0-.146-.354L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.293L8.354 1.146a.5.5 0 0 0-.708 0l-6 6A.5.5 0 0 0 1.5 7.5v7a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5z"/></svg></a>`);
+    } else if (i === len - 1) {
       $breadcrumb.insertAdjacentHTML("beforeend", `<b>${name}</b>`);
-      baseDir = name;
-    } else if (i === 0) {
-      $breadcrumb.insertAdjacentHTML("beforeend", `<a href="/"><b>${name}</b></a>`);
     } else {
       $breadcrumb.insertAdjacentHTML("beforeend", `<a href="${encodeURI(path)}">${name}</a>`);
     }
-    $breadcrumb.insertAdjacentHTML("beforeend", `<span class="separator">/</span>`);
+    if (i !== len - 1) {
+      $breadcrumb.insertAdjacentHTML("beforeend", `<span class="separator">/</span>`);
+    }
   }
 }
 
