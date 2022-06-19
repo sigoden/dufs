@@ -6,7 +6,7 @@ use fixtures::{server, Error, TestServer};
 use rstest::rstest;
 
 #[rstest]
-fn no_auth(#[with(&["--auth", "/@user:pass", "-A"])] server: TestServer) -> Result<(), Error> {
+fn no_auth_digest(#[with(&["--auth", "/@user:pass", "-A"])] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(server.url())?;
     assert_eq!(resp.status(), 401);
     assert!(resp.headers().contains_key("www-authenticate"));
@@ -17,7 +17,7 @@ fn no_auth(#[with(&["--auth", "/@user:pass", "-A"])] server: TestServer) -> Resu
 }
 
 #[rstest]
-fn auth(#[with(&["--auth", "/@user:pass", "-A"])] server: TestServer) -> Result<(), Error> {
+fn auth_digest(#[with(&["--auth", "/@user:pass", "-A"])] server: TestServer) -> Result<(), Error> {
     let url = format!("{}file1", server.url());
     let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
     assert_eq!(resp.status(), 401);
@@ -29,14 +29,14 @@ fn auth(#[with(&["--auth", "/@user:pass", "-A"])] server: TestServer) -> Result<
 }
 
 #[rstest]
-fn auth_skip(#[with(&["--auth", "/@user:pass@*"])] server: TestServer) -> Result<(), Error> {
+fn auth_skip_digest(#[with(&["--auth", "/@user:pass@*"])] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(server.url())?;
     assert_eq!(resp.status(), 200);
     Ok(())
 }
 
 #[rstest]
-fn auth_readonly(
+fn auth_readonly_digest(
     #[with(&["--auth", "/@user:pass@user2:pass2", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
     let url = format!("{}index.html", server.url());
@@ -53,7 +53,7 @@ fn auth_readonly(
 }
 
 #[rstest]
-fn auth_nest(
+fn auth_nest_digest(
     #[with(&["--auth", "/@user:pass@user2:pass2", "--auth", "/dira@user3:pass3", "-A"])]
     server: TestServer,
 ) -> Result<(), Error> {
@@ -72,7 +72,7 @@ fn auth_nest(
 }
 
 #[rstest]
-fn auth_nest_share(
+fn auth_nest_share_digest(
     #[with(&["--auth", "/@user:pass@*", "--auth", "/dira@user3:pass3", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
     let url = format!("{}index.html", server.url());
@@ -82,7 +82,7 @@ fn auth_nest_share(
 }
 
 #[rstest]
-fn no_auth(#[with(&["--basic-auth", "--auth", "/@user:pass", "-A"])] server: TestServer) -> Result<(), Error> {
+fn no_auth_basic(#[with(&["--basic-auth", "--auth", "/@user:pass", "-A"])] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(server.url())?;
     assert_eq!(resp.status(), 401);
     assert!(resp.headers().contains_key("www-authenticate"));
@@ -93,43 +93,45 @@ fn no_auth(#[with(&["--basic-auth", "--auth", "/@user:pass", "-A"])] server: Tes
 }
 
 #[rstest]
-fn auth(#[with(&["--basic-auth", "--auth", "/@user:pass", "-A"])] server: TestServer) -> Result<(), Error> {
+fn auth_basic(#[with(&["--basic-auth", "--auth", "/@user:pass", "-A"])] server: TestServer) -> Result<(), Error> {
     let url = format!("{}file1", server.url());
     let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
     assert_eq!(resp.status(), 401);
     let resp = fetch!(b"PUT", &url)
         .body(b"abc".to_vec())
-        .send_with_basic_auth("user", "pass")?;
+        .basic_auth("user", Some("pass"))
+        .send()?;
     assert_eq!(resp.status(), 201);
     Ok(())
 }
 
 #[rstest]
-fn auth_skip(#[with(&["--basic-auth", "--auth", "/@user:pass@*"])] server: TestServer) -> Result<(), Error> {
+fn auth_skip_basic(#[with(&["--basic-auth", "--auth", "/@user:pass@*"])] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(server.url())?;
     assert_eq!(resp.status(), 200);
     Ok(())
 }
 
 #[rstest]
-fn auth_readonly(
+fn auth_readonly_basic(
     #[with(&["--basic-auth", "--auth", "/@user:pass@user2:pass2", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
     let url = format!("{}index.html", server.url());
     let resp = fetch!(b"GET", &url).send()?;
     assert_eq!(resp.status(), 401);
-    let resp = fetch!(b"GET", &url).send_with_basic_auth("user2", "pass2")?;
+    let resp = fetch!(b"GET", &url).basic_auth("user2", Some("pass2")).send()?;
     assert_eq!(resp.status(), 200);
     let url = format!("{}file1", server.url());
     let resp = fetch!(b"PUT", &url)
         .body(b"abc".to_vec())
-        .send_with_basic_auth("user2", "pass2")?;
+        .basic_auth("user2", Some("pass2"))
+        .send()?;
     assert_eq!(resp.status(), 401);
     Ok(())
 }
 
 #[rstest]
-fn auth_nest(
+fn auth_nest_basic(
     #[with(&["--basic-auth", "--auth", "/@user:pass@user2:pass2", "--auth", "/dira@user3:pass3", "-A"])]
     server: TestServer,
 ) -> Result<(), Error> {
@@ -138,17 +140,19 @@ fn auth_nest(
     assert_eq!(resp.status(), 401);
     let resp = fetch!(b"PUT", &url)
         .body(b"abc".to_vec())
-        .send_with_basic_auth("user3", "pass3")?;
+        .basic_auth("user3", Some("pass3"))
+        .send()?;
     assert_eq!(resp.status(), 201);
     let resp = fetch!(b"PUT", &url)
         .body(b"abc".to_vec())
-        .send_with_basic_auth("user", "pass")?;
+        .basic_auth("user", Some("pass"))
+        .send()?;
     assert_eq!(resp.status(), 201);
     Ok(())
 }
 
 #[rstest]
-fn auth_nest_share(
+fn auth_nest_share_basic(
     #[with(&["--basic-auth", "--auth", "/@user:pass@*", "--auth", "/dira@user3:pass3", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
     let url = format!("{}index.html", server.url());
