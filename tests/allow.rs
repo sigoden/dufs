@@ -60,7 +60,6 @@ fn allow_upload_delete_can_override(#[with(&["-A"])] server: TestServer) -> Resu
     Ok(())
 }
 
-
 #[rstest]
 fn allow_search(#[with(&["--allow-search"])] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(format!("{}?q={}", server.url(), "test.html"))?;
