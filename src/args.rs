@@ -174,7 +174,6 @@ impl Args {
             .unwrap_or_default();
         let auth_method = match matches.value_of("auth-method").unwrap() {
             "basic" => AuthMethod::Basic,
-            "digest" => AuthMethod::Digest,
             _ => AuthMethod::Digest,
         };
         let auth = AccessControl::new(&auth, &uri_prefix)?;

@@ -126,11 +126,6 @@ body {
   white-space: nowrap;
 }
 
-.uploaders-table .cell-name,
-.paths-table .cell-name {
-  width: 500px;
-}
-
 .uploaders-table .cell-status {
   width: 80px;
   padding-left: 0.6em;
