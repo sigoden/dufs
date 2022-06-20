@@ -339,9 +339,13 @@ function ready() {
   $uploadersTable = document.querySelector(".uploaders-table");
   $emptyFolder = document.querySelector(".empty-folder");
 
-  if (params.q) {
-    document.getElementById('search').value = params.q;
+  if (DATA.allow_search) {
+    document.querySelector(".searchbar").classList.remove("hidden");
+    if (params.q) {
+      document.getElementById('search').value = params.q;
+    }
   }
+
 
   addBreadcrumb(DATA.href, DATA.uri_prefix);
   if (Array.isArray(DATA.paths)) {

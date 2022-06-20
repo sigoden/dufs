@@ -63,7 +63,7 @@ fn head_dir_zip(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
-fn get_dir_search(server: TestServer) -> Result<(), Error> {
+fn get_dir_search(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(format!("{}?q={}", server.url(), "test.html"))?;
     assert_eq!(resp.status(), 200);
     let paths = utils::retrive_index_paths(&resp.text()?);
@@ -75,7 +75,7 @@ fn get_dir_search(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
-fn get_dir_search2(server: TestServer) -> Result<(), Error> {
+fn get_dir_search2(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(format!("{}?q={}", server.url(), "😀.data"))?;
     assert_eq!(resp.status(), 200);
     let paths = utils::retrive_index_paths(&resp.text()?);
@@ -87,7 +87,7 @@ fn get_dir_search2(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
-fn head_dir_search(server: TestServer) -> Result<(), Error> {
+fn head_dir_search(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"HEAD", format!("{}?q={}", server.url(), "test.html")).send()?;
     assert_eq!(resp.status(), 200);
     assert_eq!(

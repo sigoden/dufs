@@ -57,6 +57,7 @@ OPTIONS:
     -A, --allow-all              Allow all operations
         --allow-upload           Allow upload files/folders
         --allow-delete           Allow delete files/folders
+        --allow-search           Allow search files/folders
         --allow-symlink          Allow symlink to files/folders outside root directory
         --enable-cors            Enable CORS, sets `Access-Control-Allow-Origin: *`
         --render-index           Serve index.html when requesting a directory, returns 404 if not found index.html
