@@ -1,7 +1,12 @@
 html {
-  font-family: -apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;
+  font-family: -apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;
   line-height: 1.5;
   color: #24292e;
+}
+
+body {
+  /* prevent premature breadcrumb wrapping on mobile */
+  min-width: 500px;
 }
 
 .hidden {
@@ -47,6 +52,11 @@ html {
 .toolbox {
   display: flex;
   margin-right: 10px;
+}
+
+.toolbox > div {
+  /* vertically align with breadcrumb text */
+  height: 1.1rem;
 }
 
 .searchbar {
@@ -116,11 +126,6 @@ html {
   white-space: nowrap;
 }
 
-.uploaders-table .cell-name,
-.paths-table .cell-name {
-  width: 500px;
-}
-
 .uploaders-table .cell-status {
   width: 80px;
   padding-left: 0.6em;
@@ -143,7 +148,6 @@ html {
   padding-left: 0.6em;
 }
 
-
 .path svg {
   height: 100%;
   fill: rgba(3,47,98,0.5);
@@ -163,7 +167,7 @@ html {
   display: block;
   text-decoration: none;
   max-width: calc(100vw - 375px);
-  min-width: 400px;
+  min-width: 200px;
 }
 
 .path a:hover {
@@ -200,7 +204,8 @@ html {
   }
 
   svg,
-  .path svg {
+  .path svg,
+  .breadcrumb svg {
     fill: #fff;
   }
 

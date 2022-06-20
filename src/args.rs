@@ -5,6 +5,7 @@ use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 
 use crate::auth::AccessControl;
+use crate::auth::AuthMethod;
 use crate::tls::{load_certs, load_private_key};
 use crate::BoxResult;
 
@@ -46,6 +47,14 @@ fn app() -> Command<'static> {
                 .long("path-prefix")
                 .value_name("path")
                 .help("Specify an url path prefix"),
+        )
+        .arg(
+            Arg::new("auth-method")
+                .long("auth-method")
+                .help("Choose auth method")
+                .possible_values(["basic", "digest"])
+                .default_value("digest")
+                .value_name("value"),
         )
         .arg(
             Arg::new("auth")
@@ -123,6 +132,7 @@ pub struct Args {
     pub path_is_file: bool,
     pub path_prefix: String,
     pub uri_prefix: String,
+    pub auth_method: AuthMethod,
     pub auth: AccessControl,
     pub allow_upload: bool,
     pub allow_delete: bool,
@@ -162,6 +172,10 @@ impl Args {
             .values_of("auth")
             .map(|v| v.collect())
             .unwrap_or_default();
+        let auth_method = match matches.value_of("auth-method").unwrap() {
+            "basic" => AuthMethod::Basic,
+            _ => AuthMethod::Digest,
+        };
         let auth = AccessControl::new(&auth, &uri_prefix)?;
         let allow_upload = matches.is_present("allow-all") || matches.is_present("allow-upload");
         let allow_delete = matches.is_present("allow-all") || matches.is_present("allow-delete");
@@ -185,6 +199,7 @@ impl Args {
             path_is_file,
             path_prefix,
             uri_prefix,
+            auth_method,
             auth,
             enable_cors,
             allow_delete,
