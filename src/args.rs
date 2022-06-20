@@ -40,13 +40,13 @@ fn app() -> Command<'static> {
             Arg::new("path")
                 .default_value(".")
                 .allow_invalid_utf8(true)
-                .help("Path to a root directory for serving files"),
+                .help("Specific path to serve"),
         )
         .arg(
             Arg::new("path-prefix")
                 .long("path-prefix")
                 .value_name("path")
-                .help("Specify an url path prefix"),
+                .help("Specify an path prefix"),
         )
         .arg(
             Arg::new("auth")
@@ -94,17 +94,17 @@ fn app() -> Command<'static> {
         .arg(
             Arg::new("render-index")
                 .long("render-index")
-                .help("Render index.html when requesting a directory"),
+                .help("Serve index.html when requesting a directory, returns 404 if not found index.html"),
         )
         .arg(
             Arg::new("render-try-index")
                 .long("render-try-index")
-                .help("Render index.html if it exists when requesting a directory"),
+                .help("Serve index.html when requesting a directory, returns file listing if not found index.html"),
         )
         .arg(
             Arg::new("render-spa")
                 .long("render-spa")
-                .help("Render for single-page application"),
+                .help("Serve SPA(Single Page Application)"),
         )
         .arg(
             Arg::new("tls-cert")
@@ -124,7 +124,7 @@ pub fn matches() -> ArgMatches {
     app().get_matches()
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Args {
     pub addrs: Vec<IpAddr>,
     pub port: u16,

@@ -3,7 +3,7 @@
 [![CI](https://github.com/sigoden/dufs/actions/workflows/ci.yaml/badge.svg)](https://github.com/sigoden/dufs/actions/workflows/ci.yaml)
 [![Crates](https://img.shields.io/crates/v/dufs.svg)](https://crates.io/crates/dufs)
 
-Dufs is a simple file server. Support static serve, search, upload, webdav...
+Dufs is a distinctive utility file server that supports static serving, uploading, searching, accessing control, webdav...
 
 ![demo](https://user-images.githubusercontent.com/4012553/174486522-7af350e6-0195-4f4a-8480-d9464fc6452f.png)
 
@@ -40,29 +40,28 @@ Download from [Github Releases](https://github.com/sigoden/dufs/releases), unzip
 ## CLI
 
 ```
-Dufs is a simple file server. - https://github.com/sigoden/dufs
+Dufs is a distinctive utility file server - https://github.com/sigoden/dufs
 
 USAGE:
     dufs [OPTIONS] [--] [path]
 
 ARGS:
-    <path>    Path to a root directory for serving files [default: .]
+    <path>    Specific path to serve [default: .]
 
 OPTIONS:
     -b, --bind <addr>...         Specify bind address
     -p, --port <port>            Specify port to listen on [default: 5000]
-        --path-prefix <path>     Specify an url path prefix
+        --path-prefix <path>     Specify an path prefix
     -a, --auth <rule>...         Add auth for path
-        --auth-method <value>    Select auth method [default: digest] [possible values: basic,
-                                 digest]
+        --auth-method <value>    Select auth method [default: digest] [possible values: basic, digest]
     -A, --allow-all              Allow all operations
         --allow-upload           Allow upload files/folders
         --allow-delete           Allow delete files/folders
         --allow-symlink          Allow symlink to files/folders outside root directory
         --enable-cors            Enable CORS, sets `Access-Control-Allow-Origin: *`
-        --render-index           Render index.html when requesting a directory
-        --render-try-index       Render index.html if it exists when requesting a directory
-        --render-spa             Render for single-page application
+        --render-index           Serve index.html when requesting a directory, returns 404 if not found index.html
+        --render-try-index       Serve index.html when requesting a directory, returns file listing if not found index.html
+        --render-spa             Serve SPA(Single Page Application)
         --tls-cert <path>        Path to an SSL/TLS certificate to serve with HTTPS
         --tls-key <path>         Path to the SSL/TLS certificate's private key
     -h, --help                   Print help information
@@ -71,28 +70,58 @@ OPTIONS:
 
 ## Examples
 
-Serve current working directory, no upload/delete
+Serve current working directory
 
 ```
 dufs
 ```
 
-Allow upload/delete
+Explicitly allow all operations including upload/delete 
 
 ```
 dufs -A
+```
+
+Only allow upload operation
+
+```
+dufs --allow-upload
+```
+
+Serve a directory
+
+```
+dufs Downloads
+```
+
+Serve a single file
+
+```
+dufs linux-distro.iso
+```
+
+Serve index.html when requesting a directory
+
+```
+dufs --render-index
+```
+
+Serve SPA(Single Page Application)
+
+```
+dufs --render-spa
+```
+
+Require username/password
+
+```
+dufs -a /@admin:123
 ```
 
 Listen on a specific port
 
 ```
 dufs -p 80
-```
-
-For a single page application (SPA)
-
-```
-dufs --render-spa
 ```
 
 Use https
@@ -126,36 +155,9 @@ Delete a file/folder
 curl -X DELETE http://127.0.0.1:5000/path-to-file
 ```
 
-## Details
+## Access Control
 
-<details>
-<summary>
-
-#### 1. Control render logic
-
-</summary>
-
-
-The default render logic is:
-
--  If request for a folder, rendering the directory listing. 
--  If request for a file, rendering the file.
--  If request target does not exist, returns 404.
-
-The `--render-*` options change the render logic:
-
-- `--render-index`: If request for a folder, rendering index.html in the folder. If the index.html file does not exist, return 404.
-- `--render-try-index`: Like `--render-index`, rendering the directory listing if the index.html file does not exist, other than return 404.
-- `--render-spa`: If request target does not exist, rendering `/index.html`
-
-</details>
-
-<details>
-<summary>
-
-#### 2. Path level access control
-
-</summary>
+Dufs implements path level access control through http authentication.
 
 ```
 dufs -a <path>@<readwrite>[@<readonly>]
@@ -175,14 +177,6 @@ dufs -a /@admin:pass@* -a /ui@designer:pass1 -A
 - All files/folders are public to access/download.
 - Account `admin:pass` can upload/delete/download any files/folders.
 - Account `designer:pass1` can upload/delete/download any files/folders in the `ui` folder.
-
-Curl with digest auth:
-
-```
-curl --digest -u designer:pass1 http://127.0.0.1:5000/ui/path-to-file
-```
-
-</details>
 
 ## License
 

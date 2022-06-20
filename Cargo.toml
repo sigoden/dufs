@@ -3,7 +3,7 @@ name = "dufs"
 version = "0.19.0"
 edition = "2021"
 authors = ["sigoden <sigoden@gmail.com>"]
-description = "Dufs is a simple file server."
+description = "Dufs is a distinctive utility file server"
 license = "MIT OR Apache-2.0"
 homepage = "https://github.com/sigoden/dufs"
 repository = "https://github.com/sigoden/dufs"
@@ -11,7 +11,7 @@ categories = ["command-line-utilities", "web-programming::http-server"]
 keywords = ["static", "file", "server", "webdav", "cli"]
 
 [dependencies]
-clap = { version = "3", default-features = false, features = ["std"] }
+clap = { version = "3", default-features = false, features = ["std", "wrap_help"] }
 chrono = "0.4"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util", "signal"]}
 tokio-rustls = "0.23"

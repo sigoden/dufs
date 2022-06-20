@@ -22,12 +22,12 @@ lazy_static! {
     };
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct AccessControl {
     rules: HashMap<String, PathControl>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct PathControl {
     readwrite: Account,
     readonly: Option<Account>,
