@@ -158,7 +158,7 @@ curl -X DELETE http://127.0.0.1:5000/path-to-file
 
 ## Access Control
 
-Dufs implements path level access control through http authentication.
+Dufs supports path level access control. You can control who can do what on which path with `--auth`/`-a`.
 
 ```
 dufs -a <path>@<readwrite>[@<readonly>]
@@ -168,7 +168,7 @@ dufs -a <path>@<readwrite>[@<readonly>]
 - `<readwrite>`: Account with readwrite permission, required
 - `<readonly>`: Account with readonly permission, optional
 
-> `*` as `<readonly>` means `<path>` is public, everyone can access/download it.
+> `<readonly>` can be `*` means `<path>` is public, everyone can access/download it.
 
 For example:
 
