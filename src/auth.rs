@@ -76,7 +76,7 @@ impl AccessControl {
         path: &str,
         method: &Method,
         authorization: Option<&HeaderValue>,
-        basic_auth: bool,
+        auth_method: AuthMethod,
     ) -> GuardType {
         if self.rules.is_empty() {
             return GuardType::ReadWrite;
@@ -87,11 +87,10 @@ impl AccessControl {
                 controls.push(control);
                 if let Some(authorization) = authorization {
                     let Account { user, pass } = &control.readwrite;
-                    if basic_auth {
-                        if valid_basic_auth(authorization, user, pass).is_some() {
-                            return GuardType::ReadWrite;
-                        }
-                    } else if valid_digest(authorization, method.as_str(), user, pass).is_some() {
+                    if auth_method
+                        .validate(authorization, method.as_str(), user, pass)
+                        .is_some()
+                    {
                         return GuardType::ReadWrite;
                     }
                 }
@@ -104,11 +103,10 @@ impl AccessControl {
                 }
                 if let Some(authorization) = authorization {
                     if let Some(Account { user, pass }) = &control.readonly {
-                        if basic_auth {
-                            if valid_basic_auth(authorization, user, pass).is_some() {
-                                return GuardType::ReadOnly;
-                            }
-                        } else if valid_digest(authorization, method.as_str(), user, pass).is_some() {
+                        if auth_method
+                            .validate(authorization, method.as_str(), user, pass)
+                            .is_some()
+                        {
                             return GuardType::ReadOnly;
                         }
                     }
@@ -176,115 +174,127 @@ impl Account {
     }
 }
 
-pub fn generate_www_auth(stale: bool, basic_auth: bool) -> String {
-    if basic_auth {        
-        format!("Basic realm=\"{}\"", REALM)
-    } else {
-        let str_stale = if stale { "stale=true," } else { "" };
-        format!(
-            "Digest realm=\"{}\",nonce=\"{}\",{}qop=\"auth\"",
-            REALM,
-            create_nonce(),
-            str_stale
-        )
-    }
+#[derive(Debug, Clone)]
+pub enum AuthMethod {
+    Basic,
+    Digest,
 }
 
-pub fn valid_basic_auth(
-    authorization: &HeaderValue,
-    auth_user: &str,
-    auth_pass: &str,
-) -> Option<()> {
-    let value: Vec<u8> = base64::decode(strip_prefix(authorization.as_bytes(), b"Basic ").unwrap()).unwrap();
-    let parts: Vec<&str> = std::str::from_utf8(&value).unwrap().split(":").collect();
-
-    if parts[0] != auth_user {
-        return None;
-    }
-
-    let mut h = Context::new();
-    h.consume(format!("{}:{}:{}", parts[0], REALM, parts[1]).as_bytes());
-
-    let http_pass = format!("{:x}", h.compute());
-
-    if http_pass == auth_pass {
-        return Some(());
-    }
-
-    return None;
-}
-
-pub fn valid_digest(
-    authorization: &HeaderValue,
-    method: &str,
-    auth_user: &str,
-    auth_pass: &str,
-) -> Option<()> {
-    let digest_value = strip_prefix(authorization.as_bytes(), b"Digest ")?;
-    let user_vals = to_headermap(digest_value).ok()?;
-    if let (Some(username), Some(nonce), Some(user_response)) = (
-        user_vals
-            .get(b"username".as_ref())
-            .and_then(|b| std::str::from_utf8(*b).ok()),
-        user_vals.get(b"nonce".as_ref()),
-        user_vals.get(b"response".as_ref()),
-    ) {
-        match validate_nonce(nonce) {
-            Ok(true) => {}
-            _ => return None,
-        }
-        if auth_user != username {
-            return None;
-        }
-        let mut ha = Context::new();
-        ha.consume(method);
-        ha.consume(b":");
-        if let Some(uri) = user_vals.get(b"uri".as_ref()) {
-            ha.consume(uri);
-        }
-        let ha = format!("{:x}", ha.compute());
-        let mut correct_response = None;
-        if let Some(qop) = user_vals.get(b"qop".as_ref()) {
-            if qop == &b"auth".as_ref() || qop == &b"auth-int".as_ref() {
-                correct_response = Some({
-                    let mut c = Context::new();
-                    c.consume(&auth_pass);
-                    c.consume(b":");
-                    c.consume(nonce);
-                    c.consume(b":");
-                    if let Some(nc) = user_vals.get(b"nc".as_ref()) {
-                        c.consume(nc);
-                    }
-                    c.consume(b":");
-                    if let Some(cnonce) = user_vals.get(b"cnonce".as_ref()) {
-                        c.consume(cnonce);
-                    }
-                    c.consume(b":");
-                    c.consume(qop);
-                    c.consume(b":");
-                    c.consume(&*ha);
-                    format!("{:x}", c.compute())
-                });
+impl AuthMethod {
+    pub fn www_auth(&self, stale: bool) -> String {
+        match self {
+            AuthMethod::Basic => {
+                format!("Basic realm=\"{}\"", REALM)
+            }
+            AuthMethod::Digest => {
+                let str_stale = if stale { "stale=true," } else { "" };
+                format!(
+                    "Digest realm=\"{}\",nonce=\"{}\",{}qop=\"auth\"",
+                    REALM,
+                    create_nonce(),
+                    str_stale
+                )
             }
         }
-        let correct_response = match correct_response {
-            Some(r) => r,
-            None => {
-                let mut c = Context::new();
-                c.consume(&auth_pass);
-                c.consume(b":");
-                c.consume(nonce);
-                c.consume(b":");
-                c.consume(&*ha);
-                format!("{:x}", c.compute())
+    }
+    pub fn validate(
+        &self,
+        authorization: &HeaderValue,
+        method: &str,
+        auth_user: &str,
+        auth_pass: &str,
+    ) -> Option<()> {
+        match self {
+            AuthMethod::Basic => {
+                let value: Vec<u8> =
+                    base64::decode(strip_prefix(authorization.as_bytes(), b"Basic ").unwrap())
+                        .unwrap();
+                let parts: Vec<&str> = std::str::from_utf8(&value).unwrap().split(':').collect();
+
+                if parts[0] != auth_user {
+                    return None;
+                }
+
+                let mut h = Context::new();
+                h.consume(format!("{}:{}:{}", parts[0], REALM, parts[1]).as_bytes());
+
+                let http_pass = format!("{:x}", h.compute());
+
+                if http_pass == auth_pass {
+                    return Some(());
+                }
+
+                None
             }
-        };
-        if correct_response.as_bytes() == *user_response {
-            // grant access
-            return Some(());
+            AuthMethod::Digest => {
+                let digest_value = strip_prefix(authorization.as_bytes(), b"Digest ")?;
+                let user_vals = to_headermap(digest_value).ok()?;
+                if let (Some(username), Some(nonce), Some(user_response)) = (
+                    user_vals
+                        .get(b"username".as_ref())
+                        .and_then(|b| std::str::from_utf8(*b).ok()),
+                    user_vals.get(b"nonce".as_ref()),
+                    user_vals.get(b"response".as_ref()),
+                ) {
+                    match validate_nonce(nonce) {
+                        Ok(true) => {}
+                        _ => return None,
+                    }
+                    if auth_user != username {
+                        return None;
+                    }
+                    let mut ha = Context::new();
+                    ha.consume(method);
+                    ha.consume(b":");
+                    if let Some(uri) = user_vals.get(b"uri".as_ref()) {
+                        ha.consume(uri);
+                    }
+                    let ha = format!("{:x}", ha.compute());
+                    let mut correct_response = None;
+                    if let Some(qop) = user_vals.get(b"qop".as_ref()) {
+                        if qop == &b"auth".as_ref() || qop == &b"auth-int".as_ref() {
+                            correct_response = Some({
+                                let mut c = Context::new();
+                                c.consume(&auth_pass);
+                                c.consume(b":");
+                                c.consume(nonce);
+                                c.consume(b":");
+                                if let Some(nc) = user_vals.get(b"nc".as_ref()) {
+                                    c.consume(nc);
+                                }
+                                c.consume(b":");
+                                if let Some(cnonce) = user_vals.get(b"cnonce".as_ref()) {
+                                    c.consume(cnonce);
+                                }
+                                c.consume(b":");
+                                c.consume(qop);
+                                c.consume(b":");
+                                c.consume(&*ha);
+                                format!("{:x}", c.compute())
+                            });
+                        }
+                    }
+                    let correct_response = match correct_response {
+                        Some(r) => r,
+                        None => {
+                            let mut c = Context::new();
+                            c.consume(&auth_pass);
+                            c.consume(b":");
+                            c.consume(nonce);
+                            c.consume(b":");
+                            c.consume(&*ha);
+                            format!("{:x}", c.compute())
+                        }
+                    };
+                    if correct_response.as_bytes() == *user_response {
+                        // grant access
+                        return Some(());
+                    }
+                }
+                None
+            }
         }
     }
-    None
 }
 
 /// Check if a nonce is still valid.
