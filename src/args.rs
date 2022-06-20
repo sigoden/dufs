@@ -82,6 +82,11 @@ fn app() -> Command<'static> {
                 .help("Allow delete files/folders"),
         )
         .arg(
+            Arg::new("allow-search")
+                .long("allow-search")
+                .help("Allow search files/folders"),
+        )
+        .arg(
             Arg::new("allow-symlink")
                 .long("allow-symlink")
                 .help("Allow symlink to files/folders outside root directory"),
@@ -136,6 +141,7 @@ pub struct Args {
     pub auth: AccessControl,
     pub allow_upload: bool,
     pub allow_delete: bool,
+    pub allow_search: bool,
     pub allow_symlink: bool,
     pub render_index: bool,
     pub render_spa: bool,
@@ -179,6 +185,7 @@ impl Args {
         let auth = AccessControl::new(&auth, &uri_prefix)?;
         let allow_upload = matches.is_present("allow-all") || matches.is_present("allow-upload");
         let allow_delete = matches.is_present("allow-all") || matches.is_present("allow-delete");
+        let allow_search = matches.is_present("allow-all") || matches.is_present("allow-search");
         let allow_symlink = matches.is_present("allow-all") || matches.is_present("allow-symlink");
         let render_index = matches.is_present("render-index");
         let render_try_index = matches.is_present("render-try-index");
@@ -204,6 +211,7 @@ impl Args {
             enable_cors,
             allow_delete,
             allow_upload,
+            allow_search,
             allow_symlink,
             render_index,
             render_try_index,

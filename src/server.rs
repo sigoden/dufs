@@ -133,6 +133,7 @@ impl Server {
 
         let allow_upload = self.args.allow_upload;
         let allow_delete = self.args.allow_delete;
+        let allow_search = self.args.allow_search;
         let render_index = self.args.render_index;
         let render_spa = self.args.render_spa;
         let render_try_index = self.args.render_try_index;
@@ -152,8 +153,8 @@ impl Server {
                             .await?;
                     } else if query == "zip" {
                         self.handle_zip_dir(path, head_only, &mut res).await?;
-                    } else if let Some(q) = query.strip_prefix("q=") {
-                        let q = decode_uri(q).unwrap_or_default();
+                    } else if allow_search && query.starts_with("q=") {
+                        let q = decode_uri(&query[2..]).unwrap_or_default();
                         self.handle_query_dir(path, &q, head_only, &mut res).await?;
                     } else {
                         self.handle_ls_dir(path, true, head_only, &mut res).await?;
@@ -696,6 +697,7 @@ impl Server {
             paths,
             allow_upload: self.args.allow_upload,
             allow_delete: self.args.allow_delete,
+            allow_search: self.args.allow_search,
             dir_exists: exist,
         };
         let data = serde_json::to_string(&data).unwrap();
@@ -824,6 +826,7 @@ struct IndexData {
     paths: Vec<PathItem>,
     allow_upload: bool,
     allow_delete: bool,
+    allow_search: bool,
     dir_exists: bool,
 }
 
