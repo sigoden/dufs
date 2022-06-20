@@ -153,7 +153,8 @@ impl Server {
                     } else if query == "zip" {
                         self.handle_zip_dir(path, head_only, &mut res).await?;
                     } else if let Some(q) = query.strip_prefix("q=") {
-                        self.handle_query_dir(path, q, head_only, &mut res).await?;
+                        let q = decode_uri(q).unwrap_or_default();
+                        self.handle_query_dir(path, &q, head_only, &mut res).await?;
                     } else {
                         self.handle_ls_dir(path, true, head_only, &mut res).await?;
                     }
