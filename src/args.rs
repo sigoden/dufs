@@ -175,7 +175,7 @@ impl Args {
         let auth_method = match matches.value_of("auth-method").unwrap() {
             "basic" => AuthMethod::Basic,
             "digest" => AuthMethod::Digest,
-            _ => todo!(),
+            _ => AuthMethod::Digest,
         };
         let auth = AccessControl::new(&auth, &uri_prefix)?;
         let allow_upload = matches.is_present("allow-all") || matches.is_present("allow-upload");
