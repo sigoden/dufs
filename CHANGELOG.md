@@ -13,7 +13,7 @@ All notable changes to this project will be documented in this file.
 - Added basic auth ([#60](https://github.com/sigoden/dufs/issues/60))
 - Add option --allow-search ([#62](https://github.com/sigoden/dufs/issues/62))
 
-## [0.19.0-rc1] - 2022-06-19
+## [0.19.0] - 2022-06-19
 
 ### Features
 
