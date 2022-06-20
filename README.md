@@ -49,22 +49,24 @@ ARGS:
     <path>    Path to a root directory for serving files [default: .]
 
 OPTIONS:
-    -b, --bind <addr>...        Specify bind address
-    -p, --port <port>           Specify port to listen on [default: 5000]
-        --path-prefix <path>    Specify an url path prefix
-    -a, --auth <rule>...        Add auth for path
-    -A, --allow-all             Allow all operations
-        --allow-upload          Allow upload files/folders
-        --allow-delete          Allow delete files/folders
-        --allow-symlink         Allow symlink to files/folders outside root directory
-        --enable-cors           Enable CORS, sets `Access-Control-Allow-Origin: *`
-        --render-index          Render index.html when requesting a directory
-        --render-try-index      Render index.html if it exists when requesting a directory
-        --render-spa            Render for single-page application
-        --tls-cert <path>       Path to an SSL/TLS certificate to serve with HTTPS
-        --tls-key <path>        Path to the SSL/TLS certificate's private key
-    -h, --help                  Print help information
-    -V, --version               Print version information
+    -b, --bind <addr>...         Specify bind address
+    -p, --port <port>            Specify port to listen on [default: 5000]
+        --path-prefix <path>     Specify an url path prefix
+    -a, --auth <rule>...         Add auth for path
+        --auth-method <value>    Select auth method [default: digest] [possible values: basic,
+                                 digest]
+    -A, --allow-all              Allow all operations
+        --allow-upload           Allow upload files/folders
+        --allow-delete           Allow delete files/folders
+        --allow-symlink          Allow symlink to files/folders outside root directory
+        --enable-cors            Enable CORS, sets `Access-Control-Allow-Origin: *`
+        --render-index           Render index.html when requesting a directory
+        --render-try-index       Render index.html if it exists when requesting a directory
+        --render-spa             Render for single-page application
+        --tls-cert <path>        Path to an SSL/TLS certificate to serve with HTTPS
+        --tls-key <path>         Path to the SSL/TLS certificate's private key
+    -h, --help                   Print help information
+    -V, --version                Print version information
 ```
 
 ## Examples

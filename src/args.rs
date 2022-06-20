@@ -49,14 +49,6 @@ fn app() -> Command<'static> {
                 .help("Specify an url path prefix"),
         )
         .arg(
-            Arg::new("auth-method")
-                .long("auth-method")
-                .help("Choose auth method")
-                .possible_values(["basic", "digest"])
-                .default_value("digest")
-                .value_name("value"),
-        )
-        .arg(
             Arg::new("auth")
                 .short('a')
                 .long("auth")
@@ -64,6 +56,14 @@ fn app() -> Command<'static> {
                 .multiple_values(true)
                 .multiple_occurrences(true)
                 .value_name("rule"),
+        )
+        .arg(
+            Arg::new("auth-method")
+                .long("auth-method")
+                .help("Select auth method")
+                .possible_values(["basic", "digest"])
+                .default_value("digest")
+                .value_name("value"),
         )
         .arg(
             Arg::new("allow-all")

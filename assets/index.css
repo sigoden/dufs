@@ -186,6 +186,12 @@ body {
   padding-right: 1em;
 }
 
+@media (min-width: 768px) {
+  .path a {
+    min-width: 400px;
+  }
+}
+
 /* dark theme */
 @media (prefers-color-scheme: dark) {
   body {
