@@ -37,12 +37,8 @@ pub fn encode_uri(v: &str) -> String {
 
 fn retrive_index_paths_impl(index: &str) -> Option<HashSet<String>> {
     let lines: Vec<&str> = index.lines().collect();
-    let (i, _) = lines
-        .iter()
-        .enumerate()
-        .find(|(_, v)| v.contains("const DATA"))?;
-    let line = lines.get(i + 1)?;
-    let value: Value = line.parse().ok()?;
+    let line = lines.iter().find(|v| v.contains("DATA ="))?;
+    let value: Value = line[7..].parse().ok()?;
     let paths = value
         .get("paths")?
         .as_array()?

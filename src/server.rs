@@ -44,11 +44,16 @@ const BUF_SIZE: usize = 65536;
 
 pub struct Server {
     args: Arc<Args>,
+    assets_prefix: String,
 }
 
 impl Server {
     pub fn new(args: Arc<Args>) -> Self {
-        Self { args }
+        let assets_prefix = format!("{}__dufs_v{}_", args.uri_prefix, env!("CARGO_PKG_VERSION"));
+        Self {
+            args,
+            assets_prefix,
+        }
     }
 
     pub async fn call(
@@ -58,12 +63,15 @@ impl Server {
     ) -> Result<Response, hyper::Error> {
         let method = req.method().clone();
         let uri = req.uri().clone();
+        let assets_prefix = self.assets_prefix.clone();
         let enable_cors = self.args.enable_cors;
 
         let mut res = match self.handle(req).await {
             Ok(res) => {
                 let status = res.status().as_u16();
-                info!(r#"{} "{} {}" - {}"#, addr.ip(), method, uri, status,);
+                if !uri.path().starts_with(&assets_prefix) {
+                    info!(r#"{} "{} {}" - {}"#, addr.ip(), method, uri, status,);
+                }
                 res
             }
             Err(err) => {
@@ -89,8 +97,7 @@ impl Server {
         let headers = req.headers();
         let method = req.method().clone();
 
-        if req_path == "/favicon.ico" && method == Method::GET {
-            self.handle_send_favicon(headers, &mut res).await?;
+        if method == Method::GET && self.handle_embed_assets(req_path, &mut res).await? {
             return Ok(res);
         }
 
@@ -418,23 +425,38 @@ impl Server {
         Ok(())
     }
 
-    async fn handle_send_favicon(
-        &self,
-        headers: &HeaderMap<HeaderValue>,
-        res: &mut Response,
-    ) -> BoxResult<()> {
-        let path = self.args.path.join("favicon.ico");
-        let meta = fs::metadata(&path).await.ok();
-        let is_file = meta.map(|v| v.is_file()).unwrap_or_default();
-        if is_file {
-            self.handle_send_file(path.as_path(), headers, false, res)
-                .await?;
+    async fn handle_embed_assets(&self, req_path: &str, res: &mut Response) -> BoxResult<bool> {
+        if let Some(name) = req_path.strip_prefix(&self.assets_prefix) {
+            match name {
+                "index.js" => {
+                    *res.body_mut() = Body::from(INDEX_JS);
+                    res.headers_mut().insert(
+                        "content-type",
+                        HeaderValue::from_static("application/javascript"),
+                    );
+                }
+                "index.css" => {
+                    *res.body_mut() = Body::from(INDEX_CSS);
+                    res.headers_mut()
+                        .insert("content-type", HeaderValue::from_static("text/css"));
+                }
+                "favicon.ico" => {
+                    *res.body_mut() = Body::from(FAVICON_ICO);
+                    res.headers_mut()
+                        .insert("content-type", HeaderValue::from_static("image/x-icon"));
+                }
+                _ => {
+                    return Ok(false);
+                }
+            }
+            res.headers_mut().insert(
+                "cache-control",
+                HeaderValue::from_static("max-age=2592000, public"),
+            );
+            Ok(true)
         } else {
-            *res.body_mut() = Body::from(FAVICON_ICO);
-            res.headers_mut()
-                .insert("content-type", HeaderValue::from_static("image/x-icon"));
+            Ok(false)
         }
-        Ok(())
     }
 
     async fn handle_send_file(
@@ -701,17 +723,21 @@ impl Server {
             dir_exists: exist,
         };
         let data = serde_json::to_string(&data).unwrap();
+        let asset_js = format!("{}index.js", self.assets_prefix);
+        let asset_css = format!("{}index.css", self.assets_prefix);
+        let asset_ico = format!("{}favicon.ico", self.assets_prefix);
         let output = INDEX_HTML.replace(
             "__SLOT__",
             &format!(
                 r#"
-<style>{}</style>
+<link rel="icon" type="image/x-icon" href="{}">
+<link rel="stylesheet" href="{}">
 <script>
-const DATA = 
-{}
-{}</script>
+DATA = {}
+</script>
+<script src="{}"></script>
 "#,
-                INDEX_CSS, data, INDEX_JS
+                asset_ico, asset_css, data, asset_js
             ),
         );
         res.headers_mut()
