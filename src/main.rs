@@ -1,5 +1,6 @@
 mod args;
 mod auth;
+mod logger;
 mod server;
 mod streamer;
 mod tls;
@@ -12,9 +13,8 @@ use crate::args::{matches, Args};
 use crate::server::{Request, Server};
 use crate::tls::{TlsAcceptor, TlsStream};
 
-use std::io::Write;
 use std::net::{IpAddr, SocketAddr, TcpListener as StdTcpListener};
-use std::{env, sync::Arc};
+use std::sync::Arc;
 
 use futures::future::join_all;
 use tokio::net::TcpListener;
@@ -32,16 +32,7 @@ async fn main() {
 }
 
 async fn run() -> BoxResult<()> {
-    if env::var("RUST_LOG").is_err() {
-        env::set_var("RUST_LOG", "info")
-    }
-    env_logger::builder()
-        .format(|buf, record| {
-            let timestamp = buf.timestamp_millis();
-            writeln!(buf, "[{} {}] {}", timestamp, record.level(), record.args())
-        })
-        .init();
-
+    logger::init().map_err(|e| format!("Failed to init logger, {}", e))?;
     let args = Args::parse(matches())?;
     let args = Arc::new(args);
     let handles = serve(args.clone())?;

@@ -36,7 +36,6 @@ fn path_prefix_propfind(
 #[case("index.html")]
 fn serve_single_file(tmpdir: TempDir, port: u16, #[case] file: &str) -> Result<(), Error> {
     let mut child = Command::cargo_bin("dufs")?
-        .env("RUST_LOG", "false")
         .arg(tmpdir.path().join(file))
         .arg("-p")
         .arg(port.to_string())
