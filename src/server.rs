@@ -692,7 +692,7 @@ impl Server {
         paths.sort_unstable();
         let href = format!("/{}", normalize_path(path.strip_prefix(&self.args.path)?));
         let data = IndexData {
-            href: href.clone(),
+            href,
             uri_prefix: self.args.uri_prefix.clone(),
             paths,
             allow_upload: self.args.allow_upload,
@@ -705,14 +705,13 @@ impl Server {
             "__SLOT__",
             &format!(
                 r#"
-<title>Index of {} - Dufs</title>
 <style>{}</style>
 <script>
 const DATA = 
 {}
 {}</script>
 "#,
-                href, INDEX_CSS, data, INDEX_JS
+                INDEX_CSS, data, INDEX_JS
             ),
         );
         res.headers_mut()
