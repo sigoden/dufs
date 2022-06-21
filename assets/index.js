@@ -64,14 +64,16 @@ class Uploader {
 
   upload() {
     const { file, idx, name } = this;
-    let url = getUrl(name);
+    const url = getUrl(name);
+    const encodedUrl = encodedStr(url);
+    const encodedName = encodedStr(name);
     $uploadersTable.insertAdjacentHTML("beforeend", `
   <tr id="upload${idx}" class="uploader">
     <td class="path cell-icon">
       ${getSvg(file.path_type)}
     </td>
     <td class="path cell-name">
-      <a href="${url}">${name}</a>
+      <a href="${encodedUrl}">${encodedName}</a>
     </td>
     <td class="cell-status upload-status" id="uploadStatus${idx}"></td>
   </tr>`);
@@ -141,12 +143,14 @@ function addBreadcrumb(href, uri_prefix) {
       }
       path += encodeURI(name);
     }
+    const encodedPath = encodedStr(path);
+    const encodedName = encodedStr(name);
     if (i === 0) {
-      $breadcrumb.insertAdjacentHTML("beforeend", `<a href="${path}"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M6.5 14.5v-3.505c0-.245.25-.495.5-.495h2c.25 0 .5.25.5.5v3.5a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5v-7a.5.5 0 0 0-.146-.354L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.293L8.354 1.146a.5.5 0 0 0-.708 0l-6 6A.5.5 0 0 0 1.5 7.5v7a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5z"/></svg></a>`);
+      $breadcrumb.insertAdjacentHTML("beforeend", `<a href="${encodedPath}"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M6.5 14.5v-3.505c0-.245.25-.495.5-.495h2c.25 0 .5.25.5.5v3.5a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5v-7a.5.5 0 0 0-.146-.354L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.293L8.354 1.146a.5.5 0 0 0-.708 0l-6 6A.5.5 0 0 0 1.5 7.5v7a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5z"/></svg></a>`);
     } else if (i === len - 1) {
-      $breadcrumb.insertAdjacentHTML("beforeend", `<b>${name}</b>`);
+      $breadcrumb.insertAdjacentHTML("beforeend", `<b>${encodedName}</b>`);
     } else {
-      $breadcrumb.insertAdjacentHTML("beforeend", `<a href="${path}">${name}</a>`);
+      $breadcrumb.insertAdjacentHTML("beforeend", `<a href="${encodedPath}">${encodedName}</a>`);
     }
     if (i !== len - 1) {
       $breadcrumb.insertAdjacentHTML("beforeend", `<span class="separator">/</span>`);
@@ -160,28 +164,31 @@ function addBreadcrumb(href, uri_prefix) {
  * @param {number} index 
  */
 function addPath(file, index) {
+  const encodedName = encodedStr(file.name);
   let url = getUrl(file.name)
+  let encodedUrl = encodedStr(url);
   let actionDelete = "";
   let actionDownload = "";
   if (file.path_type.endsWith("Dir")) {
     url += "/";
+    encodedUrl += "/";
     actionDownload = `
     <div class="action-btn">
-      <a href="${url}?zip" title="Download folder as a .zip file">
+      <a href="${encodedUrl}?zip" title="Download folder as a .zip file">
         <svg width="16" height="16" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
       </a>
     </div>`;
   } else {
     actionDownload = `
     <div class="action-btn" >
-      <a href="${url}" title="Download file" download>
+      <a href="${encodedUrl}" title="Download file" download>
         <svg width="16" height="16" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
       </a>
     </div>`;
   }
   if (DATA.allow_delete) {
     actionDelete = `
-    <div onclick="deletePath(${index})" class="action-btn" id="deleteBtn${index}" title="Delete ${file.name}">
+    <div onclick="deletePath(${index})" class="action-btn" id="deleteBtn${index}" title="Delete ${encodedName}">
       <svg width="16" height="16" fill="currentColor"viewBox="0 0 16 16"><path d="M6.854 7.146a.5.5 0 1 0-.708.708L7.293 9l-1.147 1.146a.5.5 0 0 0 .708.708L8 9.707l1.146 1.147a.5.5 0 0 0 .708-.708L8.707 9l1.147-1.146a.5.5 0 0 0-.708-.708L8 8.293 6.854 7.146z"/><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/></svg>
     </div>`;
   }
@@ -197,7 +204,7 @@ function addPath(file, index) {
     ${getSvg(file.path_type)}
   </td>
   <td class="path cell-name">
-    <a href="${url}" title="${file.name}">${file.name}</a>
+    <a href="${encodedUrl}">${encodedName}</a>
   </td>
   <td class="cell-mtime">${formatMtime(file.mtime)}</td>
   <td class="cell-size">${formatSize(file.size).join(" ")}</td>
@@ -333,7 +340,14 @@ function formatPercent(precent) {
   }
 }
 
+function encodedStr(rawStr) {
+  return rawStr.replace(/[\u00A0-\u9999<>\&]/g, function(i) {
+    return '&#'+i.charCodeAt(0)+';';
+  });
+}
+
 function ready() {
+  document.title = `Index of ${DATA.href} - Dufs`;
   $pathsTable = document.querySelector(".paths-table")
   $pathsTableBody = document.querySelector(".paths-table tbody");
   $uploadersTable = document.querySelector(".uploaders-table");
