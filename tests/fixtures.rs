@@ -13,21 +13,7 @@ pub type Error = Box<dyn std::error::Error>;
 
 /// File names for testing purpose
 #[allow(dead_code)]
-pub static FILES: &[&str] = &[
-    "test.txt",
-    "test.html",
-    "index.html",
-    "test.mkv",
-    #[cfg(not(windows))]
-    "test \" \' & < >.csv",
-    "😀.data",
-    "⎙.mp4",
-    "#[]{}()@!$&'`+,;= %20.test",
-    #[cfg(unix)]
-    ":?#[]{}<>()@!$&'`|*+,;= %20.test",
-    #[cfg(not(windows))]
-    "foo\\bar.test",
-];
+pub static FILES: &[&str] = &["test.txt", "test.html", "index.html", "😀.bin"];
 
 /// Directory names for testing diretory don't exist
 #[allow(dead_code)]
@@ -40,10 +26,6 @@ pub static DIR_NO_INDEX: &str = "dir-no-index/";
 /// Directory names for testing purpose
 #[allow(dead_code)]
 pub static DIRECTORIES: &[&str] = &["dira/", "dirb/", "dirc/", DIR_NO_INDEX];
-
-/// Name of a deeply nested file
-#[allow(dead_code)]
-pub static DEEPLY_NESTED_FILE: &str = "very/deeply/nested/test.rs";
 
 /// Test fixture which creates a temporary directory with a few files and directories inside.
 /// The directories also contain files.
@@ -70,10 +52,6 @@ pub fn tmpdir() -> TempDir {
     }
 
     tmpdir
-        .child(&DEEPLY_NESTED_FILE)
-        .write_str("File in a deeply nested directory.")
-        .expect("Couldn't write to file");
-    tmpdir
 }
 
 /// Get a free port.
@@ -96,7 +74,6 @@ where
     let tmpdir = tmpdir();
     let child = Command::cargo_bin("dufs")
         .expect("Couldn't find test binary")
-        .env("RUST_LOG", "false")
         .arg(tmpdir.path())
         .arg("-p")
         .arg(port.to_string())
@@ -124,7 +101,6 @@ where
     let tmpdir = tmpdir();
     let child = Command::cargo_bin("dufs")
         .expect("Couldn't find test binary")
-        .env("RUST_LOG", "false")
         .arg(tmpdir.path())
         .arg("-p")
         .arg(port.to_string())

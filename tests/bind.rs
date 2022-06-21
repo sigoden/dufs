@@ -6,14 +6,13 @@ use assert_cmd::prelude::*;
 use assert_fs::fixture::TempDir;
 use regex::Regex;
 use rstest::rstest;
-use std::io::{BufRead, BufReader};
+use std::io::Read;
 use std::process::{Command, Stdio};
 
 #[rstest]
 #[case(&["-b", "20.205.243.166"])]
 fn bind_fails(tmpdir: TempDir, port: u16, #[case] args: &[&str]) -> Result<(), Error> {
     Command::cargo_bin("dufs")?
-        .env("RUST_LOG", "false")
         .arg(tmpdir.path())
         .arg("-p")
         .arg(port.to_string())
@@ -51,7 +50,6 @@ fn bind_ipv4_ipv6(
 #[case(&["--path-prefix", "/prefix"])]
 fn validate_printed_urls(tmpdir: TempDir, port: u16, #[case] args: &[&str]) -> Result<(), Error> {
     let mut child = Command::cargo_bin("dufs")?
-        .env("RUST_LOG", "false")
         .arg(tmpdir.path())
         .arg("-p")
         .arg(port.to_string())
@@ -61,22 +59,23 @@ fn validate_printed_urls(tmpdir: TempDir, port: u16, #[case] args: &[&str]) -> R
 
     wait_for_port(port);
 
-    // WARN assumes urls list is terminated by an empty line
-    let url_lines = BufReader::new(child.stdout.take().unwrap())
+    let stdout = child.stdout.as_mut().expect("Failed to get stdout");
+    let mut buf = [0; 1000];
+    let buf_len = stdout.read(&mut buf)?;
+    let output = std::str::from_utf8(&buf[0..buf_len])?;
+    let url_lines = output
         .lines()
-        .map(|line| line.expect("Error reading stdout"))
         .take_while(|line| !line.is_empty()) /* non-empty lines */
-        .collect::<Vec<_>>();
-    let url_lines = url_lines.join("\n");
+        .collect::<Vec<_>>()
+        .join("\n");
 
     let urls = Regex::new(r"http://[a-zA-Z0-9\.\[\]:/]+")
         .unwrap()
         .captures_iter(url_lines.as_str())
-        .map(|caps| caps.get(0).unwrap().as_str())
+        .filter_map(|caps| caps.get(0).map(|v| v.as_str()))
         .collect::<Vec<_>>();
 
     assert!(!urls.is_empty());
-
     for url in urls {
         reqwest::blocking::get(url)?.error_for_status()?;
     }
