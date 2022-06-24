@@ -52,6 +52,7 @@ OPTIONS:
     -b, --bind <addr>...         Specify bind address
     -p, --port <port>            Specify port to listen on [default: 5000]
         --path-prefix <path>     Specify an path prefix
+        --hidden <names>         Comma-separated list of names to hide from directory listings
     -a, --auth <rule>...         Add auth for path
         --auth-method <value>    Select auth method [default: digest] [possible values: basic, digest]
     -A, --allow-all              Allow all operations
@@ -61,7 +62,7 @@ OPTIONS:
         --allow-symlink          Allow symlink to files/folders outside root directory
         --enable-cors            Enable CORS, sets `Access-Control-Allow-Origin: *`
         --render-index           Serve index.html when requesting a directory, returns 404 if not found index.html
-        --render-try-index       Serve index.html when requesting a directory, returns file listing if not found index.html
+        --render-try-index       Serve index.html when requesting a directory, returns directory listing if not found index.html
         --render-spa             Serve SPA(Single Page Application)
         --tls-cert <path>        Path to an SSL/TLS certificate to serve with HTTPS
         --tls-key <path>         Path to the SSL/TLS certificate's private key
@@ -123,6 +124,12 @@ Listen on a specific port
 
 ```
 dufs -p 80
+```
+
+Hide folders from directory listing
+
+```
+dufs --hidden .git,.DS_Store
 ```
 
 Use https

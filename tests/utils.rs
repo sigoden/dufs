@@ -2,9 +2,9 @@ use serde_json::Value;
 use std::collections::HashSet;
 
 #[macro_export]
-macro_rules! assert_index_resp {
+macro_rules! assert_resp_paths {
     ($resp:ident) => {
-        assert_index_resp!($resp, self::fixtures::FILES)
+        assert_resp_paths!($resp, self::fixtures::FILES)
     };
     ($resp:ident, $files:expr) => {
         assert_eq!($resp.status(), 200);

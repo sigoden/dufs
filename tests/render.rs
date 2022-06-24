@@ -1,7 +1,7 @@
 mod fixtures;
 mod utils;
 
-use fixtures::{server, Error, TestServer, DIR_NO_FOUND, DIR_NO_INDEX};
+use fixtures::{server, Error, TestServer, DIR_NO_FOUND, DIR_NO_INDEX, FILES};
 use rstest::rstest;
 
 #[rstest]
@@ -30,12 +30,12 @@ fn render_try_index(#[with(&["--render-try-index"])] server: TestServer) -> Resu
 #[rstest]
 fn render_try_index2(#[with(&["--render-try-index"])] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(format!("{}{}", server.url(), DIR_NO_INDEX))?;
-    let files: Vec<&str> = self::fixtures::FILES
+    let files: Vec<&str> = FILES
         .iter()
         .filter(|v| **v != "index.html")
         .cloned()
         .collect();
-    assert_index_resp!(resp, files);
+    assert_resp_paths!(resp, files);
     Ok(())
 }
 

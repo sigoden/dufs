@@ -59,3 +59,35 @@ fn asset_ico(server: TestServer) -> Result<(), Error> {
     assert_eq!(resp.headers().get("content-type").unwrap(), "image/x-icon");
     Ok(())
 }
+
+#[rstest]
+fn assets_with_prefix(#[with(&["--path-prefix", "xyz"])] server: TestServer) -> Result<(), Error> {
+    let ver = env!("CARGO_PKG_VERSION");
+    let resp = reqwest::blocking::get(format!("{}xyz/", server.url()))?;
+    let index_js = format!("/xyz/__dufs_v{}_index.js", ver);
+    let index_css = format!("/xyz/__dufs_v{}_index.css", ver);
+    let favicon_ico = format!("/xyz/__dufs_v{}_favicon.ico", ver);
+    let text = resp.text()?;
+    assert!(text.contains(&format!(r#"href="{}""#, index_css)));
+    assert!(text.contains(&format!(r#"href="{}""#, favicon_ico)));
+    assert!(text.contains(&format!(r#"src="{}""#, index_js)));
+    Ok(())
+}
+
+#[rstest]
+fn asset_js_with_prefix(
+    #[with(&["--path-prefix", "xyz"])] server: TestServer,
+) -> Result<(), Error> {
+    let url = format!(
+        "{}xyz/__dufs_v{}_index.js",
+        server.url(),
+        env!("CARGO_PKG_VERSION")
+    );
+    let resp = reqwest::blocking::get(url)?;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(
+        resp.headers().get("content-type").unwrap(),
+        "application/javascript"
+    );
+    Ok(())
+}

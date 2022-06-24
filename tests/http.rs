@@ -7,7 +7,7 @@ use rstest::rstest;
 #[rstest]
 fn get_dir(server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(server.url())?;
-    assert_index_resp!(resp);
+    assert_resp_paths!(resp);
     Ok(())
 }
 
@@ -69,7 +69,7 @@ fn get_dir_search(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let paths = utils::retrive_index_paths(&resp.text()?);
     assert!(!paths.is_empty());
     for p in paths {
-        assert!(p.contains(&"test.html"));
+        assert!(p.contains("test.html"));
     }
     Ok(())
 }
@@ -81,7 +81,7 @@ fn get_dir_search2(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let paths = utils::retrive_index_paths(&resp.text()?);
     assert!(!paths.is_empty());
     for p in paths {
-        assert!(p.contains(&"😀.bin"));
+        assert!(p.contains("😀.bin"));
     }
     Ok(())
 }

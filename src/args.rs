@@ -49,6 +49,12 @@ fn app() -> Command<'static> {
                 .help("Specify an path prefix"),
         )
         .arg(
+            Arg::new("hidden")
+                .long("hidden")
+                .help("Comma-separated list of names to hide from directory listings")
+                .value_name("names"),
+        )
+        .arg(
             Arg::new("auth")
                 .short('a')
                 .long("auth")
@@ -104,7 +110,7 @@ fn app() -> Command<'static> {
         .arg(
             Arg::new("render-try-index")
                 .long("render-try-index")
-                .help("Serve index.html when requesting a directory, returns file listing if not found index.html"),
+                .help("Serve index.html when requesting a directory, returns directory listing if not found index.html"),
         )
         .arg(
             Arg::new("render-spa")
@@ -137,6 +143,7 @@ pub struct Args {
     pub path_is_file: bool,
     pub path_prefix: String,
     pub uri_prefix: String,
+    pub hidden: String,
     pub auth_method: AuthMethod,
     pub auth: AccessControl,
     pub allow_upload: bool,
@@ -173,6 +180,10 @@ impl Args {
         } else {
             format!("/{}/", &path_prefix)
         };
+        let hidden: String = matches
+            .value_of("hidden")
+            .map(|v| format!(",{},", v))
+            .unwrap_or_default();
         let enable_cors = matches.is_present("enable-cors");
         let auth: Vec<&str> = matches
             .values_of("auth")
@@ -206,6 +217,7 @@ impl Args {
             path_is_file,
             path_prefix,
             uri_prefix,
+            hidden,
             auth_method,
             auth,
             enable_cors,

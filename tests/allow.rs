@@ -67,7 +67,7 @@ fn allow_search(#[with(&["--allow-search"])] server: TestServer) -> Result<(), E
     let paths = utils::retrive_index_paths(&resp.text()?);
     assert!(!paths.is_empty());
     for p in paths {
-        assert!(p.contains(&"test.html"));
+        assert!(p.contains("test.html"));
     }
     Ok(())
 }

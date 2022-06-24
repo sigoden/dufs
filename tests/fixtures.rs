@@ -23,9 +23,13 @@ pub static DIR_NO_FOUND: &str = "dir-no-found/";
 #[allow(dead_code)]
 pub static DIR_NO_INDEX: &str = "dir-no-index/";
 
+/// Directory names for testing hidden
+#[allow(dead_code)]
+pub static DIR_GIT: &str = ".git/";
+
 /// Directory names for testing purpose
 #[allow(dead_code)]
-pub static DIRECTORIES: &[&str] = &["dira/", "dirb/", "dirc/", DIR_NO_INDEX];
+pub static DIRECTORIES: &[&str] = &["dira/", "dirb/", "dirc/", DIR_NO_INDEX, DIR_GIT];
 
 /// Test fixture which creates a temporary directory with a few files and directories inside.
 /// The directories also contain files.

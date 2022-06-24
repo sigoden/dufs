@@ -1,9 +1,9 @@
 use crate::streamer::Streamer;
-use crate::utils::{decode_uri, encode_uri};
+use crate::utils::{decode_uri, encode_uri, get_file_name, try_get_file_name};
 use crate::{Args, BoxResult};
+use async_walkdir::{Filtering, WalkDir};
 use xml::escape::escape_str_pcdata;
 
-use async_walkdir::WalkDir;
 use async_zip::write::{EntryOptions, ZipFileWriter};
 use async_zip::Compression;
 use chrono::{TimeZone, Utc};
@@ -162,7 +162,8 @@ impl Server {
                         self.handle_zip_dir(path, head_only, &mut res).await?;
                     } else if allow_search && query.starts_with("q=") {
                         let q = decode_uri(&query[2..]).unwrap_or_default();
-                        self.handle_query_dir(path, &q, head_only, &mut res).await?;
+                        self.handle_search_dir(path, &q, head_only, &mut res)
+                            .await?;
                     } else {
                         self.handle_ls_dir(path, true, head_only, &mut res).await?;
                     }
@@ -322,28 +323,39 @@ impl Server {
         self.send_index(path, paths, exist, head_only, res)
     }
 
-    async fn handle_query_dir(
+    async fn handle_search_dir(
         &self,
         path: &Path,
-        query: &str,
+        search: &str,
         head_only: bool,
         res: &mut Response,
     ) -> BoxResult<()> {
         let mut paths: Vec<PathItem> = vec![];
-        let mut walkdir = WalkDir::new(path);
-        while let Some(entry) = walkdir.next().await {
-            if let Ok(entry) = entry {
-                if !entry
-                    .file_name()
-                    .to_string_lossy()
+        let hidden = self.args.hidden.to_string();
+        let search = search.to_string();
+        let mut walkdir = WalkDir::new(path).filter(move |entry| {
+            let hidden_cloned = hidden.clone();
+            let search_cloned = search.clone();
+            async move {
+                let entry_path = entry.path();
+                let base_name = get_file_name(&entry_path);
+                if is_hidden(&hidden_cloned, base_name) {
+                    return Filtering::IgnoreDir;
+                }
+                if !base_name
                     .to_lowercase()
-                    .contains(&query.to_lowercase())
+                    .contains(&search_cloned.to_lowercase())
                 {
-                    continue;
+                    return Filtering::Ignore;
                 }
                 if fs::symlink_metadata(entry.path()).await.is_err() {
-                    continue;
+                    return Filtering::Ignore;
                 }
+                Filtering::Continue
+            }
+        });
+        while let Some(entry) = walkdir.next().await {
+            if let Ok(entry) = entry {
                 if let Ok(Some(item)) = self.to_pathitem(entry.path(), path.to_path_buf()).await {
                     paths.push(item);
                 }
@@ -359,7 +371,7 @@ impl Server {
         res: &mut Response,
     ) -> BoxResult<()> {
         let (mut writer, reader) = tokio::io::duplex(BUF_SIZE);
-        let filename = get_file_name(path)?;
+        let filename = try_get_file_name(path)?;
         res.headers_mut().insert(
             CONTENT_DISPOSITION,
             HeaderValue::from_str(&format!(
@@ -374,8 +386,9 @@ impl Server {
             return Ok(());
         }
         let path = path.to_owned();
+        let hidden = self.args.hidden.clone();
         tokio::spawn(async move {
-            if let Err(e) = zip_dir(&mut writer, &path).await {
+            if let Err(e) = zip_dir(&mut writer, &path, &hidden).await {
                 error!("Failed to zip {}, {}", path.display(), e);
             }
         });
@@ -513,7 +526,7 @@ impl Server {
             );
         }
 
-        let filename = get_file_name(path)?;
+        let filename = try_get_file_name(path)?;
         res.headers_mut().insert(
             CONTENT_DISPOSITION,
             HeaderValue::from_str(&format!("inline; filename=\"{}\"", encode_uri(filename),))
@@ -802,6 +815,10 @@ DATA = {}
         let mut rd = fs::read_dir(entry_path).await?;
         while let Ok(Some(entry)) = rd.next_entry().await {
             let entry_path = entry.path();
+            let base_name = get_file_name(&entry_path);
+            if is_hidden(&self.args.hidden, base_name) {
+                continue;
+            }
             if let Ok(Some(item)) = self.to_pathitem(entry_path.as_path(), base_path).await {
                 paths.push(item);
             }
@@ -910,11 +927,8 @@ impl PathItem {
             ),
         }
     }
-    fn base_name(&self) -> &str {
-        Path::new(&self.name)
-            .file_name()
-            .and_then(|v| v.to_str())
-            .unwrap_or_default()
+    pub fn base_name(&self) -> &str {
+        self.name.split('/').last().unwrap_or_default()
     }
 }
 
@@ -978,19 +992,30 @@ fn res_multistatus(res: &mut Response, content: &str) {
     ));
 }
 
-async fn zip_dir<W: AsyncWrite + Unpin>(writer: &mut W, dir: &Path) -> BoxResult<()> {
+async fn zip_dir<W: AsyncWrite + Unpin>(writer: &mut W, dir: &Path, hidden: &str) -> BoxResult<()> {
     let mut writer = ZipFileWriter::new(writer);
-    let mut walkdir = WalkDir::new(dir);
+    let hidden = hidden.to_string();
+    let mut walkdir = WalkDir::new(dir).filter(move |entry| {
+        let hidden = hidden.clone();
+        async move {
+            let entry_path = entry.path();
+            let base_name = get_file_name(&entry_path);
+            if is_hidden(&hidden, base_name) {
+                return Filtering::IgnoreDir;
+            }
+            let meta = match fs::symlink_metadata(entry.path()).await {
+                Ok(meta) => meta,
+                Err(_) => return Filtering::Ignore,
+            };
+            if !meta.is_file() {
+                return Filtering::Ignore;
+            }
+            Filtering::Continue
+        }
+    });
     while let Some(entry) = walkdir.next().await {
         if let Ok(entry) = entry {
             let entry_path = entry.path();
-            let meta = match fs::symlink_metadata(entry.path()).await {
-                Ok(meta) => meta,
-                Err(_) => continue,
-            };
-            if !meta.is_file() {
-                continue;
-            }
             let filename = match entry_path.strip_prefix(dir).ok().and_then(|v| v.to_str()) {
                 Some(v) => v,
                 None => continue,
@@ -1061,10 +1086,8 @@ fn status_no_content(res: &mut Response) {
     *res.status_mut() = StatusCode::NO_CONTENT;
 }
 
-fn get_file_name(path: &Path) -> BoxResult<&str> {
-    path.file_name()
-        .and_then(|v| v.to_str())
-        .ok_or_else(|| format!("Failed to get file name of `{}`", path.display()).into())
+fn is_hidden(hidden: &str, file_name: &str) -> bool {
+    hidden.contains(&format!(",{},", file_name))
 }
 
 fn set_webdav_headers(res: &mut Response) {
