@@ -22,7 +22,7 @@ fn tls_works(#[case] server: TestServer) -> Result<(), Error> {
         .danger_accept_invalid_certs(true)
         .build()?;
     let resp = client.get(server.url()).send()?.error_for_status()?;
-    assert_index_resp!(resp);
+    assert_resp_paths!(resp);
     Ok(())
 }
 

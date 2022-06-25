@@ -10,7 +10,7 @@ use std::process::{Command, Stdio};
 #[rstest]
 fn path_prefix_index(#[with(&["--path-prefix", "xyz"])] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(format!("{}{}", server.url(), "xyz"))?;
-    assert_index_resp!(resp);
+    assert_resp_paths!(resp);
     Ok(())
 }
 
