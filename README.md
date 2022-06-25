@@ -52,7 +52,7 @@ OPTIONS:
     -b, --bind <addr>...         Specify bind address
     -p, --port <port>            Specify port to listen on [default: 5000]
         --path-prefix <path>     Specify an path prefix
-        --hidden <names>         Comma-separated list of names to hide from directory listings
+        --hidden <value>         Hide directories from directory listings, separated by `,`
     -a, --auth <rule>...         Add auth for path
         --auth-method <value>    Select auth method [default: digest] [possible values: basic, digest]
     -A, --allow-all              Allow all operations
@@ -126,7 +126,7 @@ Listen on a specific port
 dufs -p 80
 ```
 
-Hide folders from directory listing
+Hide directories from directory listings
 
 ```
 dufs --hidden .git,.DS_Store
@@ -168,23 +168,23 @@ curl -X DELETE http://127.0.0.1:5000/path-to-file
 Dufs supports path level access control. You can control who can do what on which path with `--auth`/`-a`.
 
 ```
-dufs -a <path>@<readwrite>[@<readonly>]
+dufs -a <path>@<readwrite>[@<readonly>|@*]
 ```
 
-- `<path>`: Path to protected
-- `<readwrite>`: Account with readwrite permission, required
-- `<readonly>`: Account with readonly permission, optional
+- `<path>`: Protected url path
+- `<readwrite>`: Account with upload/delete/view/download permission, required
+- `<readonly>`: Account with view/download permission, optional
 
-> `<readonly>` can be `*` means `<path>` is public, everyone can access/download it.
+> `*` means `<path>` is public, everyone can view/download it.
 
 For example:
 
 ```
 dufs -a /@admin:pass@* -a /ui@designer:pass1 -A
 ```
-- All files/folders are public to access/download.
-- Account `admin:pass` can upload/delete/download any files/folders.
-- Account `designer:pass1` can upload/delete/download any files/folders in the `ui` folder.
+- All files/folders are public to view/download.
+- Account `admin:pass` can upload/delete/view/download any files/folders.
+- Account `designer:pass1` can upload/delete/view/download any files/folders in the `ui` folder.
 
 ## License
 

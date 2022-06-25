@@ -51,8 +51,8 @@ fn app() -> Command<'static> {
         .arg(
             Arg::new("hidden")
                 .long("hidden")
-                .help("Comma-separated list of names to hide from directory listings")
-                .value_name("names"),
+                .help("Hide directories from directory listings, separated by `,`")
+                .value_name("value"),
         )
         .arg(
             Arg::new("auth")
