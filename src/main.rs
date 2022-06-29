@@ -136,7 +136,7 @@ fn print_listening(args: Arc<Args>) -> BoxResult<()> {
         }
     }
     if ipv4 || ipv6 {
-        let ifaces = get_if_addrs::get_if_addrs()
+        let ifaces = if_addrs::get_if_addrs()
             .map_err(|e| format!("Failed to get local interface addresses: {}", e))?;
         for iface in ifaces.into_iter() {
             let local_ip = iface.ip();
