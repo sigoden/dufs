@@ -2,7 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.22.0] - 2022-06-25
+## [0.23.0] - 2022-06-29
+
+### Features
+
+- Use feature to conditional support tls ([#77](https://github.com/sigoden/dufs/issues/77))
+
+### Ci
+
+- Support more platforms ([#76](https://github.com/sigoden/dufs/issues/76))
+
+## [0.22.0] - 2022-06-26
 
 ### Features
 
