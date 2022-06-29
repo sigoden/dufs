@@ -7,7 +7,7 @@ on:
 
 jobs:
   release:
-    name: Publish to Github Reelases
+    name: Publish to Github Relases
     outputs:
       rc: ${{ steps.check-tag.outputs.rc }}
 
