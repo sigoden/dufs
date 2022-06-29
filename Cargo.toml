@@ -48,7 +48,7 @@ reqwest = { version = "0.11", features = ["blocking", "multipart", "rustls-tls"]
 assert_fs = "1"
 select = "0.5"
 port_check = "0.1"
-rstest = "0.13"
+rstest = "0.15"
 regex = "1"
 pretty_assertions = "1.2"
 url = "2"
