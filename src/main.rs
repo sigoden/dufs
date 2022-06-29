@@ -3,6 +3,7 @@ mod auth;
 mod logger;
 mod server;
 mod streamer;
+#[cfg(feature = "tls")]
 mod tls;
 mod utils;
 
@@ -11,6 +12,7 @@ extern crate log;
 
 use crate::args::{matches, Args};
 use crate::server::{Request, Server};
+#[cfg(feature = "tls")]
 use crate::tls::{TlsAcceptor, TlsStream};
 
 use std::net::{IpAddr, SocketAddr, TcpListener as StdTcpListener};
@@ -22,6 +24,7 @@ use tokio::task::JoinHandle;
 
 use hyper::server::conn::{AddrIncoming, AddrStream};
 use hyper::service::{make_service_fn, service_fn};
+#[cfg(feature = "tls")]
 use rustls::ServerConfig;
 
 pub type BoxResult<T> = Result<T, Box<dyn std::error::Error>>;
@@ -70,12 +73,13 @@ fn serve(args: Arc<Args>) -> BoxResult<Vec<JoinHandle<Result<(), hyper::Error>>>
                 }))
             }
         };
-        match args.tls.clone() {
+        match args.tls.as_ref() {
+            #[cfg(feature = "tls")]
             Some((certs, key)) => {
                 let config = ServerConfig::builder()
                     .with_safe_defaults()
                     .with_no_client_auth()
-                    .with_single_cert(certs, key)?;
+                    .with_single_cert(certs.clone(), key.clone())?;
                 let config = Arc::new(config);
                 let accepter = TlsAcceptor::new(config.clone(), incoming);
                 let new_service = make_service_fn(move |socket: &TlsStream| {
@@ -84,6 +88,10 @@ fn serve(args: Arc<Args>) -> BoxResult<Vec<JoinHandle<Result<(), hyper::Error>>>
                 });
                 let server = tokio::spawn(hyper::Server::builder(accepter).serve(new_service));
                 handles.push(server);
+            }
+            #[cfg(not(feature = "tls"))]
+            Some(_) => {
+                unreachable!()
             }
             None => {
                 let new_service = make_service_fn(move |socket: &AddrStream| {

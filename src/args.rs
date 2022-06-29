@@ -1,4 +1,5 @@
 use clap::{AppSettings, Arg, ArgMatches, Command};
+#[cfg(feature = "tls")]
 use rustls::{Certificate, PrivateKey};
 use std::env;
 use std::net::IpAddr;
@@ -6,11 +7,12 @@ use std::path::{Path, PathBuf};
 
 use crate::auth::AccessControl;
 use crate::auth::AuthMethod;
+#[cfg(feature = "tls")]
 use crate::tls::{load_certs, load_private_key};
 use crate::BoxResult;
 
 fn app() -> Command<'static> {
-    Command::new(env!("CARGO_CRATE_NAME"))
+    let app = Command::new(env!("CARGO_CRATE_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_AUTHORS"))
         .about(concat!(
@@ -116,7 +118,10 @@ fn app() -> Command<'static> {
             Arg::new("render-spa")
                 .long("render-spa")
                 .help("Serve SPA(Single Page Application)"),
-        )
+        );
+
+    #[cfg(feature = "tls")]
+    let app = app
         .arg(
             Arg::new("tls-cert")
                 .long("tls-cert")
@@ -128,7 +133,9 @@ fn app() -> Command<'static> {
                 .long("tls-key")
                 .value_name("path")
                 .help("Path to the SSL/TLS certificate's private key"),
-        )
+        );
+
+    app
 }
 
 pub fn matches() -> ArgMatches {
@@ -154,7 +161,10 @@ pub struct Args {
     pub render_spa: bool,
     pub render_try_index: bool,
     pub enable_cors: bool,
+    #[cfg(feature = "tls")]
     pub tls: Option<(Vec<Certificate>, PrivateKey)>,
+    #[cfg(not(feature = "tls"))]
+    pub tls: Option<()>,
 }
 
 impl Args {
@@ -201,6 +211,7 @@ impl Args {
         let render_index = matches.is_present("render-index");
         let render_try_index = matches.is_present("render-try-index");
         let render_spa = matches.is_present("render-spa");
+        #[cfg(feature = "tls")]
         let tls = match (matches.value_of("tls-cert"), matches.value_of("tls-key")) {
             (Some(certs_file), Some(key_file)) => {
                 let certs = load_certs(certs_file)?;
@@ -209,6 +220,8 @@ impl Args {
             }
             _ => None,
         };
+        #[cfg(not(feature = "tls"))]
+        let tls = None;
 
         Ok(Args {
             addrs,
