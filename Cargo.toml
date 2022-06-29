@@ -14,7 +14,6 @@ keywords = ["static", "file", "server", "webdav", "cli"]
 clap = { version = "3", default-features = false, features = ["std", "wrap_help"] }
 chrono = "0.4"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util", "signal"]}
-tokio-rustls = "0.23"
 tokio-util = { version = "0.7",  features = ["io-util"] }
 hyper = { version = "0.14", features = ["http1", "server", "tcp", "stream"] }
 percent-encoding = "2.1"
@@ -27,8 +26,9 @@ async-walkdir = "0.2"
 headers = "0.3"
 mime_guess = "2.0"
 get_if_addrs = "0.5"
-rustls = { version = "0.20", default-features = false, features = ["tls12"] }
-rustls-pemfile = "1"
+rustls = { version = "0.20", default-features = false, features = ["tls12"], optional = true }
+rustls-pemfile = { version = "1", optional = true }
+tokio-rustls = { version = "0.23", optional = true }
 md5 = "0.7"
 lazy_static = "1.4"
 uuid = { version = "1.1", features = ["v4", "fast-rng"] }
@@ -37,6 +37,10 @@ xml-rs = "0.8"
 log = "0.4"
 socket2 = "0.4"
 async-stream = "0.3"
+
+[features]
+default = ["tls"]
+tls = ["rustls", "rustls-pemfile", "tokio-rustls"]
 
 [dev-dependencies]
 assert_cmd = "2"
