@@ -26,10 +26,6 @@ jobs:
           os: windows-latest
           use-cross: true
           cargo-flags: "--no-default-features"
-        - target: aarch64-linux-android
-          os: ubuntu-latest
-          use-cross: true
-          cargo-flags: ""
         - target: x86_64-apple-darwin
           os: macos-latest
           cargo-flags: ""
