@@ -25,7 +25,7 @@ jobs:
         - target: aarch64-pc-windows-msvc
           os: windows-latest
           use-cross: true
-          cargo-flags: ""
+          cargo-flags: "--no-default-features"
         - target: aarch64-linux-android
           os: ubuntu-latest
           use-cross: true
