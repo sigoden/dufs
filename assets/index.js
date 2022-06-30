@@ -32,31 +32,17 @@ let $emptyFolder;
 
 class Uploader {
   /**
-   * @type number
+   * 
+   * @param {File} file 
+   * @param {string[]} dirs 
    */
-  idx;
-  /**
-   * @type File
-   */
-  file;
-  /**
-   * @type string
-   */
-  name;
-  /**
-   * @type Element
-   */
-  $uploadStatus;
-  /**
-   * @type number
-   */
-  uploaded = 0;
-  /**
-   * @type number
-   */
-  lastUptime = 0;
-  static globalIdx = 0;
   constructor(file, dirs) {
+    /**
+     * @type Element
+     */
+    this.$uploadStatus = null
+    this.uploaded = 0;
+    this.lastUptime = 0;
     this.name = [...dirs, file.name].join("/");
     this.idx = Uploader.globalIdx++;
     this.file = file;
@@ -70,7 +56,7 @@ class Uploader {
     $uploadersTable.insertAdjacentHTML("beforeend", `
   <tr id="upload${idx}" class="uploader">
     <td class="path cell-icon">
-      ${getSvg(file.path_type)}
+      ${getSvg()}
     </td>
     <td class="path cell-name">
       <a href="${encodedUrl}">${encodedName}</a>
@@ -119,6 +105,8 @@ class Uploader {
     this.$uploadStatus.innerHTML = `✗`;
   }
 }
+
+Uploader.globalIdx = 0;
 
 /**
  * Add breadcrumb
@@ -292,12 +280,12 @@ function getSvg(path_type) {
   switch (path_type) {
     case "Dir":
       return `<svg height="16" viewBox="0 0 14 16" width="14"><path fill-rule="evenodd" d="M13 4H7V3c0-.66-.31-1-1-1H1c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1V5c0-.55-.45-1-1-1zM6 4H1V3h5v1z"></path></svg>`;
-    case "File":
-      return `<svg height="16" viewBox="0 0 12 16" width="12"><path fill-rule="evenodd" d="M6 5H2V4h4v1zM2 8h7V7H2v1zm0 2h7V9H2v1zm0 2h7v-1H2v1zm10-7.5V14c0 .55-.45 1-1 1H1c-.55 0-1-.45-1-1V2c0-.55.45-1 1-1h7.5L12 4.5zM11 5L8 2H1v12h10V5z"></path></svg>`;
+    case "SymlinkFile":
+      return `<svg height="16" viewBox="0 0 12 16" width="12"><path fill-rule="evenodd" d="M8.5 1H1c-.55 0-1 .45-1 1v12c0 .55.45 1 1 1h10c.55 0 1-.45 1-1V4.5L8.5 1zM11 14H1V2h7l3 3v9zM6 4.5l4 3-4 3v-2c-.98-.02-1.84.22-2.55.7-.71.48-1.19 1.25-1.45 2.3.02-1.64.39-2.88 1.13-3.73.73-.84 1.69-1.27 2.88-1.27v-2H6z"></path></svg>`;
     case "SymlinkDir":
       return `<svg height="16" viewBox="0 0 14 16" width="14"><path fill-rule="evenodd" d="M13 4H7V3c0-.66-.31-1-1-1H1c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1V5c0-.55-.45-1-1-1zM1 3h5v1H1V3zm6 9v-2c-.98-.02-1.84.22-2.55.7-.71.48-1.19 1.25-1.45 2.3.02-1.64.39-2.88 1.13-3.73C4.86 8.43 5.82 8 7.01 8V6l4 3-4 3H7z"></path></svg>`;
     default:
-      return `<svg height="16" viewBox="0 0 12 16" width="12"><path fill-rule="evenodd" d="M8.5 1H1c-.55 0-1 .45-1 1v12c0 .55.45 1 1 1h10c.55 0 1-.45 1-1V4.5L8.5 1zM11 14H1V2h7l3 3v9zM6 4.5l4 3-4 3v-2c-.98-.02-1.84.22-2.55.7-.71.48-1.19 1.25-1.45 2.3.02-1.64.39-2.88 1.13-3.73.73-.84 1.69-1.27 2.88-1.27v-2H6z"></path></svg>`;
+      return `<svg height="16" viewBox="0 0 12 16" width="12"><path fill-rule="evenodd" d="M6 5H2V4h4v1zM2 8h7V7H2v1zm0 2h7V9H2v1zm0 2h7v-1H2v1zm10-7.5V14c0 .55-.45 1-1 1H1c-.55 0-1-.45-1-1V2c0-.55.45-1 1-1h7.5L12 4.5zM11 5L8 2H1v12h10V5z"></path></svg>`;
   }
 }
 
