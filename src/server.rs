@@ -1020,7 +1020,8 @@ async fn zip_dir<W: AsyncWrite + Unpin>(writer: &mut W, dir: &Path, hidden: &str
                 Some(v) => v,
                 None => continue,
             };
-            let entry_options = EntryOptions::new(filename.to_owned(), Compression::Deflate);
+            let entry_options = EntryOptions::new(filename.to_owned(), Compression::Deflate)
+                .unix_permissions(0o644);
             let mut file = File::open(&entry_path).await?;
             let mut file_writer = writer.write_entry_stream(entry_options).await?;
             io::copy(&mut file, &mut file_writer).await?;
