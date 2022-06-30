@@ -180,11 +180,11 @@ dufs -a <path>@<readwrite>[@<readonly>|@*]
 For example:
 
 ```
-dufs -a /@admin:pass@* -a /ui@designer:pass1 -A
+dufs -a /@admin:pass1@* -a /ui@designer:pass2 -A
 ```
 - All files/folders are public to view/download.
-- Account `admin:pass` can upload/delete/view/download any files/folders.
-- Account `designer:pass1` can upload/delete/view/download any files/folders in the `ui` folder.
+- Account `admin:pass1` can upload/delete/view/download any files/folders.
+- Account `designer:pass2` can upload/delete/view/download any files/folders in the `ui` folder.
 
 ## License
 

@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.23.1] - 2022-06-30
+
+### Bug Fixes
+
+- Safari layout and compatibility ([#83](https://github.com/sigoden/dufs/issues/83))
+- Permissions of unzipped files ([#84](https://github.com/sigoden/dufs/issues/84))
+
 ## [0.23.0] - 2022-06-29
 
 ### Features
