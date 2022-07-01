@@ -78,7 +78,7 @@ Serve current working directory
 dufs
 ```
 
-Explicitly allow all operations including upload/delete 
+Explicitly allow all operations including download/upload/delete
 
 ```
 dufs -A
@@ -90,13 +90,13 @@ Only allow upload operation
 dufs --allow-upload
 ```
 
-Serve a directory
+Serve a specific directory
 
 ```
 dufs Downloads
 ```
 
-Serve a single file
+Serve a specific file
 
 ```
 dufs linux-distro.iso
@@ -108,7 +108,7 @@ Serve index.html when requesting a directory
 dufs --render-index
 ```
 
-Serve SPA(Single Page Application)
+Serve single-page application like react
 
 ```
 dufs --render-spa
