@@ -16,6 +16,7 @@ use crate::server::{Request, Server};
 use crate::tls::{TlsAcceptor, TlsStream};
 
 use std::net::{IpAddr, SocketAddr, TcpListener as StdTcpListener};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use futures::future::join_all;
@@ -38,7 +39,8 @@ async fn run() -> BoxResult<()> {
     logger::init().map_err(|e| format!("Failed to init logger, {}", e))?;
     let args = Args::parse(matches())?;
     let args = Arc::new(args);
-    let handles = serve(args.clone())?;
+    let running = Arc::new(AtomicBool::new(true));
+    let handles = serve(args.clone(), running.clone())?;
     print_listening(args)?;
 
     tokio::select! {
@@ -51,13 +53,17 @@ async fn run() -> BoxResult<()> {
             Ok(())
         },
         _ = shutdown_signal() => {
+            running.store(false, Ordering::SeqCst);
             Ok(())
         },
     }
 }
 
-fn serve(args: Arc<Args>) -> BoxResult<Vec<JoinHandle<Result<(), hyper::Error>>>> {
-    let inner = Arc::new(Server::new(args.clone()));
+fn serve(
+    args: Arc<Args>,
+    running: Arc<AtomicBool>,
+) -> BoxResult<Vec<JoinHandle<Result<(), hyper::Error>>>> {
+    let inner = Arc::new(Server::new(args.clone(), running));
     let mut handles = vec![];
     let port = args.port;
     for ip in args.addrs.iter() {
