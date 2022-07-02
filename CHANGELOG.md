@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.24.0] - 2022-07-02
+
+### Bug Fixes
+
+- Unexpect stack overflow when searching a lot ([#87](https://github.com/sigoden/dufs/issues/87))
+
+### Features
+
+- Allow search with --render-try-index ([#88](https://github.com/sigoden/dufs/issues/88))
+
 ## [0.23.1] - 2022-06-30
 
 ### Bug Fixes
