@@ -155,9 +155,18 @@ impl Server {
         match method {
             Method::GET | Method::HEAD => {
                 if is_dir {
-                    if render_try_index && query == "zip" {
-                        self.handle_zip_dir(path, head_only, &mut res).await?;
-                    } else if render_index || render_spa || render_try_index {
+                    if render_try_index {
+                        if query == "zip" {
+                            self.handle_zip_dir(path, head_only, &mut res).await?;
+                        } else if allow_search && query.starts_with("q=") {
+                            let q = decode_uri(&query[2..]).unwrap_or_default();
+                            self.handle_search_dir(path, &q, head_only, &mut res)
+                                .await?;
+                        } else {
+                            self.handle_render_index(path, headers, head_only, &mut res)
+                                .await?;
+                        }
+                    } else if render_index || render_spa {
                         self.handle_render_index(path, headers, head_only, &mut res)
                             .await?;
                     } else if query == "zip" {
