@@ -51,6 +51,18 @@ fn render_try_index3(#[with(&["--render-try-index"])] server: TestServer) -> Res
 }
 
 #[rstest]
+#[case(server(&["--render-try-index"] as &[&str]), false)]
+#[case(server(&["--render-try-index", "--allow-search"] as &[&str]), true)]
+fn render_try_index4(#[case] server: TestServer, #[case] searched: bool) -> Result<(), Error> {
+    let resp = reqwest::blocking::get(format!("{}{}?q={}", server.url(), DIR_NO_INDEX, "😀.bin"))?;
+    assert_eq!(resp.status(), 200);
+    let paths = utils::retrive_index_paths(&resp.text()?);
+    assert!(!paths.is_empty());
+    assert_eq!(paths.iter().all(|v| v.contains("😀.bin")), searched);
+    Ok(())
+}
+
+#[rstest]
 fn render_spa(#[with(&["--render-spa"])] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(server.url())?;
     let text = resp.text()?;
