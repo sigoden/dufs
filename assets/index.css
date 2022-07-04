@@ -59,6 +59,15 @@ body {
   height: 1.1rem;
 }
 
+.toolbox .control {
+  cursor: pointer;
+  padding-left: 0.25em;
+}
+
+.upload-file input {
+  display: none;
+}
+
 .searchbar {
   display: flex;
   flex-wrap: nowrap;
@@ -88,15 +97,6 @@ body {
   color: #9a9a9a;
   padding: 3px 3px;
   cursor: pointer;
-}
-
-.upload-control {
-  cursor: pointer;
-  padding-left: 0.25em;
-}
-
-.upload-control input {
-  display: none;
 }
 
 .upload-status span {

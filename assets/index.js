@@ -29,6 +29,10 @@ let $uploadersTable;
  * @type Element
  */
 let $emptyFolder;
+/**
+ * @type Element
+ */
+let $newFolder;
 
 class Uploader {
   /**
@@ -255,6 +259,24 @@ function dropzone() {
     });
 }
 
+/**
+ * Create a folder
+ * @param {string} name 
+ */
+async function createFolder(name) {
+  const url = getUrl(name);
+  try {
+    const res = await fetch(url, {
+      method: "MKCOL",
+    });
+    if (res.status >= 200 && res.status < 300) {
+      location.href = url;
+    }
+  } catch (err) {
+    alert(`Cannot create folder \`${name}\`, ${err.message}`);
+  }
+}
+
 async function addFileEntries(entries, dirs) {
   for (const entry of entries) {
     if (entry.isFile) {
@@ -340,6 +362,7 @@ function ready() {
   $pathsTableBody = document.querySelector(".paths-table tbody");
   $uploadersTable = document.querySelector(".uploaders-table");
   $emptyFolder = document.querySelector(".empty-folder");
+  $newFolder = document.querySelector(".new-folder");
 
   if (DATA.allow_search) {
     document.querySelector(".searchbar").classList.remove("hidden");
@@ -365,7 +388,12 @@ function ready() {
   }
   if (DATA.allow_upload) {
     dropzone();
-    document.querySelector(".upload-control").classList.remove("hidden");
+    $newFolder.classList.remove("hidden");
+    $newFolder.addEventListener("click", () => {
+      const name = prompt("Enter name of new folder");
+      if (name) createFolder(name);
+    });
+    document.querySelector(".upload-file").classList.remove("hidden");
     document.getElementById("file").addEventListener("change", e => {
       const files = e.target.files;
       for (let file of files) {
