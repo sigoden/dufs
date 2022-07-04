@@ -95,3 +95,29 @@ fn auth_basic(
     assert_eq!(resp.status(), 201);
     Ok(())
 }
+
+#[rstest]
+fn auth_webdav_move(
+    #[with(&["--auth", "/@user:pass@*", "--auth", "/dira@user3:pass3", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    let origin_url = format!("{}dira/test.html", server.url());
+    let new_url = format!("{}test2.html", server.url());
+    let resp = fetch!(b"MOVE", &origin_url)
+        .header("Destination", &new_url)
+        .send_with_digest_auth("user3", "pass3")?;
+    assert_eq!(resp.status(), 403);
+    Ok(())
+}
+
+#[rstest]
+fn auth_webdav_copy(
+    #[with(&["--auth", "/@user:pass@*", "--auth", "/dira@user3:pass3", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    let origin_url = format!("{}dira/test.html", server.url());
+    let new_url = format!("{}test2.html", server.url());
+    let resp = fetch!(b"COPY", &origin_url)
+        .header("Destination", &new_url)
+        .send_with_digest_auth("user3", "pass3")?;
+    assert_eq!(resp.status(), 403);
+    Ok(())
+}
