@@ -161,6 +161,7 @@ function addPath(file, index) {
   let encodedUrl = encodedStr(url);
   let actionDelete = "";
   let actionDownload = "";
+  let actionMove = "";
   if (file.path_type.endsWith("Dir")) {
     url += "/";
     encodedUrl += "/";
@@ -179,14 +180,19 @@ function addPath(file, index) {
     </div>`;
   }
   if (DATA.allow_delete) {
+    actionMove = `
+    <div onclick="movePath(${index})" class="action-btn" id="moveBtn${index}" title="Move to new path">
+      <svg width="16" height="16" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1.5 1.5A.5.5 0 0 0 1 2v4.8a2.5 2.5 0 0 0 2.5 2.5h9.793l-3.347 3.346a.5.5 0 0 0 .708.708l4.2-4.2a.5.5 0 0 0 0-.708l-4-4a.5.5 0 0 0-.708.708L13.293 8.3H3.5A1.5 1.5 0 0 1 2 6.8V2a.5.5 0 0 0-.5-.5z"/></svg>
+    </div>`;
     actionDelete = `
-    <div onclick="deletePath(${index})" class="action-btn" id="deleteBtn${index}" title="Delete ${encodedName}">
+    <div onclick="deletePath(${index})" class="action-btn" id="deleteBtn${index}" title="Delete">
       <svg width="16" height="16" fill="currentColor"viewBox="0 0 16 16"><path d="M6.854 7.146a.5.5 0 1 0-.708.708L7.293 9l-1.147 1.146a.5.5 0 0 0 .708.708L8 9.707l1.146 1.147a.5.5 0 0 0 .708-.708L8.707 9l1.147-1.146a.5.5 0 0 0-.708-.708L8 8.293 6.854 7.146z"/><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/></svg>
     </div>`;
   }
   let actionCell = `
   <td class="cell-actions">
     ${actionDownload}
+    ${actionMove}
     ${actionDelete}
   </td>`
 
@@ -205,7 +211,7 @@ function addPath(file, index) {
 }
 
 /**
- * Delete pathitem
+ * Delete path
  * @param {number} index 
  * @returns 
  */
@@ -232,6 +238,38 @@ async function deletePath(index) {
     }
   } catch (err) {
     alert(`Cannot delete \`${file.name}\`, ${err.message}`);
+  }
+}
+
+
+/**
+ * Move path
+ * @param {number} index 
+ * @returns 
+ */
+async function movePath(index) {
+  const file = DATA.paths[index];
+  if (!file) return;
+
+  let filePath = decodeURI(getUrl(file.name));
+  let newPath = prompt("Enter new path", filePath)
+  if (!newPath || filePath === newPath) return;
+  const encodedNewPath = encodeURI(newPath);
+  
+  try {
+    const res = await fetch(getUrl(file.name), {
+      method: "MOVE",
+      headers: {
+        "Destination": encodedNewPath,
+      }
+    });
+    if (res.status >= 200 && res.status < 300) {
+      location.href = encodedNewPath.split("/").slice(0, -1).join("/")
+    } else {
+      throw new Error(await res.text())
+    }
+  } catch (err) {
+    alert(`Cannot move \`${filePath}\` to \`${newPath}\`, ${err.message}`);
   }
 }
 
