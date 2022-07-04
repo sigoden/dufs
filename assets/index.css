@@ -132,7 +132,7 @@ body {
 }
 
 .paths-table .cell-actions {
-  width: 60px;
+  width: 75px;
   display: flex;
   padding-left: 0.6em;
 }
@@ -175,7 +175,7 @@ body {
 }
 
 .action-btn {
-  padding-left: 0.4em;
+  padding-right: 0.3em;
 }
 
 .uploaders-table {
