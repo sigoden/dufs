@@ -239,7 +239,7 @@ impl Server {
                     } else if is_miss {
                         status_not_found(&mut res);
                     } else {
-                        self.handle_copy(path, headers, &mut res).await?
+                        self.handle_copy(path, &req, &mut res).await?
                     }
                 }
                 "MOVE" => {
@@ -248,7 +248,7 @@ impl Server {
                     } else if is_miss {
                         status_not_found(&mut res);
                     } else {
-                        self.handle_move(path, headers, &mut res).await?
+                        self.handle_move(path, &req, &mut res).await?
                     }
                 }
                 "LOCK" => {
@@ -643,16 +643,10 @@ impl Server {
         Ok(())
     }
 
-    async fn handle_copy(
-        &self,
-        path: &Path,
-        headers: &HeaderMap<HeaderValue>,
-        res: &mut Response,
-    ) -> BoxResult<()> {
-        let dest = match self.extract_dest(headers) {
+    async fn handle_copy(&self, path: &Path, req: &Request, res: &mut Response) -> BoxResult<()> {
+        let dest = match self.extract_dest(req, res) {
             Some(dest) => dest,
             None => {
-                *res.status_mut() = StatusCode::BAD_REQUEST;
                 return Ok(());
             }
         };
@@ -671,16 +665,10 @@ impl Server {
         Ok(())
     }
 
-    async fn handle_move(
-        &self,
-        path: &Path,
-        headers: &HeaderMap<HeaderValue>,
-        res: &mut Response,
-    ) -> BoxResult<()> {
-        let dest = match self.extract_dest(headers) {
+    async fn handle_move(&self, path: &Path, req: &Request, res: &mut Response) -> BoxResult<()> {
+        let dest = match self.extract_dest(req, res) {
             Some(dest) => dest,
             None => {
-                *res.status_mut() = StatusCode::BAD_REQUEST;
                 return Ok(());
             }
         };
@@ -799,10 +787,43 @@ DATA = {}
             .unwrap_or_default()
     }
 
-    fn extract_dest(&self, headers: &HeaderMap<HeaderValue>) -> Option<PathBuf> {
+    fn extract_dest(&self, req: &Request, res: &mut Response) -> Option<PathBuf> {
+        let headers = req.headers();
+        let dest_path = match self.extract_destination_header(headers) {
+            Some(dest) => dest,
+            None => {
+                *res.status_mut() = StatusCode::BAD_REQUEST;
+                return None;
+            }
+        };
+        let authorization = headers.get(AUTHORIZATION);
+        let guard_type = self.args.auth.guard(
+            &dest_path,
+            req.method(),
+            authorization,
+            self.args.auth_method.clone(),
+        );
+        if guard_type.is_reject() {
+            *res.status_mut() = StatusCode::FORBIDDEN;
+            *res.body_mut() = Body::from("Forbidden");
+            return None;
+        }
+
+        let dest = match self.extract_path(&dest_path) {
+            Some(dest) => dest,
+            None => {
+                *res.status_mut() = StatusCode::BAD_REQUEST;
+                return None;
+            }
+        };
+
+        Some(dest)
+    }
+
+    fn extract_destination_header(&self, headers: &HeaderMap<HeaderValue>) -> Option<String> {
         let dest = headers.get("Destination")?.to_str().ok()?;
         let uri: Uri = dest.parse().ok()?;
-        self.extract_path(uri.path())
+        Some(uri.path().to_string())
     }
 
     fn extract_path(&self, path: &str) -> Option<PathBuf> {
