@@ -90,9 +90,9 @@ class Uploader {
   }
 
   progress(event) {
-    let now = Date.now();
-    let speed = (event.loaded - this.uploaded) / (now - this.lastUptime) * 1000;
-    let [speedValue, speedUnit] = formatSize(speed);
+    const now = Date.now();
+    const speed = (event.loaded - this.uploaded) / (now - this.lastUptime) * 1000;
+    const [speedValue, speedUnit] = formatSize(speed);
     const speedText = `${speedValue}${speedUnit.toLowerCase()}/s`;
     const progress = formatPercent((event.loaded / event.total) * 100);
     const duration = formatDuration((event.total - event.loaded) / speed)
@@ -180,10 +180,12 @@ function addPath(file, index) {
     </div>`;
   }
   if (DATA.allow_delete) {
-    actionMove = `
-    <div onclick="movePath(${index})" class="action-btn" id="moveBtn${index}" title="Move to new path">
-      <svg width="16" height="16" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1.5 1.5A.5.5 0 0 0 1 2v4.8a2.5 2.5 0 0 0 2.5 2.5h9.793l-3.347 3.346a.5.5 0 0 0 .708.708l4.2-4.2a.5.5 0 0 0 0-.708l-4-4a.5.5 0 0 0-.708.708L13.293 8.3H3.5A1.5 1.5 0 0 1 2 6.8V2a.5.5 0 0 0-.5-.5z"/></svg>
-    </div>`;
+    if (DATA.allow_upload) {
+      actionMove = `
+      <div onclick="movePath(${index})" class="action-btn" id="moveBtn${index}" title="Move to new path">
+        <svg width="16" height="16" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1.5 1.5A.5.5 0 0 0 1 2v4.8a2.5 2.5 0 0 0 2.5 2.5h9.793l-3.347 3.346a.5.5 0 0 0 .708.708l4.2-4.2a.5.5 0 0 0 0-.708l-4-4a.5.5 0 0 0-.708.708L13.293 8.3H3.5A1.5 1.5 0 0 1 2 6.8V2a.5.5 0 0 0-.5-.5z"/></svg>
+      </div>`;
+    }
     actionDelete = `
     <div onclick="deletePath(${index})" class="action-btn" id="deleteBtn${index}" title="Delete">
       <svg width="16" height="16" fill="currentColor"viewBox="0 0 16 16"><path d="M6.854 7.146a.5.5 0 1 0-.708.708L7.293 9l-1.147 1.146a.5.5 0 0 0 .708.708L8 9.707l1.146 1.147a.5.5 0 0 0 .708-.708L8.707 9l1.147-1.146a.5.5 0 0 0-.708-.708L8 8.293 6.854 7.146z"/><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/></svg>
@@ -251,20 +253,26 @@ async function movePath(index) {
   const file = DATA.paths[index];
   if (!file) return;
 
-  let filePath = decodeURI(getUrl(file.name));
-  let newPath = prompt("Enter new path", filePath)
+  const fileUrl = getUrl(file.name);
+  const fileUrlObj = new URL(fileUrl)
+
+  const prefix = DATA.uri_prefix.slice(0, -1);
+    
+  const filePath = decodeURIComponent(fileUrlObj.pathname.slice(prefix.length));
+
+  const newPath = prompt("Enter new path", filePath)
   if (!newPath || filePath === newPath) return;
-  const encodedNewPath = encodeURI(newPath);
-  
+  const newFileUrl = fileUrlObj.origin + prefix + encodeURI(newPath);
+
   try {
     const res = await fetch(getUrl(file.name), {
       method: "MOVE",
       headers: {
-        "Destination": encodedNewPath,
+        "Destination": newFileUrl,
       }
     });
     if (res.status >= 200 && res.status < 300) {
-      location.href = encodedNewPath.split("/").slice(0, -1).join("/")
+      location.href = newFileUrl.split("/").slice(0, -1).join("/")
     } else {
       throw new Error(await res.text())
     }
@@ -374,9 +382,9 @@ function formatSize(size) {
 
 function formatDuration(seconds) {
   seconds = Math.ceil(seconds);
-  let h = Math.floor(seconds / 3600);
-  let m = Math.floor((seconds - h * 3600) / 60);
-  let s = seconds - h * 3600 - m * 60
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds - h * 3600) / 60);
+  const s = seconds - h * 3600 - m * 60
   return `${padZero(h, 2)}:${padZero(m, 2)}:${padZero(s, 2)}`;
 }
 
@@ -426,11 +434,13 @@ function ready() {
   }
   if (DATA.allow_upload) {
     dropzone();
-    $newFolder.classList.remove("hidden");
-    $newFolder.addEventListener("click", () => {
-      const name = prompt("Enter name of new folder");
-      if (name) createFolder(name);
-    });
+    if (DATA.allow_delete) {
+      $newFolder.classList.remove("hidden");
+      $newFolder.addEventListener("click", () => {
+        const name = prompt("Enter name of new folder");
+        if (name) createFolder(name);
+      });
+    }
     document.querySelector(".upload-file").classList.remove("hidden");
     document.getElementById("file").addEventListener("change", e => {
       const files = e.target.files;
