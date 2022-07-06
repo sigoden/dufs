@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.25.0] - 2022-07-06
+
+### Features
+
+- Ui supports creating folder ([#91](https://github.com/sigoden/dufs/issues/91))
+- Ui supports move folder/file to new path ([#92](https://github.com/sigoden/dufs/issues/92))
+- Check permission on move/copy destination ([#93](https://github.com/sigoden/dufs/issues/93))
+- Add completions ([#97](https://github.com/sigoden/dufs/issues/97))
+- Limit the number of concurrent uploads ([#98](https://github.com/sigoden/dufs/issues/98))
+
 ## [0.24.0] - 2022-07-02
 
 ### Bug Fixes

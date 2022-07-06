@@ -5,7 +5,7 @@
 
 Dufs is a distinctive utility file server that supports static serving, uploading, searching, accessing control, webdav...
 
-![demo](https://user-images.githubusercontent.com/4012553/174486522-7af350e6-0195-4f4a-8480-d9464fc6452f.png)
+![demo](https://user-images.githubusercontent.com/4012553/177549931-130383ef-0480-4911-b9c2-0d9534a624b7.png)
 
 ## Features
 
@@ -64,6 +64,7 @@ OPTIONS:
         --render-index           Serve index.html when requesting a directory, returns 404 if not found index.html
         --render-try-index       Serve index.html when requesting a directory, returns directory listing if not found index.html
         --render-spa             Serve SPA(Single Page Application)
+        --completions <shell>    Print shell completion script for <shell> [possible values: bash, elvish, fish, powershell, zsh]
         --tls-cert <path>        Path to an SSL/TLS certificate to serve with HTTPS
         --tls-key <path>         Path to the SSL/TLS certificate's private key
     -h, --help                   Print help information
