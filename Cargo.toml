@@ -12,6 +12,7 @@ keywords = ["static", "file", "server", "webdav", "cli"]
 
 [dependencies]
 clap = { version = "3", default-features = false, features = ["std", "wrap_help"] }
+clap_complete = "3"
 chrono = "0.4"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util", "signal"]}
 tokio-util = { version = "0.7",  features = ["io-util"] }
