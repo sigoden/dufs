@@ -10,7 +10,7 @@ mod utils;
 #[macro_use]
 extern crate log;
 
-use crate::args::{matches, Args};
+use crate::args::{build_cli, print_completions, Args};
 use crate::server::{Request, Server};
 #[cfg(feature = "tls")]
 use crate::tls::{TlsAcceptor, TlsStream};
@@ -19,6 +19,7 @@ use std::net::{IpAddr, SocketAddr, TcpListener as StdTcpListener};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
+use clap_complete::Shell;
 use futures::future::join_all;
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
@@ -37,7 +38,14 @@ async fn main() {
 
 async fn run() -> BoxResult<()> {
     logger::init().map_err(|e| format!("Failed to init logger, {}", e))?;
-    let args = Args::parse(matches())?;
+    let cmd = build_cli();
+    let matches = cmd.get_matches();
+    if let Some(generator) = matches.get_one::<Shell>("completions") {
+        let mut cmd = build_cli();
+        print_completions(*generator, &mut cmd);
+        return Ok(());
+    }
+    let args = Args::parse(matches)?;
     let args = Arc::new(args);
     let running = Arc::new(AtomicBool::new(true));
     let handles = serve(args.clone(), running.clone())?;

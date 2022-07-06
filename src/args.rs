@@ -1,4 +1,5 @@
-use clap::{AppSettings, Arg, ArgMatches, Command};
+use clap::{value_parser, AppSettings, Arg, ArgMatches, Command};
+use clap_complete::{generate, Generator, Shell};
 #[cfg(feature = "tls")]
 use rustls::{Certificate, PrivateKey};
 use std::env;
@@ -11,7 +12,7 @@ use crate::auth::AuthMethod;
 use crate::tls::{load_certs, load_private_key};
 use crate::BoxResult;
 
-fn app() -> Command<'static> {
+pub fn build_cli() -> Command<'static> {
     let app = Command::new(env!("CARGO_CRATE_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_AUTHORS"))
@@ -118,6 +119,13 @@ fn app() -> Command<'static> {
             Arg::new("render-spa")
                 .long("render-spa")
                 .help("Serve SPA(Single Page Application)"),
+        )
+        .arg(
+            Arg::new("completions")
+                .long("completions")
+                .value_name("shell")
+                .value_parser(value_parser!(Shell))
+                .help("Print shell completion script for <shell>"),
         );
 
     #[cfg(feature = "tls")]
@@ -138,8 +146,8 @@ fn app() -> Command<'static> {
     app
 }
 
-pub fn matches() -> ArgMatches {
-    app().get_matches()
+pub fn print_completions<G: Generator>(gen: G, cmd: &mut Command) {
+    generate(gen, cmd, cmd.get_name().to_string(), &mut std::io::stdout());
 }
 
 #[derive(Debug)]
