@@ -53,7 +53,7 @@ class Uploader {
   }
 
   upload() {
-    const { file, idx, name } = this;
+    const { idx, name } = this;
     const url = getUrl(name);
     const encodedUrl = encodedStr(url);
     const encodedName = encodedStr(name);
@@ -70,8 +70,15 @@ class Uploader {
     $uploadersTable.classList.remove("hidden");
     $emptyFolder.classList.add("hidden");
     this.$uploadStatus = document.getElementById(`uploadStatus${idx}`);
-    this.lastUptime = Date.now();
+    this.$uploadStatus.innerHTML = '-';
+    Uploader.queues.push(this);
+    Uploader.runQueue();
+  }
 
+  ajax() {
+    Uploader.runings += 1;
+    const url = getUrl(this.name);
+    this.lastUptime = Date.now();
     const ajax = new XMLHttpRequest();
     ajax.upload.addEventListener("progress", e => this.progress(e), false);
     ajax.addEventListener("readystatechange", () => {
@@ -86,8 +93,9 @@ class Uploader {
     ajax.addEventListener("error", () => this.fail(), false);
     ajax.addEventListener("abort", () => this.fail(), false);
     ajax.open("PUT", url);
-    ajax.send(file);
+    ajax.send(this.file);
   }
+  
 
   progress(event) {
     const now = Date.now();
@@ -103,14 +111,33 @@ class Uploader {
 
   complete() {
     this.$uploadStatus.innerHTML = `✓`;
+    Uploader.runings -= 1;
+    Uploader.runQueue();
   }
 
   fail() {
     this.$uploadStatus.innerHTML = `✗`;
+    Uploader.runings -= 1;
+    Uploader.runQueue();
   }
 }
 
 Uploader.globalIdx = 0;
+
+Uploader.runings = 0;
+
+/**
+ * @type Uploader[]
+ */
+Uploader.queues = [];
+
+
+Uploader.runQueue = () => {
+  if (Uploader.runings > 2) return;
+  let uploader = Uploader.queues.shift();
+  if (!uploader) return;
+  uploader.ajax();
+}
 
 /**
  * Add breadcrumb
