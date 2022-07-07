@@ -49,7 +49,7 @@ pub fn build_cli() -> Command<'static> {
             Arg::new("path-prefix")
                 .long("path-prefix")
                 .value_name("path")
-                .help("Specify an path prefix"),
+                .help("Specify a path prefix"),
         )
         .arg(
             Arg::new("hidden")
