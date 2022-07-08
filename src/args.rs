@@ -10,6 +10,7 @@ use crate::auth::AccessControl;
 use crate::auth::AuthMethod;
 #[cfg(feature = "tls")]
 use crate::tls::{load_certs, load_private_key};
+use crate::utils::encode_uri;
 use crate::BoxResult;
 
 pub fn build_cli() -> Command<'static> {
@@ -196,7 +197,7 @@ impl Args {
         let uri_prefix = if path_prefix.is_empty() {
             "/".to_owned()
         } else {
-            format!("/{}/", &path_prefix)
+            format!("/{}/", &encode_uri(&path_prefix))
         };
         let hidden: String = matches
             .value_of("hidden")

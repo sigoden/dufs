@@ -45,15 +45,30 @@ const BUF_SIZE: usize = 65536;
 pub struct Server {
     args: Arc<Args>,
     assets_prefix: String,
+    single_file_req_paths: Vec<String>,
     running: Arc<AtomicBool>,
 }
 
 impl Server {
     pub fn new(args: Arc<Args>, running: Arc<AtomicBool>) -> Self {
         let assets_prefix = format!("{}__dufs_v{}_", args.uri_prefix, env!("CARGO_PKG_VERSION"));
+        let single_file_req_paths = if args.path_is_file {
+            vec![
+                args.uri_prefix.to_string(),
+                args.uri_prefix[0..args.uri_prefix.len() - 1].to_string(),
+                encode_uri(&format!(
+                    "{}{}",
+                    &args.uri_prefix,
+                    get_file_name(&args.path)
+                )),
+            ]
+        } else {
+            vec![]
+        };
         Self {
             args,
             running,
+            single_file_req_paths,
             assets_prefix,
         }
     }
@@ -118,8 +133,16 @@ impl Server {
         let head_only = method == Method::HEAD;
 
         if self.args.path_is_file {
-            self.handle_send_file(&self.args.path, headers, head_only, &mut res)
-                .await?;
+            if self
+                .single_file_req_paths
+                .iter()
+                .any(|v| v.as_str() == req_path)
+            {
+                self.handle_send_file(&self.args.path, headers, head_only, &mut res)
+                    .await?;
+            } else {
+                status_not_found(&mut res);
+            }
             return Ok(res);
         }
 
