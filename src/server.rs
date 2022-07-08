@@ -9,13 +9,13 @@ use async_zip::Compression;
 use chrono::{TimeZone, Utc};
 use futures::TryStreamExt;
 use headers::{
-    AcceptRanges, AccessControlAllowCredentials, AccessControlAllowHeaders,
-    AccessControlAllowOrigin, Connection, ContentLength, ContentType, ETag, HeaderMap,
-    HeaderMapExt, IfModifiedSince, IfNoneMatch, IfRange, LastModified, Range,
+    AcceptRanges, AccessControlAllowCredentials, AccessControlAllowOrigin, Connection,
+    ContentLength, ContentType, ETag, HeaderMap, HeaderMapExt, IfModifiedSince, IfNoneMatch,
+    IfRange, LastModified, Range,
 };
 use hyper::header::{
-    HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_RANGE,
-    CONTENT_TYPE, ORIGIN, RANGE, WWW_AUTHENTICATE,
+    HeaderValue, AUTHORIZATION, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE,
+    RANGE, WWW_AUTHENTICATE,
 };
 use hyper::{Body, Method, StatusCode, Uri};
 use serde::Serialize;
@@ -1008,11 +1008,19 @@ fn add_cors(res: &mut Response) {
         .typed_insert(AccessControlAllowOrigin::ANY);
     res.headers_mut()
         .typed_insert(AccessControlAllowCredentials);
-
-    res.headers_mut().typed_insert(
-        vec![RANGE, CONTENT_TYPE, ACCEPT, ORIGIN, WWW_AUTHENTICATE]
-            .into_iter()
-            .collect::<AccessControlAllowHeaders>(),
+    res.headers_mut().insert(
+        "Access-Control-Allow-Methods",
+        HeaderValue::from_static("GET,HEAD,PUT,OPTIONS,DELETE,PROPFIND,COPY,MOVE"),
+    );
+    res.headers_mut().insert(
+        "Access-Control-Allow-Headers",
+        HeaderValue::from_static("Authorization,Destination,Range"),
+    );
+    res.headers_mut().insert(
+        "Access-Control-Expose-Headers",
+        HeaderValue::from_static(
+            "WWW-Authenticate,Content-Range,Accept-Ranges,Content-Disposition",
+        ),
     );
 }
 
