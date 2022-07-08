@@ -30,7 +30,7 @@ cargo install dufs
 ### With docker
 
 ```
-docker run -v `pwd`:/data -p 5000:5000 --rm -it sigoden/dufs /data
+docker run -v `pwd`:/data -p 5000:5000 --rm -it sigoden/dufs /data -A
 ```
 
 ### Binaries on macOS, Linux, Windows
@@ -79,7 +79,7 @@ Serve current working directory
 dufs
 ```
 
-Explicitly allow all operations including download/upload/delete
+Allow all operations like upload/delete/search...
 
 ```
 dufs -A
@@ -97,22 +97,22 @@ Serve a specific directory
 dufs Downloads
 ```
 
-Serve a specific file
+Serve a single file
 
 ```
 dufs linux-distro.iso
 ```
 
-Serve index.html when requesting a directory
-
-```
-dufs --render-index
-```
-
-Serve single-page application like react
+Serve a single-page application like react/vue
 
 ```
 dufs --render-spa
+```
+
+Serve a static website with index.html
+
+```
+dufs --render-index
 ```
 
 Require username/password
@@ -141,6 +141,12 @@ dufs --tls-cert my.crt --tls-key my.key
 
 ## API
 
+Upload a file
+
+```
+curl -T path-to-file http://127.0.0.1:5000/new-path/path-to-file
+```
+
 Download a file
 ```
 curl http://127.0.0.1:5000/path-to-file
@@ -152,16 +158,10 @@ Download a folder as zip file
 curl -o path-to-folder.zip http://127.0.0.1:5000/path-to-folder?zip
 ```
 
-Upload a file
-
-```
-curl --upload-file path-to-file http://127.0.0.1:5000/path-to-file
-```
-
 Delete a file/folder
 
 ```
-curl -X DELETE http://127.0.0.1:5000/path-to-file
+curl -X DELETE http://127.0.0.1:5000/path-to-file-or-folder
 ```
 
 ## Access Control
