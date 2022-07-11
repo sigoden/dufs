@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.26.0] - 2022-07-08
+
+### Bug Fixes
+
+- Cors headers ([#100](https://github.com/sigoden/dufs/issues/100))
+
+### Features
+
+- Make --path-prefix works on serving single file ([#102](https://github.com/sigoden/dufs/issues/102))
+
 ## [0.25.0] - 2022-07-06
 
 ### Features
