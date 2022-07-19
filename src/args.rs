@@ -159,7 +159,7 @@ pub struct Args {
     pub path_is_file: bool,
     pub path_prefix: String,
     pub uri_prefix: String,
-    pub hidden: String,
+    pub hidden: Vec<String>,
     pub auth_method: AuthMethod,
     pub auth: AccessControl,
     pub allow_upload: bool,
@@ -199,9 +199,9 @@ impl Args {
         } else {
             format!("/{}/", &encode_uri(&path_prefix))
         };
-        let hidden: String = matches
+        let hidden: Vec<String> = matches
             .value_of("hidden")
-            .map(|v| format!(",{},", v))
+            .map(|v| v.split(',').map(|x| x.to_string()).collect())
             .unwrap_or_default();
         let enable_cors = matches.is_present("enable-cors");
         let auth: Vec<&str> = matches

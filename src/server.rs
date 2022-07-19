@@ -1,5 +1,5 @@
 use crate::streamer::Streamer;
-use crate::utils::{decode_uri, encode_uri, get_file_name, try_get_file_name};
+use crate::utils::{decode_uri, encode_uri, get_file_name, glob, try_get_file_name};
 use crate::{Args, BoxResult};
 use walkdir::WalkDir;
 use xml::escape::escape_str_pcdata;
@@ -366,7 +366,8 @@ impl Server {
     ) -> BoxResult<()> {
         let mut paths: Vec<PathItem> = vec![];
         let path_buf = path.to_path_buf();
-        let hidden = self.args.hidden.to_string();
+        let hidden = Arc::new(self.args.hidden.to_vec());
+        let hidden = hidden.clone();
         let running = self.running.clone();
         let search = search.to_lowercase();
         let search_paths = tokio::task::spawn_blocking(move || {
@@ -1065,12 +1066,12 @@ fn res_multistatus(res: &mut Response, content: &str) {
 async fn zip_dir<W: AsyncWrite + Unpin>(
     writer: &mut W,
     dir: &Path,
-    hidden: &str,
+    hidden: &[String],
     running: Arc<AtomicBool>,
 ) -> BoxResult<()> {
     let mut writer = ZipFileWriter::new(writer);
-    let hidden = Arc::new(hidden.to_string());
-    let hidden = hidden.to_string();
+    let hidden = Arc::new(hidden.to_vec());
+    let hidden = hidden.clone();
     let dir_path_buf = dir.to_path_buf();
     let zip_paths = tokio::task::spawn_blocking(move || {
         let mut it = WalkDir::new(&dir_path_buf).into_iter();
@@ -1170,8 +1171,8 @@ fn status_no_content(res: &mut Response) {
     *res.status_mut() = StatusCode::NO_CONTENT;
 }
 
-fn is_hidden(hidden: &str, file_name: &str) -> bool {
-    hidden.contains(&format!(",{},", file_name))
+fn is_hidden(hidden: &[String], file_name: &str) -> bool {
+    hidden.iter().any(|v| glob(v, file_name))
 }
 
 fn set_webdav_headers(res: &mut Response) {
