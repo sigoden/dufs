@@ -12,6 +12,7 @@ use crate::utils::encode_uri;
 use crate::BoxResult;
 
 const REALM: &str = "DUFS";
+const DIGEST_AUTH_TIMEOUT: u32 = 86400;
 
 lazy_static! {
     static ref NONCESTARTHASH: Context = {
@@ -317,8 +318,7 @@ fn validate_nonce(nonce: &[u8]) -> Result<bool, ()> {
                 h.consume(secs_nonce.to_be_bytes());
                 let h = format!("{:x}", h.compute());
                 if h[..26] == n[8..34] {
-                    return Ok(dur < 300); // from the last 5min
-                                          //Authentication-Info ?
+                    return Ok(dur < DIGEST_AUTH_TIMEOUT);
                 }
             }
         }
