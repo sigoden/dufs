@@ -2,7 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.26.0] - 2022-07-08
+## [0.27.0] - 2022-07-21
+
+### Features
+
+- Improve hidden to support glob ([#108](https://github.com/sigoden/dufs/issues/108))
+- Adjust digest auth timeout to 1day ([#110](https://github.com/sigoden/dufs/issues/110))
+
+## [0.26.0] - 2022-07-11
 
 ### Bug Fixes
 
