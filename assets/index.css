@@ -131,6 +131,10 @@ body {
   padding-left: 0.6em;
 }
 
+.paths-table tr:hover {
+  background-color: #fafafa;
+}
+
 .paths-table .cell-actions {
   width: 75px;
   display: flex;
