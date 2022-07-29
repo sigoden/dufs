@@ -55,7 +55,6 @@ class Uploader {
   upload() {
     const { idx, name } = this;
     const url = getUrl(name);
-    const encodedUrl = encodedStr(url);
     const encodedName = encodedStr(name);
     $uploadersTable.insertAdjacentHTML("beforeend", `
   <tr id="upload${idx}" class="uploader">
@@ -63,7 +62,7 @@ class Uploader {
       ${getSvg()}
     </td>
     <td class="path cell-name">
-      <a href="${encodedUrl}">${encodedName}</a>
+      <a href="${url}">${encodedName}</a>
     </td>
     <td class="cell-status upload-status" id="uploadStatus${idx}"></td>
   </tr>`);
@@ -160,16 +159,15 @@ function addBreadcrumb(href, uri_prefix) {
       if (!path.endsWith("/")) {
         path  += "/";
       }
-      path += encodeURI(name);
+      path += encodeURIComponent(name);
     }
-    const encodedPath = encodedStr(path);
     const encodedName = encodedStr(name);
     if (i === 0) {
-      $breadcrumb.insertAdjacentHTML("beforeend", `<a href="${encodedPath}"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M6.5 14.5v-3.505c0-.245.25-.495.5-.495h2c.25 0 .5.25.5.5v3.5a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5v-7a.5.5 0 0 0-.146-.354L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.293L8.354 1.146a.5.5 0 0 0-.708 0l-6 6A.5.5 0 0 0 1.5 7.5v7a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5z"/></svg></a>`);
+      $breadcrumb.insertAdjacentHTML("beforeend", `<a href="${path}"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M6.5 14.5v-3.505c0-.245.25-.495.5-.495h2c.25 0 .5.25.5.5v3.5a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5v-7a.5.5 0 0 0-.146-.354L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.293L8.354 1.146a.5.5 0 0 0-.708 0l-6 6A.5.5 0 0 0 1.5 7.5v7a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5z"/></svg></a>`);
     } else if (i === len - 1) {
       $breadcrumb.insertAdjacentHTML("beforeend", `<b>${encodedName}</b>`);
     } else {
-      $breadcrumb.insertAdjacentHTML("beforeend", `<a href="${encodedPath}">${encodedName}</a>`);
+      $breadcrumb.insertAdjacentHTML("beforeend", `<a href="${path}">${encodedName}</a>`);
     }
     if (i !== len - 1) {
       $breadcrumb.insertAdjacentHTML("beforeend", `<span class="separator">/</span>`);
@@ -185,23 +183,21 @@ function addBreadcrumb(href, uri_prefix) {
 function addPath(file, index) {
   const encodedName = encodedStr(file.name);
   let url = getUrl(file.name)
-  let encodedUrl = encodedStr(url);
   let actionDelete = "";
   let actionDownload = "";
   let actionMove = "";
   if (file.path_type.endsWith("Dir")) {
     url += "/";
-    encodedUrl += "/";
     actionDownload = `
     <div class="action-btn">
-      <a href="${encodedUrl}?zip" title="Download folder as a .zip file">
+      <a href="${url}?zip" title="Download folder as a .zip file">
         <svg width="16" height="16" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
       </a>
     </div>`;
   } else {
     actionDownload = `
     <div class="action-btn" >
-      <a href="${encodedUrl}" title="Download file" download>
+      <a href="${url}" title="Download file" download>
         <svg width="16" height="16" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
       </a>
     </div>`;
@@ -231,7 +227,7 @@ function addPath(file, index) {
     ${getSvg(file.path_type)}
   </td>
   <td class="path cell-name">
-    <a href="${encodedUrl}">${encodedName}</a>
+    <a href="${url}">${encodedName}</a>
   </td>
   <td class="cell-mtime">${formatMtime(file.mtime)}</td>
   <td class="cell-size">${formatSize(file.size).join(" ")}</td>
@@ -287,12 +283,14 @@ async function movePath(index) {
     
   const filePath = decodeURIComponent(fileUrlObj.pathname.slice(prefix.length));
 
-  const newPath = prompt("Enter new path", filePath)
-  if (!newPath || filePath === newPath) return;
-  const newFileUrl = fileUrlObj.origin + prefix + encodeURI(newPath);
+  let newPath = prompt("Enter new path", filePath)
+  if (!newPath) return;
+  if (!newPath.startsWith("/")) newPath = "/" + newPath;
+  if (filePath === newPath) return;
+  const newFileUrl = fileUrlObj.origin + prefix + newPath.split("/").map(encodeURIComponent).join("/");
 
   try {
-    const res = await fetch(getUrl(file.name), {
+    const res = await fetch(fileUrl, {
       method: "MOVE",
       headers: {
         "Destination": newFileUrl,
@@ -367,7 +365,7 @@ async function addFileEntries(entries, dirs) {
 function getUrl(name) {
     let url = location.href.split('?')[0];
     if (!url.endsWith("/")) url += "/";
-    url += encodeURI(name);
+    url += name.split("/").map(encodeURIComponent).join("/");
     return url;
 }
 
