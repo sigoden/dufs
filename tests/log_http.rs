@@ -52,7 +52,7 @@ fn log_remote_user(
 }
 
 #[rstest]
-#[case(&["--log-format"])]
+#[case(&["--log-format", ""])]
 fn no_log(tmpdir: TempDir, port: u16, #[case] args: &[&str]) -> Result<(), Error> {
     let mut child = Command::cargo_bin("dufs")?
         .arg(tmpdir.path())

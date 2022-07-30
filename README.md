@@ -66,7 +66,6 @@ OPTIONS:
         --render-spa             Serve SPA(Single Page Application)
         --tls-cert <path>        Path to an SSL/TLS certificate to serve with HTTPS
         --tls-key <path>         Path to the SSL/TLS certificate's private key
-        --no-log                 Don't log http information
         --log-format <format>    Customize http log format
         --completions <shell>    Print shell completion script for <shell> [possible values: bash, elvish, fish, powershell, zsh]
     -h, --help                   Print help information

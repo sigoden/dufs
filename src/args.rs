@@ -139,11 +139,6 @@ pub fn build_cli() -> Command<'static> {
         );
 
     app.arg(
-        Arg::new("no-log")
-            .long("no-log")
-            .help("Don't log http information"),
-    )
-    .arg(
         Arg::new("log-format")
             .long("log-format")
             .value_name("format")
