@@ -64,9 +64,11 @@ OPTIONS:
         --render-index           Serve index.html when requesting a directory, returns 404 if not found index.html
         --render-try-index       Serve index.html when requesting a directory, returns directory listing if not found index.html
         --render-spa             Serve SPA(Single Page Application)
-        --completions <shell>    Print shell completion script for <shell> [possible values: bash, elvish, fish, powershell, zsh]
         --tls-cert <path>        Path to an SSL/TLS certificate to serve with HTTPS
         --tls-key <path>         Path to the SSL/TLS certificate's private key
+        --no-log                 Don't log http information
+        --log-format <format>    Customize http log format
+        --completions <shell>    Print shell completion script for <shell> [possible values: bash, elvish, fish, powershell, zsh]
     -h, --help                   Print help information
     -V, --version                Print version information
 ```
@@ -186,6 +188,25 @@ dufs -a /@admin:pass1@* -a /ui@designer:pass2 -A
 - All files/folders are public to view/download.
 - Account `admin:pass1` can upload/delete/view/download any files/folders.
 - Account `designer:pass2` can upload/delete/view/download any files/folders in the `ui` folder.
+
+## Log format
+
+dufs supports custom http log format via option `--log-format`.
+
+The default format is `$remote_addr "$request" $status $error`.
+
+All variables list below:
+
+| name                  | description                            |
+| --------------------- | -------------------------------------- |
+| $remote_addr          | client address                         |
+| $remote_user          | user name supplied with authentication |
+| $request              | full original request line             |
+| $status               | response status                        |
+| $error                | internal error                         |
+| $http_referer         | refer header                           |
+| $http_user_agent      | user-agent header                      |
+| $http_x_forwarded_for | x-forwarded-for header                 |
 
 ## License
 

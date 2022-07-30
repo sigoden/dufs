@@ -120,13 +120,6 @@ pub fn build_cli() -> Command<'static> {
             Arg::new("render-spa")
                 .long("render-spa")
                 .help("Serve SPA(Single Page Application)"),
-        )
-        .arg(
-            Arg::new("completions")
-                .long("completions")
-                .value_name("shell")
-                .value_parser(value_parser!(Shell))
-                .help("Print shell completion script for <shell>"),
         );
 
     #[cfg(feature = "tls")]
@@ -144,7 +137,24 @@ pub fn build_cli() -> Command<'static> {
                 .help("Path to the SSL/TLS certificate's private key"),
         );
 
-    app
+    app.arg(
+        Arg::new("no-log")
+            .long("no-log")
+            .help("Don't log http information"),
+    )
+    .arg(
+        Arg::new("log-format")
+            .long("log-format")
+            .value_name("format")
+            .help("Customize http log format"),
+    )
+    .arg(
+        Arg::new("completions")
+            .long("completions")
+            .value_name("shell")
+            .value_parser(value_parser!(Shell))
+            .help("Print shell completion script for <shell>"),
+    )
 }
 
 pub fn print_completions<G: Generator>(gen: G, cmd: &mut Command) {
