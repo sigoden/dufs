@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 use crate::auth::AccessControl;
 use crate::auth::AuthMethod;
+use crate::log_http::{LogHttp, DEFAULT_LOG_FORMAT};
 #[cfg(feature = "tls")]
 use crate::tls::{load_certs, load_private_key};
 use crate::utils::encode_uri;
@@ -180,6 +181,7 @@ pub struct Args {
     pub render_spa: bool,
     pub render_try_index: bool,
     pub enable_cors: bool,
+    pub log_http: LogHttp,
     #[cfg(feature = "tls")]
     pub tls: Option<(Vec<Certificate>, PrivateKey)>,
     #[cfg(not(feature = "tls"))]
@@ -241,6 +243,10 @@ impl Args {
         };
         #[cfg(not(feature = "tls"))]
         let tls = None;
+        let log_http: LogHttp = matches
+            .value_of("log-format")
+            .unwrap_or(DEFAULT_LOG_FORMAT)
+            .parse()?;
 
         Ok(Args {
             addrs,
@@ -261,6 +267,7 @@ impl Args {
             render_try_index,
             render_spa,
             tls,
+            log_http,
         })
     }
 

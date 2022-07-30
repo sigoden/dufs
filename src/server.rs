@@ -78,16 +78,17 @@ impl Server {
         req: Request,
         addr: SocketAddr,
     ) -> Result<Response, hyper::Error> {
-        let method = req.method().clone();
         let uri = req.uri().clone();
         let assets_prefix = self.assets_prefix.clone();
         let enable_cors = self.args.enable_cors;
+        let mut http_log_data = self.args.log_http.data(&req, &self.args);
+        http_log_data.insert("remote_addr".to_string(), addr.ip().to_string());
 
-        let mut res = match self.handle(req).await {
+        let mut res = match self.clone().handle(req).await {
             Ok(res) => {
-                let status = res.status().as_u16();
+                http_log_data.insert("status".to_string(), res.status().as_u16().to_string());
                 if !uri.path().starts_with(&assets_prefix) {
-                    info!(r#"{} "{} {}" - {}"#, addr.ip(), method, uri, status,);
+                    self.args.log_http.log(&http_log_data, None);
                 }
                 res
             }
@@ -95,8 +96,10 @@ impl Server {
                 let mut res = Response::default();
                 let status = StatusCode::INTERNAL_SERVER_ERROR;
                 *res.status_mut() = status;
-                let status = status.as_u16();
-                error!(r#"{} "{} {}" - {} {}"#, addr.ip(), method, uri, status, err);
+                http_log_data.insert("status".to_string(), status.as_u16().to_string());
+                self.args
+                    .log_http
+                    .log(&http_log_data, Some(err.to_string()));
                 res
             }
         };

@@ -191,23 +191,21 @@ dufs -a /@admin:pass1@* -a /ui@designer:pass2 -A
 
 ## Log format
 
-dufs supports custom http log format via option `--log-format`.
+dufs supports customize http log format via option `--log-format`.
 
-The default format is `$remote_addr "$request" $status $error`.
+The default format is `$remote_addr "$request" $status`.
 
 All variables list below:
 
-| name                  | description                            |
-| --------------------- | -------------------------------------- |
-| $remote_addr          | client address                         |
-| $remote_user          | user name supplied with authentication |
-| $request              | full original request line             |
-| $status               | response status                        |
-| $error                | internal error                         |
-| $http_referer         | refer header                           |
-| $http_user_agent      | user-agent header                      |
-| $http_x_forwarded_for | x-forwarded-for header                 |
+| name         | description                                                               |
+| ------------ | ------------------------------------------------------------------------- |
+| $remote_addr | client address                                                            |
+| $remote_user | user name supplied with authentication                                    |
+| $request     | full original request line                                                |
+| $status      | response status                                                           |
+| $http_       | arbitrary request header field. examples: $http_user_agent, $http_referer |
 
+> use `dufs --log-format=''` to disable http log
 ## License
 
 Copyright (c) 2022 dufs-developers.
