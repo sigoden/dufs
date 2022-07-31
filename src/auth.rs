@@ -198,6 +198,24 @@ impl AuthMethod {
             }
         }
     }
+    pub fn get_user(&self, authorization: &HeaderValue) -> Option<String> {
+        match self {
+            AuthMethod::Basic => {
+                let value: Vec<u8> =
+                    base64::decode(strip_prefix(authorization.as_bytes(), b"Basic ")?).ok()?;
+                let parts: Vec<&str> = std::str::from_utf8(&value).ok()?.split(':').collect();
+                Some(parts[0].to_string())
+            }
+            AuthMethod::Digest => {
+                let digest_value = strip_prefix(authorization.as_bytes(), b"Digest ")?;
+                let digest_vals = to_headermap(digest_value).ok()?;
+                digest_vals
+                    .get(b"username".as_ref())
+                    .and_then(|b| std::str::from_utf8(*b).ok())
+                    .map(|v| v.to_string())
+            }
+        }
+    }
     pub fn validate(
         &self,
         authorization: &HeaderValue,
@@ -207,10 +225,9 @@ impl AuthMethod {
     ) -> Option<()> {
         match self {
             AuthMethod::Basic => {
-                let value: Vec<u8> =
-                    base64::decode(strip_prefix(authorization.as_bytes(), b"Basic ").unwrap())
-                        .unwrap();
-                let parts: Vec<&str> = std::str::from_utf8(&value).unwrap().split(':').collect();
+                let basic_value: Vec<u8> =
+                    base64::decode(strip_prefix(authorization.as_bytes(), b"Basic ")?).ok()?;
+                let parts: Vec<&str> = std::str::from_utf8(&basic_value).ok()?.split(':').collect();
 
                 if parts[0] != auth_user {
                     return None;
@@ -229,13 +246,13 @@ impl AuthMethod {
             }
             AuthMethod::Digest => {
                 let digest_value = strip_prefix(authorization.as_bytes(), b"Digest ")?;
-                let user_vals = to_headermap(digest_value).ok()?;
+                let digest_vals = to_headermap(digest_value).ok()?;
                 if let (Some(username), Some(nonce), Some(user_response)) = (
-                    user_vals
+                    digest_vals
                         .get(b"username".as_ref())
                         .and_then(|b| std::str::from_utf8(*b).ok()),
-                    user_vals.get(b"nonce".as_ref()),
-                    user_vals.get(b"response".as_ref()),
+                    digest_vals.get(b"nonce".as_ref()),
+                    digest_vals.get(b"response".as_ref()),
                 ) {
                     match validate_nonce(nonce) {
                         Ok(true) => {}
@@ -247,12 +264,12 @@ impl AuthMethod {
                     let mut ha = Context::new();
                     ha.consume(method);
                     ha.consume(b":");
-                    if let Some(uri) = user_vals.get(b"uri".as_ref()) {
+                    if let Some(uri) = digest_vals.get(b"uri".as_ref()) {
                         ha.consume(uri);
                     }
                     let ha = format!("{:x}", ha.compute());
                     let mut correct_response = None;
-                    if let Some(qop) = user_vals.get(b"qop".as_ref()) {
+                    if let Some(qop) = digest_vals.get(b"qop".as_ref()) {
                         if qop == &b"auth".as_ref() || qop == &b"auth-int".as_ref() {
                             correct_response = Some({
                                 let mut c = Context::new();
@@ -260,11 +277,11 @@ impl AuthMethod {
                                 c.consume(b":");
                                 c.consume(nonce);
                                 c.consume(b":");
-                                if let Some(nc) = user_vals.get(b"nc".as_ref()) {
+                                if let Some(nc) = digest_vals.get(b"nc".as_ref()) {
                                     c.consume(nc);
                                 }
                                 c.consume(b":");
-                                if let Some(cnonce) = user_vals.get(b"cnonce".as_ref()) {
+                                if let Some(cnonce) = digest_vals.get(b"cnonce".as_ref()) {
                                     c.consume(cnonce);
                                 }
                                 c.consume(b":");

@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 use crate::auth::AccessControl;
 use crate::auth::AuthMethod;
+use crate::log_http::{LogHttp, DEFAULT_LOG_FORMAT};
 #[cfg(feature = "tls")]
 use crate::tls::{load_certs, load_private_key};
 use crate::utils::encode_uri;
@@ -120,13 +121,6 @@ pub fn build_cli() -> Command<'static> {
             Arg::new("render-spa")
                 .long("render-spa")
                 .help("Serve SPA(Single Page Application)"),
-        )
-        .arg(
-            Arg::new("completions")
-                .long("completions")
-                .value_name("shell")
-                .value_parser(value_parser!(Shell))
-                .help("Print shell completion script for <shell>"),
         );
 
     #[cfg(feature = "tls")]
@@ -144,7 +138,19 @@ pub fn build_cli() -> Command<'static> {
                 .help("Path to the SSL/TLS certificate's private key"),
         );
 
-    app
+    app.arg(
+        Arg::new("log-format")
+            .long("log-format")
+            .value_name("format")
+            .help("Customize http log format"),
+    )
+    .arg(
+        Arg::new("completions")
+            .long("completions")
+            .value_name("shell")
+            .value_parser(value_parser!(Shell))
+            .help("Print shell completion script for <shell>"),
+    )
 }
 
 pub fn print_completions<G: Generator>(gen: G, cmd: &mut Command) {
@@ -170,6 +176,7 @@ pub struct Args {
     pub render_spa: bool,
     pub render_try_index: bool,
     pub enable_cors: bool,
+    pub log_http: LogHttp,
     #[cfg(feature = "tls")]
     pub tls: Option<(Vec<Certificate>, PrivateKey)>,
     #[cfg(not(feature = "tls"))]
@@ -231,6 +238,10 @@ impl Args {
         };
         #[cfg(not(feature = "tls"))]
         let tls = None;
+        let log_http: LogHttp = matches
+            .value_of("log-format")
+            .unwrap_or(DEFAULT_LOG_FORMAT)
+            .parse()?;
 
         Ok(Args {
             addrs,
@@ -251,6 +262,7 @@ impl Args {
             render_try_index,
             render_spa,
             tls,
+            log_http,
         })
     }
 
