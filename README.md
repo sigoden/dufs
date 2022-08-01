@@ -128,12 +128,6 @@ Listen on a specific port
 dufs -p 80
 ```
 
-Hide directories from directory listings
-
-```
-dufs --hidden .git,.DS_Store
-```
-
 Use https
 
 ```
@@ -165,6 +159,9 @@ Delete a file/folder
 curl -X DELETE http://127.0.0.1:5000/path-to-file-or-folder
 ```
 
+<details>
+<summary>Advance topics</summary>
+
 ## Access Control
 
 Dufs supports path level access control. You can control who can do what on which path with `--auth`/`-a`.
@@ -188,15 +185,36 @@ dufs -a /@admin:pass1@* -a /ui@designer:pass2 -A
 - Account `admin:pass1` can upload/delete/view/download any files/folders.
 - Account `designer:pass2` can upload/delete/view/download any files/folders in the `ui` folder.
 
+
+## Hidden
+
+Dufs supports hide directories/files via option `--hidden`.
+
+List the directories to be hidden for directory listings
+
+```
+dufs --hidden .git,.DS_Store
+```
+
+`--hidden` supports a variant glob:
+
+- `?` matches any single character
+- `*` matches any (possibly empty) sequence of characters
+- no `**`, `[..]`, `[!..]`
+
+Hide all hidden directories/files
+
+```
+dufs --hidden '.*'
+```
+
 ## Log format
 
-dufs supports customize http log format via option `--log-format`.
+Dufs supports customize http log format via option `--log-format`.
 
-The default format is `$remote_addr "$request" $status`.
+The default format is `'$remote_addr "$request" $status'`.
 
-All variables list below:
-
-| name         | description                                                               |
+| variable     | description                                                               |
 | ------------ | ------------------------------------------------------------------------- |
 | $remote_addr | client address                                                            |
 | $remote_user | user name supplied with authentication                                    |
@@ -205,6 +223,9 @@ All variables list below:
 | $http_       | arbitrary request header field. examples: $http_user_agent, $http_referer |
 
 > use `dufs --log-format=''` to disable http log
+
+</details>
+
 ## License
 
 Copyright (c) 2022 dufs-developers.
