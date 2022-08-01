@@ -160,9 +160,9 @@ curl -X DELETE http://127.0.0.1:5000/path-to-file-or-folder
 ```
 
 <details>
-<summary>Advance topics</summary>
+<summary><h2>Advance topics</h2></summary>
 
-## Access Control
+### Access Control
 
 Dufs supports path level access control. You can control who can do what on which path with `--auth`/`-a`.
 
@@ -186,11 +186,9 @@ dufs -a /@admin:pass1@* -a /ui@designer:pass2 -A
 - Account `designer:pass2` can upload/delete/view/download any files/folders in the `ui` folder.
 
 
-## Hidden
+### Hide
 
-Dufs supports hide directories/files via option `--hidden`.
-
-List the directories to be hidden for directory listings
+Dufs supports hiding directories/files via option `--hidden`.
 
 ```
 dufs --hidden .git,.DS_Store
@@ -208,7 +206,7 @@ Hide all hidden directories/files
 dufs --hidden '.*'
 ```
 
-## Log format
+### Log Format
 
 Dufs supports customize http log format via option `--log-format`.
 
