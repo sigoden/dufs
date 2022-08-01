@@ -2,7 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.27.0] - 2022-07-21
+## [0.28.0] - 2022-07-31
+
+### Bug Fixes
+
+- File path contains special charactors ([#114](https://github.com/sigoden/dufs/issues/114))
+
+### Features
+
+- Add table row hover ([#115](https://github.com/sigoden/dufs/issues/115))
+- Support customize http log format ([#116](https://github.com/sigoden/dufs/issues/116))
+
+## [0.27.0] - 2022-07-25
 
 ### Features
 
