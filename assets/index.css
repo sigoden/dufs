@@ -231,4 +231,8 @@ body {
   .path a {
     color: #3191ff;
   }
+
+  .paths-table tr:hover {
+    background-color: #1a1a1a;
+  }
 } 
