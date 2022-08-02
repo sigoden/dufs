@@ -125,9 +125,9 @@ impl Accept for TlsAcceptor {
 // Load public certificate from file.
 pub fn load_certs(filename: &str) -> Result<Vec<Certificate>, Box<dyn std::error::Error>> {
     // Open certificate file.
-    let certfile = fs::File::open(&filename)
+    let cert_file = fs::File::open(&filename)
         .map_err(|e| format!("Failed to access `{}`, {}", &filename, e))?;
-    let mut reader = io::BufReader::new(certfile);
+    let mut reader = io::BufReader::new(cert_file);
 
     // Load and return certificate.
     let certs = rustls_pemfile::certs(&mut reader).map_err(|_| "Failed to load certificate")?;
@@ -139,17 +139,18 @@ pub fn load_certs(filename: &str) -> Result<Vec<Certificate>, Box<dyn std::error
 
 // Load private key from file.
 pub fn load_private_key(filename: &str) -> Result<PrivateKey, Box<dyn std::error::Error>> {
-    // Open keyfile.
-    let keyfile = fs::File::open(&filename)
+    let key_file = fs::File::open(&filename)
         .map_err(|e| format!("Failed to access `{}`, {}", &filename, e))?;
-    let mut reader = io::BufReader::new(keyfile);
+    let mut reader = io::BufReader::new(key_file);
 
     // Load and return a single private key.
     let keys = rustls_pemfile::read_all(&mut reader)
         .map_err(|e| format!("There was a problem with reading private key: {:?}", e))?
         .into_iter()
         .find_map(|item| match item {
-            rustls_pemfile::Item::RSAKey(key) | rustls_pemfile::Item::PKCS8Key(key) => Some(key),
+            rustls_pemfile::Item::RSAKey(key)
+            | rustls_pemfile::Item::PKCS8Key(key)
+            | rustls_pemfile::Item::ECKey(key) => Some(key),
             _ => None,
         })
         .ok_or("No supported private key in file")?;

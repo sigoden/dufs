@@ -17,6 +17,10 @@ use rstest::rstest;
         "--tls-cert", "tests/data/cert.pem",
         "--tls-key", "tests/data/key_pkcs1.pem",
 ]))]
+#[case(server(&[
+        "--tls-cert", "tests/data/cert_ecdsa.pem",
+        "--tls-key", "tests/data/key_ecdsa.pem",
+]))]
 fn tls_works(#[case] server: TestServer) -> Result<(), Error> {
     let client = ClientBuilder::new()
         .danger_accept_invalid_certs(true)
