@@ -357,12 +357,12 @@ fn strip_prefix<'a>(search: &'a [u8], prefix: &[u8]) -> Option<&'a [u8]> {
 
 fn to_headermap(header: &[u8]) -> Result<HashMap<&[u8], &[u8]>, ()> {
     let mut sep = Vec::new();
-    let mut asign = Vec::new();
+    let mut assign = Vec::new();
     let mut i: usize = 0;
     let mut esc = false;
     for c in header {
         match (c, esc) {
-            (b'=', false) => asign.push(i),
+            (b'=', false) => assign.push(i),
             (b',', false) => sep.push(i),
             (b'"', false) => esc = true,
             (b'"', true) => esc = false,
@@ -374,7 +374,7 @@ fn to_headermap(header: &[u8]) -> Result<HashMap<&[u8], &[u8]>, ()> {
 
     i = 0;
     let mut ret = HashMap::new();
-    for (&k, &a) in sep.iter().zip(asign.iter()) {
+    for (&k, &a) in sep.iter().zip(assign.iter()) {
         while header[i] == b' ' {
             i += 1;
         }

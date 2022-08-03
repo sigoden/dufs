@@ -15,11 +15,11 @@ pub type Error = Box<dyn std::error::Error>;
 #[allow(dead_code)]
 pub static FILES: &[&str] = &["test.txt", "test.html", "index.html", "😀.bin"];
 
-/// Directory names for testing diretory don't exist
+/// Directory names for testing directory don't exist
 #[allow(dead_code)]
 pub static DIR_NO_FOUND: &str = "dir-no-found/";
 
-/// Directory names for testing diretory don't have index.html
+/// Directory names for testing directory don't have index.html
 #[allow(dead_code)]
 pub static DIR_NO_INDEX: &str = "dir-no-index/";
 

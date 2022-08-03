@@ -75,7 +75,7 @@ class Uploader {
   }
 
   ajax() {
-    Uploader.runings += 1;
+    Uploader.runnings += 1;
     const url = getUrl(this.name);
     this.lastUptime = Date.now();
     const ajax = new XMLHttpRequest();
@@ -110,20 +110,20 @@ class Uploader {
 
   complete() {
     this.$uploadStatus.innerHTML = `✓`;
-    Uploader.runings -= 1;
+    Uploader.runnings -= 1;
     Uploader.runQueue();
   }
 
   fail() {
     this.$uploadStatus.innerHTML = `✗`;
-    Uploader.runings -= 1;
+    Uploader.runnings -= 1;
     Uploader.runQueue();
   }
 }
 
 Uploader.globalIdx = 0;
 
-Uploader.runings = 0;
+Uploader.runnings = 0;
 
 /**
  * @type Uploader[]
@@ -132,7 +132,7 @@ Uploader.queues = [];
 
 
 Uploader.runQueue = () => {
-  if (Uploader.runings > 2) return;
+  if (Uploader.runnings > 2) return;
   let uploader = Uploader.queues.shift();
   if (!uploader) return;
   uploader.ajax();

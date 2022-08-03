@@ -66,7 +66,7 @@ fn head_dir_zip(server: TestServer) -> Result<(), Error> {
 fn get_dir_search(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(format!("{}?q={}", server.url(), "test.html"))?;
     assert_eq!(resp.status(), 200);
-    let paths = utils::retrive_index_paths(&resp.text()?);
+    let paths = utils::retrieve_index_paths(&resp.text()?);
     assert!(!paths.is_empty());
     for p in paths {
         assert!(p.contains("test.html"));
@@ -78,7 +78,7 @@ fn get_dir_search(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
 fn get_dir_search2(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(format!("{}?q={}", server.url(), "😀.bin"))?;
     assert_eq!(resp.status(), 200);
-    let paths = utils::retrive_index_paths(&resp.text()?);
+    let paths = utils::retrieve_index_paths(&resp.text()?);
     assert!(!paths.is_empty());
     for p in paths {
         assert!(p.contains("😀.bin"));

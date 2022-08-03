@@ -10,7 +10,7 @@ use rstest::rstest;
 fn hidden_get_dir(#[case] server: TestServer, #[case] exist: bool) -> Result<(), Error> {
     let resp = reqwest::blocking::get(server.url())?;
     assert_eq!(resp.status(), 200);
-    let paths = utils::retrive_index_paths(&resp.text()?);
+    let paths = utils::retrieve_index_paths(&resp.text()?);
     assert_eq!(paths.contains(".git/"), exist);
     assert_eq!(paths.contains("index.html"), exist);
     Ok(())
@@ -34,7 +34,7 @@ fn hidden_propfind_dir(#[case] server: TestServer, #[case] exist: bool) -> Resul
 fn hidden_search_dir(#[case] server: TestServer, #[case] exist: bool) -> Result<(), Error> {
     let resp = reqwest::blocking::get(format!("{}?q={}", server.url(), "test.html"))?;
     assert_eq!(resp.status(), 200);
-    let paths = utils::retrive_index_paths(&resp.text()?);
+    let paths = utils::retrieve_index_paths(&resp.text()?);
     for p in paths {
         assert_eq!(p.contains("test.html"), exist);
     }

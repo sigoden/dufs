@@ -9,7 +9,7 @@ macro_rules! assert_resp_paths {
     ($resp:ident, $files:expr) => {
         assert_eq!($resp.status(), 200);
         let body = $resp.text()?;
-        let paths = self::utils::retrive_index_paths(&body);
+        let paths = self::utils::retrieve_index_paths(&body);
         assert!(!paths.is_empty());
         for file in $files {
             assert!(paths.contains(&file.to_string()));
@@ -25,8 +25,8 @@ macro_rules! fetch {
 }
 
 #[allow(dead_code)]
-pub fn retrive_index_paths(index: &str) -> HashSet<String> {
-    retrive_index_paths_impl(index).unwrap_or_default()
+pub fn retrieve_index_paths(index: &str) -> HashSet<String> {
+    retrieve_index_paths_impl(index).unwrap_or_default()
 }
 
 #[allow(dead_code)]
@@ -35,7 +35,7 @@ pub fn encode_uri(v: &str) -> String {
     parts.join("/")
 }
 
-fn retrive_index_paths_impl(index: &str) -> Option<HashSet<String>> {
+fn retrieve_index_paths_impl(index: &str) -> Option<HashSet<String>> {
     let lines: Vec<&str> = index.lines().collect();
     let line = lines.iter().find(|v| v.contains("DATA ="))?;
     let value: Value = line[7..].parse().ok()?;

@@ -79,7 +79,7 @@ fn serve(
         let inner = inner.clone();
         let incoming = create_addr_incoming(SocketAddr::new(*ip, port))
             .map_err(|e| format!("Failed to bind `{}:{}`, {}", ip, port, e))?;
-        let serv_func = move |remote_addr: SocketAddr| {
+        let serve_func = move |remote_addr: SocketAddr| {
             let inner = inner.clone();
             async move {
                 Ok::<_, hyper::Error>(service_fn(move |req: Request| {
@@ -99,7 +99,7 @@ fn serve(
                 let accepter = TlsAcceptor::new(config.clone(), incoming);
                 let new_service = make_service_fn(move |socket: &TlsStream| {
                     let remote_addr = socket.remote_addr();
-                    serv_func(remote_addr)
+                    serve_func(remote_addr)
                 });
                 let server = tokio::spawn(hyper::Server::builder(accepter).serve(new_service));
                 handles.push(server);
@@ -111,7 +111,7 @@ fn serve(
             None => {
                 let new_service = make_service_fn(move |socket: &AddrStream| {
                     let remote_addr = socket.remote_addr();
-                    serv_func(remote_addr)
+                    serve_func(remote_addr)
                 });
                 let server = tokio::spawn(hyper::Server::builder(incoming).serve(new_service));
                 handles.push(server);
