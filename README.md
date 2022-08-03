@@ -52,7 +52,7 @@ OPTIONS:
     -b, --bind <addr>...         Specify bind address
     -p, --port <port>            Specify port to listen on [default: 5000]
         --path-prefix <path>     Specify a path prefix
-        --hidden <value>         Hide directories from directory listings, separated by `,`
+        --hidden <value>         Hide paths from directory listings, separated by `,`
     -a, --auth <rule>...         Add auth for path
         --auth-method <value>    Select auth method [default: digest] [possible values: basic, digest]
     -A, --allow-all              Allow all operations
@@ -186,9 +186,9 @@ dufs -a /@admin:pass1@* -a /ui@designer:pass2 -A
 - Account `designer:pass2` can upload/delete/view/download any files/folders in the `ui` folder.
 
 
-### Hide
+### Hidden Paths
 
-Dufs supports hiding directories/files via option `--hidden`.
+Dufs supports hiding paths from directory listings via option `--hidden`.
 
 ```
 dufs --hidden .git,.DS_Store

@@ -56,7 +56,7 @@ pub fn build_cli() -> Command<'static> {
         .arg(
             Arg::new("hidden")
                 .long("hidden")
-                .help("Hide directories from directory listings, separated by `,`")
+                .help("Hide paths from directory listings, separated by `,`")
                 .value_name("value"),
         )
         .arg(
