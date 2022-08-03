@@ -2,7 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.28.0] - 2022-07-31
+## [0.29.0] - 2022-08-03
+
+### Bug Fixes
+
+- Table row hover highlighting in dark mode ([#122](https://github.com/sigoden/dufs/issues/122))
+
+### Features
+
+- Support ecdsa tls cert ([#119](https://github.com/sigoden/dufs/issues/119))
+
+## [0.28.0] - 2022-08-01
 
 ### Bug Fixes
 
