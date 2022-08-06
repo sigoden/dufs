@@ -167,50 +167,65 @@ curl -X DELETE http://127.0.0.1:5000/path-to-file-or-folder
 Dufs supports path level access control. You can control who can do what on which path with `--auth`/`-a`.
 
 ```
-dufs -a <path>@<readwrite>[@<readonly>|@*]
+dufs -a <path>@<readwrite>
+dufs -a <path>@<readwrite>@<readonly>
+dufs -a <path>@<readwrite>@*
 ```
 
 - `<path>`: Protected url path
-- `<readwrite>`: Account with upload/delete/view/download permission, required
-- `<readonly>`: Account with view/download permission, optional
-
-> `*` means `<path>` is public, everyone can view/download it.
-
-For example:
+- `<readwrite>`: Account with readwrite permissions. If dufs is run with `dufs --allow-all`, the permissions are upload/delete/search/view/download. If dufs is run with `dufs --allow-upload`, the permissions are upload/view/download.
+- `<readonly>`: Account with readonly permissions. The permissions are search/view/download if dufs allow search, otherwise view/download..
 
 ```
-dufs -a /@admin:pass1@* -a /ui@designer:pass2 -A
+dufs -A -a /@admin:admin
 ```
-- All files/folders are public to view/download.
-- Account `admin:pass1` can upload/delete/view/download any files/folders.
-- Account `designer:pass2` can upload/delete/view/download any files/folders in the `ui` folder.
+`admin` has all permissions for all paths.
 
+```
+dufs -A -a /@admin:admin@guest:guest
+```
+`guest` has readonly permissions for all paths.
 
-### Hidden Paths
+```
+dufs -A -a /@admin:admin@*
+```
+All paths is public, everyone can view/download it.
+
+```
+dufs -A -a /@admin:admin -a /user1@user1:pass1 -a /user2@pass2:user2
+```
+`user1` has all permissions for `/user1*` path.
+`user2` has all permissions for `/user2*` path.
+
+```
+dufs -a /@admin:admin
+```
+Since dufs only allows viewing/downloading, `admin` can only view/download files.
+
+### Hide Paths
 
 Dufs supports hiding paths from directory listings via option `--hidden`.
 
 ```
-dufs --hidden .git,.DS_Store
+dufs --hidden .git,.DS_Store,tmp
 ```
 
-`--hidden` supports a variant glob:
+`--hidden` also supports a variant glob:
 
 - `?` matches any single character
 - `*` matches any (possibly empty) sequence of characters
-- no `**`, `[..]`, `[!..]`
+- `**`, `[..]`, `[!..]` is not supported
 
-Hide all hidden directories/files
-
-```
+```sh
 dufs --hidden '.*'
+dufs --hidden '*.log,*.lock'
 ```
 
 ### Log Format
 
-Dufs supports customize http log format via option `--log-format`.
+Dufs supports customize http log format with option `--log-format`.
 
-The default format is `'$remote_addr "$request" $status'`.
+The log format can use following variables.
 
 | variable     | description                                                               |
 | ------------ | ------------------------------------------------------------------------- |
@@ -220,7 +235,32 @@ The default format is `'$remote_addr "$request" $status'`.
 | $status      | response status                                                           |
 | $http_       | arbitrary request header field. examples: $http_user_agent, $http_referer |
 
-> use `dufs --log-format=''` to disable http log
+
+The default log format is `'$remote_addr "$request" $status'`.
+```
+2022-08-06T06:59:31+08:00 INFO - 127.0.0.1 "GET /" 200
+```
+
+Disable http log
+```
+dufs --log-format=''
+```
+
+Log user-agent
+```
+dufs --log-format '$remote_addr "$request" $status $http_user_agent'
+```
+```
+2022-08-06T06:53:55+08:00 INFO - 127.0.0.1 "GET /" 200 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36
+```
+
+Log remote-user
+```
+dufs --log-format '$remote_addr $remote_user "$request" $status' -a /@admin:admin -a /folder1@user1:pass1
+```
+```
+2022-08-06T07:04:37+08:00 INFO - 127.0.0.1 admin "GET /" 200
+```
 
 </details>
 
