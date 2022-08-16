@@ -160,7 +160,7 @@ curl -X DELETE http://127.0.0.1:5000/path-to-file-or-folder
 ```
 
 <details>
-<summary><h2>Advance topics</h2></summary>
+<summary><h2>Advanced topics</h2></summary>
 
 ### Access Control
 
