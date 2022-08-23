@@ -6,17 +6,41 @@
  * @property {number} size
  */
 
-// https://stackoverflow.com/a/901144/3642588
-const params = new Proxy(new URLSearchParams(window.location.search), {
-  get: (searchParams, prop) => searchParams.get(prop),
-});
+/**
+ * @typedef {object} DATA
+ * @property {string} href
+ * @property {string} uri_prefix
+ * @property {PathItem[]} paths
+ * @property {boolean} allow_upload
+ * @property {boolean} allow_delete
+ * @property {boolean} allow_search
+ * @property {boolean} dir_exists
+ */
 
-const dirEmptyNote = params.q ? 'No results' : DATA.dir_exists ? 'Empty folder' : 'Folder will be created when a file is uploaded';
+/**
+ * @type {DATA} DATA
+ */
+var DATA;
+
+/**
+ * @type {PARAMS}
+ * @typedef {object} PARAMS
+ * @property {string} q
+ * @property {string} sort
+ * @property {string} order
+ */
+const PARAMS = Object.fromEntries(new URLSearchParams(window.location.search).entries());
+
+const dirEmptyNote = PARAMS.q ? 'No results' : DATA.dir_exists ? 'Empty folder' : 'Folder will be created when a file is uploaded';
 
 /**
  * @type Element
  */
 let $pathsTable;
+/**
+ * @type Element
+ */
+let $pathsTableHead;
 /**
  * @type Element
  */
@@ -172,6 +196,67 @@ function addBreadcrumb(href, uri_prefix) {
     if (i !== len - 1) {
       $breadcrumb.insertAdjacentHTML("beforeend", `<span class="separator">/</span>`);
     }
+  }
+}
+
+/**
+ * Render path table thead
+ */
+function renderPathsTableHead() {
+  const headerItems = [
+    {
+      name: "name",
+      props: `colspan="2"`,
+      text: "Name",
+    },
+    {
+      name: "mtime",
+      props: ``,
+      text: "Last Modified",
+    },
+    {
+      name: "size",
+      props: ``,
+      text: "Size",
+    }
+  ];
+  $pathsTableHead.insertAdjacentHTML("beforeend", `
+    <tr>
+      ${headerItems.map(item => {
+        let svg = `<svg width="12" height="12" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M11.5 15a.5.5 0 0 0 .5-.5V2.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L11 2.707V14.5a.5.5 0 0 0 .5.5zm-7-14a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L4 13.293V1.5a.5.5 0 0 1 .5-.5z"/></svg>`;
+        let order = "asc";
+        if (PARAMS.sort === item.name) {
+          if (PARAMS.order === "asc") {
+            order = "desc";
+            svg = `<svg width="12" height="12" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 15a.5.5 0 0 0 .5-.5V2.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L7.5 2.707V14.5a.5.5 0 0 0 .5.5z"/></svg>`
+          } else {
+            svg = `<svg width="12" height="12" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 1a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L7.5 13.293V1.5A.5.5 0 0 1 8 1z"/></svg>`
+          }
+        }
+        const qs = new URLSearchParams({...PARAMS, order, sort: item.name }).toString();
+        const icon = `<span>${svg}</span>`
+        return `<th class="cell-${item.name}" ${item.props}><a href="?${qs}">${item.text}${icon}</a></th>`
+      }).join("\n")}
+      <th class="cell-actions">Actions</th>
+    </tr>
+  `);
+}
+
+/**
+ * Render path table tbody
+ */
+function renderPathsTableBody() {
+  if (DATA.paths && DATA.paths.length > 0) {
+    const len = DATA.paths.length;
+    if (len > 0) {
+      $pathsTable.classList.remove("hidden");
+    }
+    for (let i = 0; i < len; i++) {
+      addPath(DATA.paths[i], i);
+    }
+  } else {
+    $emptyFolder.textContent = dirEmptyNote;
+    $emptyFolder.classList.remove("hidden");
   }
 }
 
@@ -430,6 +515,7 @@ function encodedStr(rawStr) {
 function ready() {
   document.title = `Index of ${DATA.href} - Dufs`;
   $pathsTable = document.querySelector(".paths-table")
+  $pathsTableHead = document.querySelector(".paths-table thead");
   $pathsTableBody = document.querySelector(".paths-table tbody");
   $uploadersTable = document.querySelector(".uploaders-table");
   $emptyFolder = document.querySelector(".empty-folder");
@@ -437,26 +523,15 @@ function ready() {
 
   if (DATA.allow_search) {
     document.querySelector(".searchbar").classList.remove("hidden");
-    if (params.q) {
-      document.getElementById('search').value = params.q;
+    if (PARAMS.q) {
+      document.getElementById('search').value = PARAMS.q;
     }
   }
-
 
   addBreadcrumb(DATA.href, DATA.uri_prefix);
-  if (Array.isArray(DATA.paths)) {
-    const len = DATA.paths.length;
-    if (len > 0) {
-      $pathsTable.classList.remove("hidden");
-    }
-    for (let i = 0; i < len; i++) {
-      addPath(DATA.paths[i], i);
-    }
-    if (len == 0) {
-      $emptyFolder.textContent = dirEmptyNote;
-      $emptyFolder.classList.remove("hidden");
-    }
-  }
+  renderPathsTableHead();
+  renderPathsTableBody();
+
   if (DATA.allow_upload) {
     dropzone();
     if (DATA.allow_delete) {

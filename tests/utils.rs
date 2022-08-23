@@ -1,5 +1,5 @@
+use indexmap::IndexSet;
 use serde_json::Value;
-use std::collections::HashSet;
 
 #[macro_export]
 macro_rules! assert_resp_paths {
@@ -25,7 +25,7 @@ macro_rules! fetch {
 }
 
 #[allow(dead_code)]
-pub fn retrieve_index_paths(index: &str) -> HashSet<String> {
+pub fn retrieve_index_paths(index: &str) -> IndexSet<String> {
     retrieve_index_paths_impl(index).unwrap_or_default()
 }
 
@@ -35,7 +35,7 @@ pub fn encode_uri(v: &str) -> String {
     parts.join("/")
 }
 
-fn retrieve_index_paths_impl(index: &str) -> Option<HashSet<String>> {
+fn retrieve_index_paths_impl(index: &str) -> Option<IndexSet<String>> {
     let lines: Vec<&str> = index.lines().collect();
     let line = lines.iter().find(|v| v.contains("DATA ="))?;
     let value: Value = line[7..].parse().ok()?;
