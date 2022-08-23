@@ -38,6 +38,8 @@ log = "0.4"
 socket2 = "0.4"
 async-stream = "0.3"
 walkdir = "2.3"
+form_urlencoded = "1.0"
+alphanumeric-sort = "1.4"
 
 [features]
 default = ["tls"]
@@ -53,6 +55,7 @@ regex = "1"
 url = "2"
 diqwest = { version = "1", features = ["blocking"] }
 predicates = "2"
+indexmap = "1.9"
 
 [profile.release]
 lto = true

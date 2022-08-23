@@ -18,6 +18,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "alphanumeric-sort"
+version = "1.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77e9c9abb82613923ec78d7a461595d52491ba7240f3c64c0bbe0e6d98e0fce0"
+
+[[package]]
 name = "assert_cmd"
 version = "2.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -341,6 +347,7 @@ checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 name = "dufs"
 version = "0.29.0"
 dependencies = [
+ "alphanumeric-sort",
  "assert_cmd",
  "assert_fs",
  "async-stream",
@@ -350,10 +357,12 @@ dependencies = [
  "clap",
  "clap_complete",
  "diqwest",
+ "form_urlencoded",
  "futures",
  "headers",
  "hyper",
  "if-addrs",
+ "indexmap",
  "lazy_static",
  "log",
  "md5",

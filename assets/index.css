@@ -131,7 +131,16 @@ body {
   padding-left: 0.6em;
 }
 
-.paths-table tr:hover {
+.paths-table thead a {
+  color: unset;
+  text-decoration: none;
+}
+
+.paths-table thead a > span {
+  padding-left: 2px;
+}
+
+.paths-table tbody tr:hover {
   background-color: #fafafa;
 }
 
@@ -232,7 +241,7 @@ body {
     color: #3191ff;
   }
 
-  .paths-table tr:hover {
+  .paths-table tbody tr:hover {
     background-color: #1a1a1a;
   }
 } 

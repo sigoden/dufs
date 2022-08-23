@@ -19,6 +19,7 @@ use hyper::header::{
 };
 use hyper::{Body, Method, StatusCode, Uri};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::fs::Metadata;
 use std::io::SeekFrom;
 use std::net::SocketAddr;
@@ -160,6 +161,9 @@ impl Server {
         let path = path.as_path();
 
         let query = req.uri().query().unwrap_or_default();
+        let query_params: HashMap<String, String> = form_urlencoded::parse(query.as_bytes())
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
 
         let (is_miss, is_dir, is_file, size) = match fs::metadata(path).await.ok() {
             Some(meta) => (false, meta.is_dir(), meta.is_file(), meta.len()),
@@ -182,27 +186,32 @@ impl Server {
             Method::GET | Method::HEAD => {
                 if is_dir {
                     if render_try_index {
-                        if query == "zip" {
+                        if query_params.contains_key("zip") {
                             self.handle_zip_dir(path, head_only, &mut res).await?;
-                        } else if allow_search && query.starts_with("q=") {
-                            let q = decode_uri(&query[2..]).unwrap_or_default();
-                            self.handle_search_dir(path, &q, head_only, &mut res)
+                        } else if allow_search && query_params.contains_key("q") {
+                            self.handle_search_dir(path, &query_params, head_only, &mut res)
                                 .await?;
                         } else {
-                            self.handle_render_index(path, headers, head_only, &mut res)
-                                .await?;
+                            self.handle_render_index(
+                                path,
+                                &query_params,
+                                headers,
+                                head_only,
+                                &mut res,
+                            )
+                            .await?;
                         }
                     } else if render_index || render_spa {
-                        self.handle_render_index(path, headers, head_only, &mut res)
+                        self.handle_render_index(path, &query_params, headers, head_only, &mut res)
                             .await?;
-                    } else if query == "zip" {
+                    } else if query_params.contains_key("zip") {
                         self.handle_zip_dir(path, head_only, &mut res).await?;
-                    } else if allow_search && query.starts_with("q=") {
-                        let q = decode_uri(&query[2..]).unwrap_or_default();
-                        self.handle_search_dir(path, &q, head_only, &mut res)
+                    } else if allow_search && query_params.contains_key("q") {
+                        self.handle_search_dir(path, &query_params, head_only, &mut res)
                             .await?;
                     } else {
-                        self.handle_ls_dir(path, true, head_only, &mut res).await?;
+                        self.handle_ls_dir(path, true, &query_params, head_only, &mut res)
+                            .await?;
                     }
                 } else if is_file {
                     self.handle_send_file(path, headers, head_only, &mut res)
@@ -211,7 +220,8 @@ impl Server {
                     self.handle_render_spa(path, headers, head_only, &mut res)
                         .await?;
                 } else if allow_upload && req_path.ends_with('/') {
-                    self.handle_ls_dir(path, false, head_only, &mut res).await?;
+                    self.handle_ls_dir(path, false, &query_params, head_only, &mut res)
+                        .await?;
                 } else {
                     status_not_found(&mut res);
                 }
@@ -344,6 +354,7 @@ impl Server {
         &self,
         path: &Path,
         exist: bool,
+        query_params: &HashMap<String, String>,
         head_only: bool,
         res: &mut Response,
     ) -> BoxResult<()> {
@@ -357,13 +368,13 @@ impl Server {
                 }
             }
         };
-        self.send_index(path, paths, exist, head_only, res)
+        self.send_index(path, paths, exist, query_params, head_only, res)
     }
 
     async fn handle_search_dir(
         &self,
         path: &Path,
-        search: &str,
+        query_params: &HashMap<String, String>,
         head_only: bool,
         res: &mut Response,
     ) -> BoxResult<()> {
@@ -372,7 +383,7 @@ impl Server {
         let hidden = Arc::new(self.args.hidden.to_vec());
         let hidden = hidden.clone();
         let running = self.running.clone();
-        let search = search.to_lowercase();
+        let search = query_params.get("q").unwrap().to_lowercase();
         let search_paths = tokio::task::spawn_blocking(move || {
             let mut it = WalkDir::new(&path_buf).into_iter();
             let mut paths: Vec<PathBuf> = vec![];
@@ -405,7 +416,7 @@ impl Server {
                 paths.push(item);
             }
         }
-        self.send_index(path, paths, true, head_only, res)
+        self.send_index(path, paths, true, query_params, head_only, res)
     }
 
     async fn handle_zip_dir(
@@ -445,6 +456,7 @@ impl Server {
     async fn handle_render_index(
         &self,
         path: &Path,
+        query_params: &HashMap<String, String>,
         headers: &HeaderMap<HeaderValue>,
         head_only: bool,
         res: &mut Response,
@@ -459,7 +471,8 @@ impl Server {
             self.handle_send_file(&index_path, headers, head_only, res)
                 .await?;
         } else if self.args.render_try_index {
-            self.handle_ls_dir(path, true, head_only, res).await?;
+            self.handle_ls_dir(path, true, query_params, head_only, res)
+                .await?;
         } else {
             status_not_found(res)
         }
@@ -754,10 +767,30 @@ impl Server {
         path: &Path,
         mut paths: Vec<PathItem>,
         exist: bool,
+        query_params: &HashMap<String, String>,
         head_only: bool,
         res: &mut Response,
     ) -> BoxResult<()> {
-        paths.sort_unstable();
+        if let Some(sort) = query_params.get("sort") {
+            if sort == "name" {
+                paths.sort_by(|v1, v2| {
+                    alphanumeric_sort::compare_str(v1.name.to_lowercase(), v2.name.to_lowercase())
+                })
+            } else if sort == "mtime" {
+                paths.sort_by(|v1, v2| v1.mtime.cmp(&v2.mtime))
+            } else if sort == "size" {
+                paths.sort_by(|v1, v2| v1.size.unwrap_or(0).cmp(&v2.size.unwrap_or(0)))
+            }
+            if query_params
+                .get("order")
+                .map(|v| v == "desc")
+                .unwrap_or_default()
+            {
+                paths.reverse()
+            }
+        } else {
+            paths.sort_unstable();
+        }
         let href = format!("/{}", normalize_path(path.strip_prefix(&self.args.path)?));
         let data = IndexData {
             href,
