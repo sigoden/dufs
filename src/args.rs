@@ -29,6 +29,8 @@ pub fn build_cli() -> Command<'static> {
                 .short('b')
                 .long("bind")
                 .help("Specify bind address")
+                .multiple_values(true)
+                .value_delimiter(',')
                 .action(ArgAction::Append)
                 .value_name("addr"),
         )
@@ -55,7 +57,10 @@ pub fn build_cli() -> Command<'static> {
         .arg(
             Arg::new("hidden")
                 .long("hidden")
-                .help("Hide paths from directory listings, separated by `,`")
+                .help("Hide paths from directory listings")
+                .multiple_values(true)
+                .value_delimiter(',')
+                .action(ArgAction::Append)
                 .value_name("value"),
         )
         .arg(
@@ -64,6 +69,8 @@ pub fn build_cli() -> Command<'static> {
                 .long("auth")
                 .help("Add auth for path")
                 .action(ArgAction::Append)
+                .multiple_values(true)
+                .value_delimiter(',')
                 .value_name("rule"),
         )
         .arg(
@@ -205,8 +212,8 @@ impl Args {
             format!("/{}/", &encode_uri(&path_prefix))
         };
         let hidden: Vec<String> = matches
-            .value_of("hidden")
-            .map(|v| v.split(',').map(|x| x.to_string()).collect())
+            .values_of("hidden")
+            .map(|v| v.map(|v| v.to_string()).collect())
             .unwrap_or_default();
         let enable_cors = matches.is_present("enable-cors");
         let auth: Vec<&str> = matches

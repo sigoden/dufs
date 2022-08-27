@@ -43,17 +43,17 @@ Download from [Github Releases](https://github.com/sigoden/dufs/releases), unzip
 Dufs is a distinctive utility file server - https://github.com/sigoden/dufs
 
 USAGE:
-    dufs [OPTIONS] [path]
+    dufs [OPTIONS] [--] [path]
 
 ARGS:
     <path>    Specific path to serve [default: .]
 
 OPTIONS:
-    -b, --bind <addr>            Specify bind address
+    -b, --bind <addr>...         Specify bind address
     -p, --port <port>            Specify port to listen on [default: 5000]
         --path-prefix <path>     Specify a path prefix
-        --hidden <value>         Hide paths from directory listings, separated by `,`
-    -a, --auth <rule>            Add auth for path
+        --hidden <value>...      Hide paths from directory listings
+    -a, --auth <rule>...         Add auth for path
         --auth-method <value>    Select auth method [default: digest] [possible values: basic, digest]
     -A, --allow-all              Allow all operations
         --allow-upload           Allow upload files/folders
