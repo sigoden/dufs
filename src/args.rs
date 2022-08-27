@@ -1,4 +1,4 @@
-use clap::{value_parser, AppSettings, Arg, ArgMatches, Command};
+use clap::{value_parser, AppSettings, Arg, ArgAction, ArgMatches, Command};
 use clap_complete::{generate, Generator, Shell};
 #[cfg(feature = "tls")]
 use rustls::{Certificate, PrivateKey};
@@ -29,8 +29,7 @@ pub fn build_cli() -> Command<'static> {
                 .short('b')
                 .long("bind")
                 .help("Specify bind address")
-                .multiple_values(true)
-                .multiple_occurrences(true)
+                .action(ArgAction::Append)
                 .value_name("addr"),
         )
         .arg(
@@ -64,8 +63,7 @@ pub fn build_cli() -> Command<'static> {
                 .short('a')
                 .long("auth")
                 .help("Add auth for path")
-                .multiple_values(true)
-                .multiple_occurrences(true)
+                .action(ArgAction::Append)
                 .value_name("rule"),
         )
         .arg(
