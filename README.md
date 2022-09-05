@@ -279,7 +279,7 @@ You assets folder must contains a entrypoint `index.html`.
 `index.html` can use the following planceholder to access internal data.
 
 - `__INDEX_DATA__`: directory listing data
-- `__ASSERTS_PREFIX__`: assets folder path
+- `__ASSERTS_PREFIX__`: assets url prefix
 
 ## License
 
