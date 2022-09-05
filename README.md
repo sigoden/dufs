@@ -263,9 +263,6 @@ dufs --log-format '$remote_addr $remote_user "$request" $status' -a /@admin:admi
 2022-08-06T07:04:37+08:00 INFO - 127.0.0.1 admin "GET /" 200
 ```
 
-</details>
-
-
 ### Customize UI
 
 Dufs allows users to customize the UI with their own assets.
@@ -280,6 +277,8 @@ You assets folder must contains a entrypoint `index.html`.
 
 - `__INDEX_DATA__`: directory listing data
 - `__ASSERTS_PREFIX__`: assets url prefix
+
+</details>
 
 ## License
 
