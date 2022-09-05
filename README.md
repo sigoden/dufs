@@ -43,10 +43,10 @@ Download from [Github Releases](https://github.com/sigoden/dufs/releases), unzip
 Dufs is a distinctive utility file server - https://github.com/sigoden/dufs
 
 USAGE:
-    dufs [OPTIONS] [--] [path]
+    dufs [OPTIONS] [--] [root]
 
 ARGS:
-    <path>    Specific path to serve [default: .]
+    <root>    Specific path to serve [default: .]
 
 OPTIONS:
     -b, --bind <addr>...         Specify bind address
@@ -64,6 +64,7 @@ OPTIONS:
         --render-index           Serve index.html when requesting a directory, returns 404 if not found index.html
         --render-try-index       Serve index.html when requesting a directory, returns directory listing if not found index.html
         --render-spa             Serve SPA(Single Page Application)
+        --assets <path>          Use custom assets to override builtin assets
         --tls-cert <path>        Path to an SSL/TLS certificate to serve with HTTPS
         --tls-key <path>         Path to the SSL/TLS certificate's private key
         --log-format <format>    Customize http log format
@@ -263,6 +264,22 @@ dufs --log-format '$remote_addr $remote_user "$request" $status' -a /@admin:admi
 ```
 
 </details>
+
+
+### Customize UI
+
+Dufs allows users to customize the UI with their own assets.
+
+```
+dufs --assets my-assets
+```
+
+You assets folder must contains a entrypoint `index.html`.
+
+`index.html` can use the following planceholder to access internal data.
+
+- `__INDEX_DATA__`: directory listing data
+- `__ASSERTS_PREFIX__`: assets url prefix
 
 ## License
 

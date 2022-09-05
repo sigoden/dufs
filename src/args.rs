@@ -43,7 +43,7 @@ pub fn build_cli() -> Command<'static> {
                 .value_name("port"),
         )
         .arg(
-            Arg::new("path")
+            Arg::new("root")
                 .default_value(".")
                 .allow_invalid_utf8(true)
                 .help("Specific path to serve"),
@@ -126,6 +126,13 @@ pub fn build_cli() -> Command<'static> {
             Arg::new("render-spa")
                 .long("render-spa")
                 .help("Serve SPA(Single Page Application)"),
+        )
+        .arg(
+            Arg::new("assets")
+                .long("assets")
+                .help("Use custom assets to override builtin assets")
+                .allow_invalid_utf8(true)
+                .value_name("path")
         );
 
     #[cfg(feature = "tls")]
@@ -181,6 +188,7 @@ pub struct Args {
     pub render_spa: bool,
     pub render_try_index: bool,
     pub enable_cors: bool,
+    pub assets_path: Option<PathBuf>,
     pub log_http: LogHttp,
     #[cfg(feature = "tls")]
     pub tls: Option<(Vec<Certificate>, PrivateKey)>,
@@ -200,7 +208,7 @@ impl Args {
             .map(|v| v.collect())
             .unwrap_or_else(|| vec!["0.0.0.0", "::"]);
         let addrs: Vec<IpAddr> = Args::parse_addrs(&addrs)?;
-        let path = Args::parse_path(matches.value_of_os("path").unwrap_or_default())?;
+        let path = Args::parse_path(matches.value_of_os("root").unwrap_or_default())?;
         let path_is_file = path.metadata()?.is_file();
         let path_prefix = matches
             .value_of("path-prefix")
@@ -247,6 +255,10 @@ impl Args {
             .value_of("log-format")
             .unwrap_or(DEFAULT_LOG_FORMAT)
             .parse()?;
+        let assets_path = match matches.value_of_os("assets") {
+            Some(v) => Some(Args::parse_assets_path(v)?),
+            None => None,
+        };
 
         Ok(Args {
             addrs,
@@ -268,6 +280,7 @@ impl Args {
             render_spa,
             tls,
             log_http,
+            assets_path,
         })
     }
 
@@ -302,5 +315,13 @@ impl Args {
                 std::fs::canonicalize(p)
             })
             .map_err(|err| format!("Failed to access path `{}`: {}", path.display(), err,).into())
+    }
+
+    fn parse_assets_path<P: AsRef<Path>>(path: P) -> BoxResult<PathBuf> {
+        let path = Self::parse_path(path)?;
+        if !path.join("index.html").exists() {
+            return Err(format!("Path `{}` doesn't contains index.html", path.display()).into());
+        }
+        Ok(path)
     }
 }

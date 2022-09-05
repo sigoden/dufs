@@ -38,7 +38,8 @@ pub fn encode_uri(v: &str) -> String {
 fn retrieve_index_paths_impl(index: &str) -> Option<IndexSet<String>> {
     let lines: Vec<&str> = index.lines().collect();
     let line = lines.iter().find(|v| v.contains("DATA ="))?;
-    let value: Value = line[7..].parse().ok()?;
+    let line_col = line.find("DATA =").unwrap() + 6;
+    let value: Value = line[line_col..].parse().ok()?;
     let paths = value
         .get("paths")?
         .as_array()?

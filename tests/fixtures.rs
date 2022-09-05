@@ -27,9 +27,13 @@ pub static DIR_NO_INDEX: &str = "dir-no-index/";
 #[allow(dead_code)]
 pub static DIR_GIT: &str = ".git/";
 
+/// Directory names for testings assets override
+#[allow(dead_code)]
+pub static DIR_ASSETS: &str = "dir-assets/";
+
 /// Directory names for testing purpose
 #[allow(dead_code)]
-pub static DIRECTORIES: &[&str] = &["dira/", "dirb/", "dirc/", DIR_NO_INDEX, DIR_GIT];
+pub static DIRECTORIES: &[&str] = &["dira/", "dirb/", "dirc/", DIR_NO_INDEX, DIR_GIT, DIR_ASSETS];
 
 /// Test fixture which creates a temporary directory with a few files and directories inside.
 /// The directories also contain files.
@@ -44,14 +48,21 @@ pub fn tmpdir() -> TempDir {
             .expect("Couldn't write to file");
     }
     for directory in DIRECTORIES {
-        for file in FILES {
-            if *directory == DIR_NO_INDEX && *file == "index.html" {
-                continue;
-            }
+        if *directory == DIR_ASSETS {
             tmpdir
-                .child(format!("{}{}", directory, file))
-                .write_str(&format!("This is {}{}", directory, file))
+                .child(format!("{}{}", directory, "index.html"))
+                .write_str("__ASSERTS_PREFIX__index.js;DATA = __INDEX_DATA__")
                 .expect("Couldn't write to file");
+        } else {
+            for file in FILES {
+                if *directory == DIR_NO_INDEX && *file == "index.html" {
+                    continue;
+                }
+                tmpdir
+                    .child(format!("{}{}", directory, file))
+                    .write_str(&format!("This is {}{}", directory, file))
+                    .expect("Couldn't write to file");
+            }
         }
     }
 
@@ -83,34 +94,6 @@ where
         .arg(port.to_string())
         .args(args.clone())
         .stdout(Stdio::null())
-        .spawn()
-        .expect("Couldn't run test binary");
-    let is_tls = args
-        .into_iter()
-        .any(|x| x.as_ref().to_str().unwrap().contains("tls"));
-
-    wait_for_port(port);
-    TestServer::new(port, tmpdir, child, is_tls)
-}
-
-/// Same as `server()` but ignore stderr
-#[fixture]
-#[allow(dead_code)]
-pub fn server_no_stderr<I>(#[default(&[] as &[&str])] args: I) -> TestServer
-where
-    I: IntoIterator + Clone,
-    I::Item: AsRef<std::ffi::OsStr>,
-{
-    let port = port();
-    let tmpdir = tmpdir();
-    let child = Command::cargo_bin("dufs")
-        .expect("Couldn't find test binary")
-        .arg(tmpdir.path())
-        .arg("-p")
-        .arg(port.to_string())
-        .args(args.clone())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
         .spawn()
         .expect("Couldn't run test binary");
     let is_tls = args

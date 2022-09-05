@@ -19,6 +19,7 @@ use hyper::header::{
 };
 use hyper::{Body, Method, StatusCode, Uri};
 use serde::Serialize;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs::Metadata;
 use std::io::SeekFrom;
@@ -46,6 +47,7 @@ const BUF_SIZE: usize = 65536;
 pub struct Server {
     args: Arc<Args>,
     assets_prefix: String,
+    html: Cow<'static, str>,
     single_file_req_paths: Vec<String>,
     running: Arc<AtomicBool>,
 }
@@ -66,11 +68,16 @@ impl Server {
         } else {
             vec![]
         };
+        let html = match args.assets_path.as_ref() {
+            Some(path) => Cow::Owned(std::fs::read_to_string(path.join("index.html")).unwrap()),
+            None => Cow::Borrowed(INDEX_HTML),
+        };
         Self {
             args,
             running,
             single_file_req_paths,
             assets_prefix,
+            html,
         }
     }
 
@@ -118,7 +125,7 @@ impl Server {
         let headers = req.headers();
         let method = req.method().clone();
 
-        if method == Method::GET && self.handle_embed_assets(req_path, &mut res).await? {
+        if method == Method::GET && self.handle_assets(req_path, headers, &mut res).await? {
             return Ok(res);
         }
 
@@ -496,29 +503,40 @@ impl Server {
         Ok(())
     }
 
-    async fn handle_embed_assets(&self, req_path: &str, res: &mut Response) -> BoxResult<bool> {
+    async fn handle_assets(
+        &self,
+        req_path: &str,
+        headers: &HeaderMap<HeaderValue>,
+        res: &mut Response,
+    ) -> BoxResult<bool> {
         if let Some(name) = req_path.strip_prefix(&self.assets_prefix) {
-            match name {
-                "index.js" => {
-                    *res.body_mut() = Body::from(INDEX_JS);
-                    res.headers_mut().insert(
-                        "content-type",
-                        HeaderValue::from_static("application/javascript"),
-                    );
+            match self.args.assets_path.as_ref() {
+                Some(assets_path) => {
+                    let path = assets_path.join(name);
+                    self.handle_send_file(&path, headers, false, res).await?;
                 }
-                "index.css" => {
-                    *res.body_mut() = Body::from(INDEX_CSS);
-                    res.headers_mut()
-                        .insert("content-type", HeaderValue::from_static("text/css"));
-                }
-                "favicon.ico" => {
-                    *res.body_mut() = Body::from(FAVICON_ICO);
-                    res.headers_mut()
-                        .insert("content-type", HeaderValue::from_static("image/x-icon"));
-                }
-                _ => {
-                    return Ok(false);
-                }
+                None => match name {
+                    "index.js" => {
+                        *res.body_mut() = Body::from(INDEX_JS);
+                        res.headers_mut().insert(
+                            "content-type",
+                            HeaderValue::from_static("application/javascript"),
+                        );
+                    }
+                    "index.css" => {
+                        *res.body_mut() = Body::from(INDEX_CSS);
+                        res.headers_mut()
+                            .insert("content-type", HeaderValue::from_static("text/css"));
+                    }
+                    "favicon.ico" => {
+                        *res.body_mut() = Body::from(FAVICON_ICO);
+                        res.headers_mut()
+                            .insert("content-type", HeaderValue::from_static("image/x-icon"));
+                    }
+                    _ => {
+                        status_not_found(res);
+                    }
+                },
             }
             res.headers_mut().insert(
                 "cache-control",
@@ -802,23 +820,10 @@ impl Server {
             dir_exists: exist,
         };
         let data = serde_json::to_string(&data).unwrap();
-        let asset_js = format!("{}index.js", self.assets_prefix);
-        let asset_css = format!("{}index.css", self.assets_prefix);
-        let asset_ico = format!("{}favicon.ico", self.assets_prefix);
-        let output = INDEX_HTML.replace(
-            "__SLOT__",
-            &format!(
-                r#"
-<link rel="icon" type="image/x-icon" href="{}">
-<link rel="stylesheet" href="{}">
-<script>
-DATA = {}
-</script>
-<script src="{}"></script>
-"#,
-                asset_ico, asset_css, data, asset_js
-            ),
-        );
+        let output = self
+            .html
+            .replace("__ASSERTS_PREFIX__", &self.assets_prefix)
+            .replace("__INDEX_DATA__", &data);
         res.headers_mut()
             .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
         res.headers_mut()

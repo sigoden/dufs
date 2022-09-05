@@ -1,8 +1,11 @@
 mod fixtures;
 mod utils;
 
-use fixtures::{server, Error, TestServer};
+use assert_cmd::prelude::*;
+use assert_fs::fixture::TempDir;
+use fixtures::{port, server, tmpdir, wait_for_port, Error, TestServer, DIR_ASSETS};
 use rstest::rstest;
+use std::process::{Command, Stdio};
 
 #[rstest]
 fn assets(server: TestServer) -> Result<(), Error> {
@@ -89,5 +92,31 @@ fn asset_js_with_prefix(
         resp.headers().get("content-type").unwrap(),
         "application/javascript"
     );
+    Ok(())
+}
+
+#[rstest]
+fn assets_override(tmpdir: TempDir, port: u16) -> Result<(), Error> {
+    let mut child = Command::cargo_bin("dufs")?
+        .arg(tmpdir.path())
+        .arg("-p")
+        .arg(port.to_string())
+        .arg("--assets")
+        .arg(tmpdir.join(DIR_ASSETS))
+        .stdout(Stdio::piped())
+        .spawn()?;
+
+    wait_for_port(port);
+
+    let url = format!("http://localhost:{}", port);
+    let resp = reqwest::blocking::get(&url)?;
+    assert!(resp.text()?.starts_with(&format!(
+        "/__dufs_v{}_index.js;DATA",
+        env!("CARGO_PKG_VERSION")
+    )));
+    let resp = reqwest::blocking::get(&url)?;
+    assert_resp_paths!(resp);
+
+    child.kill()?;
     Ok(())
 }
