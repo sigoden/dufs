@@ -5,7 +5,7 @@
 
 Dufs is a distinctive utility file server that supports static serving, uploading, searching, accessing control, webdav...
 
-![demo](https://user-images.githubusercontent.com/4012553/189359503-ee3d55eb-2b0f-44b5-b5a5-b0cba012cd67.png)
+![demo](https://user-images.githubusercontent.com/4012553/189362357-b2f7aa6b-9df0-4438-a57c-c8f92850fc4f.png)
 
 ## Features
 
@@ -268,12 +268,12 @@ dufs --log-format '$remote_addr $remote_user "$request" $status' -a /@admin:admi
 Dufs allows users to customize the UI with their own assets.
 
 ```
-dufs --assets my-assets
+dufs --assets my-assets-dir/
 ```
 
-You assets folder must contains a entrypoint `index.html`.
+You assets folder must contains a entrypoint `index.html` file.
 
-`index.html` can use the following planceholder to access internal data.
+`index.html` can use the following placeholder variable to retrieve internal data.
 
 - `__INDEX_DATA__`: directory listing data
 - `__ASSERTS_PREFIX__`: assets url prefix
