@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.30.0] - 2022-09-05
+
+### Bug Fixes
+
+- Hide path by ext name ([#126](https://github.com/sigoden/dufs/issues/126))
+
+### Features
+
+- Support sort by name, mtime, size ([#128](https://github.com/sigoden/dufs/issues/128))
+- Add --assets options to override assets ([#134](https://github.com/sigoden/dufs/issues/134))
+
 ## [0.29.0] - 2022-08-03
 
 ### Bug Fixes
