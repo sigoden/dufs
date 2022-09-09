@@ -265,15 +265,15 @@ dufs --log-format '$remote_addr $remote_user "$request" $status' -a /@admin:admi
 
 ### Customize UI
 
-Dufs allows users to customize the UI with their own assets.
+Dufs allows users to customize the UI with your own assets.
 
 ```
 dufs --assets my-assets-dir/
 ```
 
-You assets folder must contains a entrypoint `index.html` file.
+Your assets folder must contains a `index.html` file.
 
-`index.html` can use the following placeholder variable to retrieve internal data.
+`index.html` can use the following placeholder variables to retrieve internal data.
 
 - `__INDEX_DATA__`: directory listing data
 - `__ASSERTS_PREFIX__`: assets url prefix
