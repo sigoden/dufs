@@ -57,10 +57,7 @@ pub fn build_cli() -> Command<'static> {
         .arg(
             Arg::new("hidden")
                 .long("hidden")
-                .help("Hide paths from directory listings")
-                .multiple_values(true)
-                .value_delimiter(',')
-                .action(ArgAction::Append)
+                .help("Hide paths from directory listings, separated by `,`")
                 .value_name("value"),
         )
         .arg(
@@ -220,8 +217,8 @@ impl Args {
             format!("/{}/", &encode_uri(&path_prefix))
         };
         let hidden: Vec<String> = matches
-            .values_of("hidden")
-            .map(|v| v.map(|v| v.to_string()).collect())
+            .value_of("hidden")
+            .map(|v| v.split(',').map(|x| x.to_string()).collect())
             .unwrap_or_default();
         let enable_cors = matches.is_present("enable-cors");
         let auth: Vec<&str> = matches

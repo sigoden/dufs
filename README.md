@@ -52,7 +52,7 @@ OPTIONS:
     -b, --bind <addr>...         Specify bind address
     -p, --port <port>            Specify port to listen on [default: 5000]
         --path-prefix <path>     Specify a path prefix
-        --hidden <value>...      Hide paths from directory listings
+        --hidden <value>         Hide paths from directory listings, separated by `,`
     -a, --auth <rule>...         Add auth for path
         --auth-method <value>    Select auth method [default: digest] [possible values: basic, digest]
     -A, --allow-all              Allow all operations
