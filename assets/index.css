@@ -7,6 +7,9 @@ html {
 body {
   /* prevent premature breadcrumb wrapping on mobile */
   min-width: 500px;
+  margin: auto;
+  width: 50%;
+  padding: 10px;
 }
 
 .hidden {
