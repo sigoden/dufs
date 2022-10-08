@@ -132,7 +132,12 @@ impl GuardType {
 }
 
 fn sanitize_path(path: &str, uri_prefix: &str) -> String {
-    encode_uri(&format!("{}{}", uri_prefix, path.trim_matches('/')))
+    let new_path = match (uri_prefix, path) {
+        ("/", "/") => "/".into(),
+        (_, "/") => uri_prefix.trim_end_matches('/').into(),
+        _ => format!("{}{}", uri_prefix, path.trim_matches('/')),
+    };
+    encode_uri(&new_path)
 }
 
 fn walk_path(path: &str) -> impl Iterator<Item = &str> {
