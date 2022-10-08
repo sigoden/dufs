@@ -121,3 +121,15 @@ fn auth_webdav_copy(
     assert_eq!(resp.status(), 403);
     Ok(())
 }
+
+#[rstest]
+fn auth_path_prefix(
+    #[with(&["--auth", "/@user:pass", "--path-prefix", "xyz", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    let url = format!("{}xyz/index.html", server.url());
+    let resp = fetch!(b"GET", &url).send()?;
+    assert_eq!(resp.status(), 401);
+    let resp = fetch!(b"GET", &url).send_with_digest_auth("user", "pass")?;
+    assert_eq!(resp.status(), 200);
+    Ok(())
+}
