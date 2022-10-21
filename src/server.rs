@@ -195,7 +195,7 @@ impl Server {
                     if render_try_index {
                         if query_params.contains_key("zip") {
                             self.handle_zip_dir(path, head_only, &mut res).await?;
-                        } else if allow_search && query_params.contains_key("q") {
+                        } else if allow_search && query_params.contains_key("q") && !query_params.get("q").unwrap().is_empty() {
                             self.handle_search_dir(path, &query_params, head_only, &mut res)
                                 .await?;
                         } else {
@@ -213,7 +213,7 @@ impl Server {
                             .await?;
                     } else if query_params.contains_key("zip") {
                         self.handle_zip_dir(path, head_only, &mut res).await?;
-                    } else if allow_search && query_params.contains_key("q") {
+                    } else if allow_search && query_params.contains_key("q") && !query_params.get("q").unwrap().is_empty() {
                         self.handle_search_dir(path, &query_params, head_only, &mut res)
                             .await?;
                     } else {
