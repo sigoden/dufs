@@ -270,8 +270,10 @@ impl Server {
                     }
                 }
                 "MKCOL" => {
-                    if !allow_upload || !is_miss {
+                    if !allow_upload {
                         status_forbid(&mut res);
+                    } else if !is_miss {
+                        status_method_not_allowed(&mut res);
                     } else {
                         self.handle_mkcol(path, &mut res).await?;
                     }
@@ -1206,6 +1208,12 @@ fn status_forbid(res: &mut Response) {
 fn status_not_found(res: &mut Response) {
     *res.status_mut() = StatusCode::NOT_FOUND;
     *res.body_mut() = Body::from("Not Found");
+}
+
+fn status_method_not_allowed(res: &mut Response) {
+    *res.status_mut() = StatusCode::METHOD_NOT_ALLOWED;
+    *res.body_mut() = Body::from("Already exists");
+    // TOOD: sent back a valid ALLOW header
 }
 
 fn status_no_content(res: &mut Response) {
