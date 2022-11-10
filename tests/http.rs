@@ -99,6 +99,15 @@ fn head_dir_search(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn empty_search(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let resp = reqwest::blocking::get(format!("{}?q=", server.url()))?;
+    assert_eq!(resp.status(), 200);
+    let paths = utils::retrieve_index_paths(&resp.text()?);
+    assert!(paths.is_empty());
+    Ok(())
+}
+
+#[rstest]
 fn get_file(server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(format!("{}index.html", server.url()))?;
     assert_eq!(resp.status(), 200);
