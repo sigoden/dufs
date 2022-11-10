@@ -593,7 +593,7 @@ impl Server {
             None
         };
 
-        if let Some(mime) = mime_guess::from_path(&path).first() {
+        if let Some(mime) = mime_guess::from_path(path).first() {
             res.headers_mut().typed_insert(ContentType::from(mime));
         } else {
             res.headers_mut().insert(
@@ -902,7 +902,7 @@ impl Server {
             Some(path) => path,
             None => return None,
         };
-        Some(self.args.path.join(&stripped_path))
+        Some(self.args.path.join(stripped_path))
     }
 
     fn strip_path_prefix<'a, P: AsRef<Path>>(&self, path: &'a P) -> Option<&'a Path> {

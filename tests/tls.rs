@@ -34,7 +34,7 @@ fn tls_works(#[case] server: TestServer) -> Result<(), Error> {
 #[rstest]
 fn wrong_path_cert() -> Result<(), Error> {
     Command::cargo_bin("dufs")?
-        .args(&["--tls-cert", "wrong", "--tls-key", "tests/data/key.pem"])
+        .args(["--tls-cert", "wrong", "--tls-key", "tests/data/key.pem"])
         .assert()
         .failure()
         .stderr(contains("error: Failed to access `wrong`"));
@@ -46,7 +46,7 @@ fn wrong_path_cert() -> Result<(), Error> {
 #[rstest]
 fn wrong_path_key() -> Result<(), Error> {
     Command::cargo_bin("dufs")?
-        .args(&["--tls-cert", "tests/data/cert.pem", "--tls-key", "wrong"])
+        .args(["--tls-cert", "tests/data/cert.pem", "--tls-key", "wrong"])
         .assert()
         .failure()
         .stderr(contains("error: Failed to access `wrong`"));

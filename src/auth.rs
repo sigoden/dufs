@@ -216,7 +216,7 @@ impl AuthMethod {
                 let digest_vals = to_headermap(digest_value).ok()?;
                 digest_vals
                     .get(b"username".as_ref())
-                    .and_then(|b| std::str::from_utf8(*b).ok())
+                    .and_then(|b| std::str::from_utf8(b).ok())
                     .map(|v| v.to_string())
             }
         }
@@ -255,7 +255,7 @@ impl AuthMethod {
                 if let (Some(username), Some(nonce), Some(user_response)) = (
                     digest_vals
                         .get(b"username".as_ref())
-                        .and_then(|b| std::str::from_utf8(*b).ok()),
+                        .and_then(|b| std::str::from_utf8(b).ok()),
                     digest_vals.get(b"nonce".as_ref()),
                     digest_vals.get(b"response".as_ref()),
                 ) {
@@ -278,7 +278,7 @@ impl AuthMethod {
                         if qop == &b"auth".as_ref() || qop == &b"auth-int".as_ref() {
                             correct_response = Some({
                                 let mut c = Context::new();
-                                c.consume(&auth_pass);
+                                c.consume(auth_pass);
                                 c.consume(b":");
                                 c.consume(nonce);
                                 c.consume(b":");
@@ -301,7 +301,7 @@ impl AuthMethod {
                         Some(r) => r,
                         None => {
                             let mut c = Context::new();
-                            c.consume(&auth_pass);
+                            c.consume(auth_pass);
                             c.consume(b":");
                             c.consume(nonce);
                             c.consume(b":");

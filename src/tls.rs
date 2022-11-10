@@ -125,8 +125,8 @@ impl Accept for TlsAcceptor {
 // Load public certificate from file.
 pub fn load_certs(filename: &str) -> Result<Vec<Certificate>, Box<dyn std::error::Error>> {
     // Open certificate file.
-    let cert_file = fs::File::open(&filename)
-        .map_err(|e| format!("Failed to access `{}`, {}", &filename, e))?;
+    let cert_file =
+        fs::File::open(filename).map_err(|e| format!("Failed to access `{}`, {}", &filename, e))?;
     let mut reader = io::BufReader::new(cert_file);
 
     // Load and return certificate.
@@ -139,8 +139,8 @@ pub fn load_certs(filename: &str) -> Result<Vec<Certificate>, Box<dyn std::error
 
 // Load private key from file.
 pub fn load_private_key(filename: &str) -> Result<PrivateKey, Box<dyn std::error::Error>> {
-    let key_file = fs::File::open(&filename)
-        .map_err(|e| format!("Failed to access `{}`, {}", &filename, e))?;
+    let key_file =
+        fs::File::open(filename).map_err(|e| format!("Failed to access `{}`, {}", &filename, e))?;
     let mut reader = io::BufReader::new(key_file);
 
     // Load and return a single private key.
