@@ -270,8 +270,11 @@ impl Server {
                     }
                 }
                 "MKCOL" => {
-                    if !allow_upload || !is_miss {
+                    if !allow_upload {
                         status_forbid(&mut res);
+                    } else if !is_miss {
+                        *res.status_mut() = StatusCode::METHOD_NOT_ALLOWED;
+                        *res.body_mut() = Body::from("Already exists");
                     } else {
                         self.handle_mkcol(path, &mut res).await?;
                     }
