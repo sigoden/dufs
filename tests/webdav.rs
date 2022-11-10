@@ -94,6 +94,13 @@ fn mkcol_not_allow_upload(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn mkcol_already_exists(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let resp = fetch!(b"MKCOL", format!("{}dira", server.url())).send()?;
+    assert_eq!(resp.status(), 405);
+    Ok(())
+}
+
+#[rstest]
 fn copy_file(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let new_url = format!("{}test2.html", server.url());
     let resp = fetch!(b"COPY", format!("{}test.html", server.url()))
