@@ -897,7 +897,11 @@ impl Server {
     }
 
     fn extract_path(&self, path: &str) -> Option<PathBuf> {
-        let decoded_path = decode_uri(&path[1..])?;
+        let mut slash_stripped_path = path;
+        while let Some(p) = slash_stripped_path.strip_prefix('/') {
+            slash_stripped_path = p
+        }
+        let decoded_path = decode_uri(slash_stripped_path)?;
         let slashes_switched = if cfg!(windows) {
             decoded_path.replace('/', "\\")
         } else {
