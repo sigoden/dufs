@@ -386,41 +386,43 @@ impl Server {
         res: &mut Response,
     ) -> BoxResult<()> {
         let mut paths: Vec<PathItem> = vec![];
-        let path_buf = path.to_path_buf();
-        let hidden = Arc::new(self.args.hidden.to_vec());
-        let hidden = hidden.clone();
-        let running = self.running.clone();
         let search = query_params.get("q").unwrap().to_lowercase();
-        let search_paths = tokio::task::spawn_blocking(move || {
-            let mut it = WalkDir::new(&path_buf).into_iter();
-            let mut paths: Vec<PathBuf> = vec![];
-            while let Some(Ok(entry)) = it.next() {
-                if !running.load(Ordering::SeqCst) {
-                    break;
-                }
-                let entry_path = entry.path();
-                let base_name = get_file_name(entry_path);
-                let file_type = entry.file_type();
-                if is_hidden(&hidden, base_name) {
-                    if file_type.is_dir() {
-                        it.skip_current_dir();
+        if !search.is_empty() {
+            let path_buf = path.to_path_buf();
+            let hidden = Arc::new(self.args.hidden.to_vec());
+            let hidden = hidden.clone();
+            let running = self.running.clone();
+            let search_paths = tokio::task::spawn_blocking(move || {
+                let mut it = WalkDir::new(&path_buf).into_iter();
+                let mut paths: Vec<PathBuf> = vec![];
+                while let Some(Ok(entry)) = it.next() {
+                    if !running.load(Ordering::SeqCst) {
+                        break;
                     }
-                    continue;
+                    let entry_path = entry.path();
+                    let base_name = get_file_name(entry_path);
+                    let file_type = entry.file_type();
+                    if is_hidden(&hidden, base_name) {
+                        if file_type.is_dir() {
+                            it.skip_current_dir();
+                        }
+                        continue;
+                    }
+                    if !base_name.to_lowercase().contains(&search) {
+                        continue;
+                    }
+                    if entry.path().symlink_metadata().is_err() {
+                        continue;
+                    }
+                    paths.push(entry_path.to_path_buf());
                 }
-                if !base_name.to_lowercase().contains(&search) {
-                    continue;
+                paths
+            })
+            .await?;
+            for search_path in search_paths.into_iter() {
+                if let Ok(Some(item)) = self.to_pathitem(search_path, path.to_path_buf()).await {
+                    paths.push(item);
                 }
-                if entry.path().symlink_metadata().is_err() {
-                    continue;
-                }
-                paths.push(entry_path.to_path_buf());
-            }
-            paths
-        })
-        .await?;
-        for search_path in search_paths.into_iter() {
-            if let Ok(Some(item)) = self.to_pathitem(search_path, path.to_path_buf()).await {
-                paths.push(item);
             }
         }
         self.send_index(path, paths, true, query_params, head_only, res)
