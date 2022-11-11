@@ -42,35 +42,34 @@ Download from [Github Releases](https://github.com/sigoden/dufs/releases), unzip
 ```
 Dufs is a distinctive utility file server - https://github.com/sigoden/dufs
 
-USAGE:
-    dufs [OPTIONS] [--] [root]
+Usage: dufs [OPTIONS] [root]
 
-ARGS:
-    <root>    Specific path to serve [default: .]
+Arguments:
+  [root]  Specific path to serve [default: .]
 
-OPTIONS:
-    -b, --bind <addr>...         Specify bind address or unix socket
-    -p, --port <port>            Specify port to listen on [default: 5000]
-        --path-prefix <path>     Specify a path prefix
-        --hidden <value>         Hide paths from directory listings, separated by `,`
-    -a, --auth <rule>...         Add auth for path
-        --auth-method <value>    Select auth method [default: digest] [possible values: basic, digest]
-    -A, --allow-all              Allow all operations
-        --allow-upload           Allow upload files/folders
-        --allow-delete           Allow delete files/folders
-        --allow-search           Allow search files/folders
-        --allow-symlink          Allow symlink to files/folders outside root directory
-        --enable-cors            Enable CORS, sets `Access-Control-Allow-Origin: *`
-        --render-index           Serve index.html when requesting a directory, returns 404 if not found index.html
-        --render-try-index       Serve index.html when requesting a directory, returns directory listing if not found index.html
-        --render-spa             Serve SPA(Single Page Application)
-        --assets <path>          Use custom assets to override builtin assets
-        --tls-cert <path>        Path to an SSL/TLS certificate to serve with HTTPS
-        --tls-key <path>         Path to the SSL/TLS certificate's private key
-        --log-format <format>    Customize http log format
-        --completions <shell>    Print shell completion script for <shell> [possible values: bash, elvish, fish, powershell, zsh]
-    -h, --help                   Print help information
-    -V, --version                Print version information
+Options:
+  -b, --bind <addrs>         Specify bind address or unix socket
+  -p, --port <port>          Specify port to listen on [default: 5000]
+      --path-prefix <path>   Specify a path prefix
+      --hidden <value>       Hide paths from directory listings, separated by `,`
+  -a, --auth <rules>         Add auth for path
+      --auth-method <value>  Select auth method [default: digest] [possible values: basic, digest]
+  -A, --allow-all            Allow all operations
+      --allow-upload         Allow upload files/folders
+      --allow-delete         Allow delete files/folders
+      --allow-search         Allow search files/folders
+      --allow-symlink        Allow symlink to files/folders outside root directory
+      --enable-cors          Enable CORS, sets `Access-Control-Allow-Origin: *`
+      --render-index         Serve index.html when requesting a directory, returns 404 if not found index.html
+      --render-try-index     Serve index.html when requesting a directory, returns directory listing if not found index.html
+      --render-spa           Serve SPA(Single Page Application)
+      --assets <path>        Use custom assets to override builtin assets
+      --tls-cert <path>      Path to an SSL/TLS certificate to serve with HTTPS
+      --tls-key <path>       Path to the SSL/TLS certificate's private key
+      --log-format <format>  Customize http log format
+      --completions <shell>  Print shell completion script for <shell> [possible values: bash, elvish, fish, powershell, zsh]
+  -h, --help                 Print help information
+  -V, --version              Print version information
 ```
 
 ## Examples
