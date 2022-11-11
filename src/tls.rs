@@ -5,6 +5,7 @@ use hyper::server::conn::{AddrIncoming, AddrStream};
 use rustls::{Certificate, PrivateKey};
 use std::future::Future;
 use std::net::SocketAddr;
+use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::{fs, io};
@@ -123,10 +124,12 @@ impl Accept for TlsAcceptor {
 }
 
 // Load public certificate from file.
-pub fn load_certs(filename: &str) -> Result<Vec<Certificate>, Box<dyn std::error::Error>> {
+pub fn load_certs<T: AsRef<Path>>(
+    filename: T,
+) -> Result<Vec<Certificate>, Box<dyn std::error::Error>> {
     // Open certificate file.
-    let cert_file =
-        fs::File::open(filename).map_err(|e| format!("Failed to access `{}`, {}", &filename, e))?;
+    let cert_file = fs::File::open(filename.as_ref())
+        .map_err(|e| format!("Failed to access `{}`, {}", filename.as_ref().display(), e))?;
     let mut reader = io::BufReader::new(cert_file);
 
     // Load and return certificate.
@@ -138,9 +141,11 @@ pub fn load_certs(filename: &str) -> Result<Vec<Certificate>, Box<dyn std::error
 }
 
 // Load private key from file.
-pub fn load_private_key(filename: &str) -> Result<PrivateKey, Box<dyn std::error::Error>> {
-    let key_file =
-        fs::File::open(filename).map_err(|e| format!("Failed to access `{}`, {}", &filename, e))?;
+pub fn load_private_key<T: AsRef<Path>>(
+    filename: T,
+) -> Result<PrivateKey, Box<dyn std::error::Error>> {
+    let key_file = fs::File::open(filename.as_ref())
+        .map_err(|e| format!("Failed to access `{}`, {}", filename.as_ref().display(), e))?;
     let mut reader = io::BufReader::new(key_file);
 
     // Load and return a single private key.

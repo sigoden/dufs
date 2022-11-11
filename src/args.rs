@@ -1,4 +1,5 @@
-use clap::{value_parser, AppSettings, Arg, ArgAction, ArgMatches, Command};
+use clap::builder::PossibleValuesParser;
+use clap::{value_parser, Arg, ArgAction, ArgMatches, Command};
 use clap_complete::{generate, Generator, Shell};
 #[cfg(feature = "tls")]
 use rustls::{Certificate, PrivateKey};
@@ -14,7 +15,7 @@ use crate::tls::{load_certs, load_private_key};
 use crate::utils::encode_uri;
 use crate::BoxResult;
 
-pub fn build_cli() -> Command<'static> {
+pub fn build_cli() -> Command {
     let app = Command::new(env!("CARGO_CRATE_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_AUTHORS"))
@@ -23,30 +24,29 @@ pub fn build_cli() -> Command<'static> {
             " - ",
             env!("CARGO_PKG_REPOSITORY")
         ))
-        .global_setting(AppSettings::DeriveDisplayOrder)
+        .arg(
+            Arg::new("root")
+                .default_value(".")
+                .value_parser(value_parser!(PathBuf))
+                .help("Specific path to serve"),
+        )
         .arg(
             Arg::new("bind")
                 .short('b')
                 .long("bind")
                 .help("Specify bind address or unix socket")
-                .multiple_values(true)
-                .value_delimiter(',')
                 .action(ArgAction::Append)
-                .value_name("addr"),
+                .value_delimiter(',')
+                .value_name("addrs"),
         )
         .arg(
             Arg::new("port")
                 .short('p')
                 .long("port")
                 .default_value("5000")
+                .value_parser(value_parser!(u16))
                 .help("Specify port to listen on")
                 .value_name("port"),
-        )
-        .arg(
-            Arg::new("root")
-                .default_value(".")
-                .allow_invalid_utf8(true)
-                .help("Specific path to serve"),
         )
         .arg(
             Arg::new("path-prefix")
@@ -66,15 +66,14 @@ pub fn build_cli() -> Command<'static> {
                 .long("auth")
                 .help("Add auth for path")
                 .action(ArgAction::Append)
-                .multiple_values(true)
                 .value_delimiter(',')
-                .value_name("rule"),
+                .value_name("rules"),
         )
         .arg(
             Arg::new("auth-method")
                 .long("auth-method")
                 .help("Select auth method")
-                .possible_values(["basic", "digest"])
+                .value_parser(PossibleValuesParser::new(["basic", "digest"]))
                 .default_value("digest")
                 .value_name("value"),
         )
@@ -82,53 +81,62 @@ pub fn build_cli() -> Command<'static> {
             Arg::new("allow-all")
                 .short('A')
                 .long("allow-all")
+                .action(ArgAction::SetTrue)
                 .help("Allow all operations"),
         )
         .arg(
             Arg::new("allow-upload")
                 .long("allow-upload")
+                .action(ArgAction::SetTrue)
                 .help("Allow upload files/folders"),
         )
         .arg(
             Arg::new("allow-delete")
                 .long("allow-delete")
+                .action(ArgAction::SetTrue)
                 .help("Allow delete files/folders"),
         )
         .arg(
             Arg::new("allow-search")
                 .long("allow-search")
+                .action(ArgAction::SetTrue)
                 .help("Allow search files/folders"),
         )
         .arg(
             Arg::new("allow-symlink")
                 .long("allow-symlink")
+                .action(ArgAction::SetTrue)
                 .help("Allow symlink to files/folders outside root directory"),
         )
         .arg(
             Arg::new("enable-cors")
                 .long("enable-cors")
+                .action(ArgAction::SetTrue)
                 .help("Enable CORS, sets `Access-Control-Allow-Origin: *`"),
         )
         .arg(
             Arg::new("render-index")
                 .long("render-index")
+                .action(ArgAction::SetTrue)
                 .help("Serve index.html when requesting a directory, returns 404 if not found index.html"),
         )
         .arg(
             Arg::new("render-try-index")
                 .long("render-try-index")
+                .action(ArgAction::SetTrue)
                 .help("Serve index.html when requesting a directory, returns directory listing if not found index.html"),
         )
         .arg(
             Arg::new("render-spa")
                 .long("render-spa")
+                .action(ArgAction::SetTrue)
                 .help("Serve SPA(Single Page Application)"),
         )
         .arg(
             Arg::new("assets")
                 .long("assets")
                 .help("Use custom assets to override builtin assets")
-                .allow_invalid_utf8(true)
+                .value_parser(value_parser!(PathBuf))
                 .value_name("path")
         );
 
@@ -138,12 +146,14 @@ pub fn build_cli() -> Command<'static> {
             Arg::new("tls-cert")
                 .long("tls-cert")
                 .value_name("path")
+                .value_parser(value_parser!(PathBuf))
                 .help("Path to an SSL/TLS certificate to serve with HTTPS"),
         )
         .arg(
             Arg::new("tls-key")
                 .long("tls-key")
                 .value_name("path")
+                .value_parser(value_parser!(PathBuf))
                 .help("Path to the SSL/TLS certificate's private key"),
         );
 
@@ -199,16 +209,16 @@ impl Args {
     /// If a parsing error ocurred, exit the process and print out informative
     /// error message to user.
     pub fn parse(matches: ArgMatches) -> BoxResult<Args> {
-        let port = matches.value_of_t::<u16>("port")?;
+        let port = *matches.get_one::<u16>("port").unwrap();
         let addrs = matches
-            .values_of("bind")
-            .map(|v| v.collect())
+            .get_many::<String>("bind")
+            .map(|bind| bind.map(|v| v.as_str()).collect())
             .unwrap_or_else(|| vec!["0.0.0.0", "::"]);
         let addrs: Vec<BindAddr> = Args::parse_addrs(&addrs)?;
-        let path = Args::parse_path(matches.value_of_os("root").unwrap_or_default())?;
+        let path = Args::parse_path(matches.get_one::<PathBuf>("root").unwrap())?;
         let path_is_file = path.metadata()?.is_file();
         let path_prefix = matches
-            .value_of("path-prefix")
+            .get_one::<String>("path-prefix")
             .map(|v| v.trim_matches('/').to_owned())
             .unwrap_or_default();
         let uri_prefix = if path_prefix.is_empty() {
@@ -217,28 +227,31 @@ impl Args {
             format!("/{}/", &encode_uri(&path_prefix))
         };
         let hidden: Vec<String> = matches
-            .value_of("hidden")
+            .get_one::<String>("hidden")
             .map(|v| v.split(',').map(|x| x.to_string()).collect())
             .unwrap_or_default();
-        let enable_cors = matches.is_present("enable-cors");
+        let enable_cors = matches.get_flag("enable-cors");
         let auth: Vec<&str> = matches
-            .values_of("auth")
-            .map(|v| v.collect())
+            .get_many::<String>("auth")
+            .map(|auth| auth.map(|v| v.as_str()).collect())
             .unwrap_or_default();
-        let auth_method = match matches.value_of("auth-method").unwrap() {
+        let auth_method = match matches.get_one::<String>("auth-method").unwrap().as_str() {
             "basic" => AuthMethod::Basic,
             _ => AuthMethod::Digest,
         };
         let auth = AccessControl::new(&auth, &uri_prefix)?;
-        let allow_upload = matches.is_present("allow-all") || matches.is_present("allow-upload");
-        let allow_delete = matches.is_present("allow-all") || matches.is_present("allow-delete");
-        let allow_search = matches.is_present("allow-all") || matches.is_present("allow-search");
-        let allow_symlink = matches.is_present("allow-all") || matches.is_present("allow-symlink");
-        let render_index = matches.is_present("render-index");
-        let render_try_index = matches.is_present("render-try-index");
-        let render_spa = matches.is_present("render-spa");
+        let allow_upload = matches.get_flag("allow-all") || matches.get_flag("allow-upload");
+        let allow_delete = matches.get_flag("allow-all") || matches.get_flag("allow-delete");
+        let allow_search = matches.get_flag("allow-all") || matches.get_flag("allow-search");
+        let allow_symlink = matches.get_flag("allow-all") || matches.get_flag("allow-symlink");
+        let render_index = matches.get_flag("render-index");
+        let render_try_index = matches.get_flag("render-try-index");
+        let render_spa = matches.get_flag("render-spa");
         #[cfg(feature = "tls")]
-        let tls = match (matches.value_of("tls-cert"), matches.value_of("tls-key")) {
+        let tls = match (
+            matches.get_one::<PathBuf>("tls-cert"),
+            matches.get_one::<PathBuf>("tls-key"),
+        ) {
             (Some(certs_file), Some(key_file)) => {
                 let certs = load_certs(certs_file)?;
                 let key = load_private_key(key_file)?;
@@ -249,10 +262,11 @@ impl Args {
         #[cfg(not(feature = "tls"))]
         let tls = None;
         let log_http: LogHttp = matches
-            .value_of("log-format")
+            .get_one::<String>("log-format")
+            .map(|v| v.as_str())
             .unwrap_or(DEFAULT_LOG_FORMAT)
             .parse()?;
-        let assets_path = match matches.value_of_os("assets") {
+        let assets_path = match matches.get_one::<PathBuf>("assets") {
             Some(v) => Some(Args::parse_assets_path(v)?),
             None => None,
         };
