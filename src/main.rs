@@ -129,7 +129,8 @@ fn serve(
                 if path.exists() {
                     std::fs::remove_file(path)?;
                 }
-                if cfg!(unix) {
+                #[cfg(unix)]
+                {
                     let listener = tokio::net::UnixListener::bind(path)
                         .map_err(|e| format!("Failed to bind `{}`, {}", path.display(), e))?;
                     let acceptor = unix::UnixAcceptor::from_listener(listener);
