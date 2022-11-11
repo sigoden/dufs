@@ -6,6 +6,8 @@ mod server;
 mod streamer;
 #[cfg(feature = "tls")]
 mod tls;
+#[cfg(unix)]
+mod unix;
 mod utils;
 
 #[macro_use]
@@ -20,6 +22,7 @@ use std::net::{IpAddr, SocketAddr, TcpListener as StdTcpListener};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
+use args::BindAddr;
 use clap_complete::Shell;
 use futures::future::join_all;
 use tokio::net::TcpListener;
@@ -75,11 +78,9 @@ fn serve(
     let inner = Arc::new(Server::new(args.clone(), running));
     let mut handles = vec![];
     let port = args.port;
-    for ip in args.addrs.iter() {
+    for bind_addr in args.addrs.iter() {
         let inner = inner.clone();
-        let incoming = create_addr_incoming(SocketAddr::new(*ip, port))
-            .map_err(|e| format!("Failed to bind `{}:{}`, {}", ip, port, e))?;
-        let serve_func = move |remote_addr: SocketAddr| {
+        let serve_func = move |remote_addr: Option<SocketAddr>| {
             let inner = inner.clone();
             async move {
                 Ok::<_, hyper::Error>(service_fn(move |req: Request| {
@@ -88,35 +89,56 @@ fn serve(
                 }))
             }
         };
-        match args.tls.as_ref() {
-            #[cfg(feature = "tls")]
-            Some((certs, key)) => {
-                let config = ServerConfig::builder()
-                    .with_safe_defaults()
-                    .with_no_client_auth()
-                    .with_single_cert(certs.clone(), key.clone())?;
-                let config = Arc::new(config);
-                let accepter = TlsAcceptor::new(config.clone(), incoming);
-                let new_service = make_service_fn(move |socket: &TlsStream| {
-                    let remote_addr = socket.remote_addr();
-                    serve_func(remote_addr)
-                });
-                let server = tokio::spawn(hyper::Server::builder(accepter).serve(new_service));
-                handles.push(server);
+        match bind_addr {
+            BindAddr::Address(ip) => {
+                let incoming = create_addr_incoming(SocketAddr::new(*ip, port))
+                    .map_err(|e| format!("Failed to bind `{}:{}`, {}", ip, port, e))?;
+                match args.tls.as_ref() {
+                    #[cfg(feature = "tls")]
+                    Some((certs, key)) => {
+                        let config = ServerConfig::builder()
+                            .with_safe_defaults()
+                            .with_no_client_auth()
+                            .with_single_cert(certs.clone(), key.clone())?;
+                        let config = Arc::new(config);
+                        let accepter = TlsAcceptor::new(config.clone(), incoming);
+                        let new_service = make_service_fn(move |socket: &TlsStream| {
+                            let remote_addr = socket.remote_addr();
+                            serve_func(Some(remote_addr))
+                        });
+                        let server =
+                            tokio::spawn(hyper::Server::builder(accepter).serve(new_service));
+                        handles.push(server);
+                    }
+                    #[cfg(not(feature = "tls"))]
+                    Some(_) => {
+                        unreachable!()
+                    }
+                    None => {
+                        let new_service = make_service_fn(move |socket: &AddrStream| {
+                            let remote_addr = socket.remote_addr();
+                            serve_func(Some(remote_addr))
+                        });
+                        let server =
+                            tokio::spawn(hyper::Server::builder(incoming).serve(new_service));
+                        handles.push(server);
+                    }
+                };
             }
-            #[cfg(not(feature = "tls"))]
-            Some(_) => {
-                unreachable!()
+            BindAddr::Path(path) => {
+                if path.exists() {
+                    std::fs::remove_file(path)?;
+                }
+                if cfg!(unix) {
+                    let listener = tokio::net::UnixListener::bind(path)
+                        .map_err(|e| format!("Failed to bind `{}`, {}", path.display(), e))?;
+                    let acceptor = unix::UnixAcceptor::from_listener(listener);
+                    let new_service = make_service_fn(move |_| serve_func(None));
+                    let server = tokio::spawn(hyper::Server::builder(acceptor).serve(new_service));
+                    handles.push(server);
+                }
             }
-            None => {
-                let new_service = make_service_fn(move |socket: &AddrStream| {
-                    let remote_addr = socket.remote_addr();
-                    serve_func(remote_addr)
-                });
-                let server = tokio::spawn(hyper::Server::builder(incoming).serve(new_service));
-                handles.push(server);
-            }
-        };
+        }
     }
     Ok(handles)
 }
@@ -137,17 +159,22 @@ fn create_addr_incoming(addr: SocketAddr) -> BoxResult<AddrIncoming> {
 }
 
 fn print_listening(args: Arc<Args>) -> BoxResult<()> {
-    let mut addrs = vec![];
+    let mut bind_addrs = vec![];
     let (mut ipv4, mut ipv6) = (false, false);
-    for ip in args.addrs.iter() {
-        if ip.is_unspecified() {
-            if ip.is_ipv6() {
-                ipv6 = true;
-            } else {
-                ipv4 = true;
+    for bind_addr in args.addrs.iter() {
+        match bind_addr {
+            BindAddr::Address(ip) => {
+                if ip.is_unspecified() {
+                    if ip.is_ipv6() {
+                        ipv6 = true;
+                    } else {
+                        ipv4 = true;
+                    }
+                } else {
+                    bind_addrs.push(bind_addr.clone());
+                }
             }
-        } else {
-            addrs.push(*ip);
+            _ => bind_addrs.push(bind_addr.clone()),
         }
     }
     if ipv4 || ipv6 {
@@ -156,25 +183,27 @@ fn print_listening(args: Arc<Args>) -> BoxResult<()> {
         for iface in ifaces.into_iter() {
             let local_ip = iface.ip();
             if ipv4 && local_ip.is_ipv4() {
-                addrs.push(local_ip)
+                bind_addrs.push(BindAddr::Address(local_ip))
             }
             if ipv6 && local_ip.is_ipv6() {
-                addrs.push(local_ip)
+                bind_addrs.push(BindAddr::Address(local_ip))
             }
         }
     }
-    addrs.sort_unstable();
-    let urls = addrs
+    bind_addrs.sort_unstable();
+    let urls = bind_addrs
         .into_iter()
-        .map(|addr| match addr {
-            IpAddr::V4(_) => format!("{}:{}", addr, args.port),
-            IpAddr::V6(_) => format!("[{}]:{}", addr, args.port),
+        .map(|bind_addr| match bind_addr {
+            BindAddr::Address(addr) => {
+                let addr = match addr {
+                    IpAddr::V4(_) => format!("{}:{}", addr, args.port),
+                    IpAddr::V6(_) => format!("[{}]:{}", addr, args.port),
+                };
+                let protocol = if args.tls.is_some() { "https" } else { "http" };
+                format!("{}://{}{}", protocol, addr, args.uri_prefix)
+            }
+            BindAddr::Path(path) => path.display().to_string(),
         })
-        .map(|addr| match &args.tls {
-            Some(_) => format!("https://{}", addr),
-            None => format!("http://{}", addr),
-        })
-        .map(|url| format!("{}{}", url, args.uri_prefix))
         .collect::<Vec<_>>();
 
     if urls.len() == 1 {

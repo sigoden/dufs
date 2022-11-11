@@ -84,13 +84,15 @@ impl Server {
     pub async fn call(
         self: Arc<Self>,
         req: Request,
-        addr: SocketAddr,
+        addr: Option<SocketAddr>,
     ) -> Result<Response, hyper::Error> {
         let uri = req.uri().clone();
         let assets_prefix = self.assets_prefix.clone();
         let enable_cors = self.args.enable_cors;
         let mut http_log_data = self.args.log_http.data(&req, &self.args);
-        http_log_data.insert("remote_addr".to_string(), addr.ip().to_string());
+        if let Some(addr) = addr {
+            http_log_data.insert("remote_addr".to_string(), addr.ip().to_string());
+        }
 
         let mut res = match self.clone().handle(req).await {
             Ok(res) => {

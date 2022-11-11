@@ -49,7 +49,7 @@ ARGS:
     <root>    Specific path to serve [default: .]
 
 OPTIONS:
-    -b, --bind <addr>...         Specify bind address
+    -b, --bind <addr>...         Specify bind address or unix socket
     -p, --port <port>            Specify port to listen on [default: 5000]
         --path-prefix <path>     Specify a path prefix
         --hidden <value>         Hide paths from directory listings, separated by `,`
@@ -123,10 +123,15 @@ Require username/password
 dufs -a /@admin:123
 ```
 
-Listen on a specific port
+Listen on specific host:ip 
 
 ```
-dufs -p 80
+dufs -b 127.0.0.1 -p 80
+```
+
+Listen on unix socket
+```
+dufs -b /tmp/dufs.socket
 ```
 
 Use https
