@@ -28,7 +28,7 @@ pub fn build_cli() -> Command<'static> {
             Arg::new("bind")
                 .short('b')
                 .long("bind")
-                .help("Specify bind address")
+                .help("Specify bind address or unix socket")
                 .multiple_values(true)
                 .value_delimiter(',')
                 .action(ArgAction::Append)
@@ -168,7 +168,7 @@ pub fn print_completions<G: Generator>(gen: G, cmd: &mut Command) {
 
 #[derive(Debug)]
 pub struct Args {
-    pub addrs: Vec<IpAddr>,
+    pub addrs: Vec<BindAddr>,
     pub port: u16,
     pub path: PathBuf,
     pub path_is_file: bool,
@@ -204,7 +204,7 @@ impl Args {
             .values_of("bind")
             .map(|v| v.collect())
             .unwrap_or_else(|| vec!["0.0.0.0", "::"]);
-        let addrs: Vec<IpAddr> = Args::parse_addrs(&addrs)?;
+        let addrs: Vec<BindAddr> = Args::parse_addrs(&addrs)?;
         let path = Args::parse_path(matches.value_of_os("root").unwrap_or_default())?;
         let path_is_file = path.metadata()?.is_file();
         let path_prefix = matches
@@ -281,23 +281,27 @@ impl Args {
         })
     }
 
-    fn parse_addrs(addrs: &[&str]) -> BoxResult<Vec<IpAddr>> {
-        let mut ip_addrs = vec![];
+    fn parse_addrs(addrs: &[&str]) -> BoxResult<Vec<BindAddr>> {
+        let mut bind_addrs = vec![];
         let mut invalid_addrs = vec![];
         for addr in addrs {
             match addr.parse::<IpAddr>() {
                 Ok(v) => {
-                    ip_addrs.push(v);
+                    bind_addrs.push(BindAddr::Address(v));
                 }
                 Err(_) => {
-                    invalid_addrs.push(*addr);
+                    if cfg!(unix) {
+                        bind_addrs.push(BindAddr::Path(PathBuf::from(addr)));
+                    } else {
+                        invalid_addrs.push(*addr);
+                    }
                 }
             }
         }
         if !invalid_addrs.is_empty() {
             return Err(format!("Invalid bind address `{}`", invalid_addrs.join(",")).into());
         }
-        Ok(ip_addrs)
+        Ok(bind_addrs)
     }
 
     fn parse_path<P: AsRef<Path>>(path: P) -> BoxResult<PathBuf> {
@@ -321,4 +325,10 @@ impl Args {
         }
         Ok(path)
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BindAddr {
+    Address(IpAddr),
+    Path(PathBuf),
 }
