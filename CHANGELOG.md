@@ -2,7 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.30.0] - 2022-09-05
+## [0.31.0] - 2022-11-11
+
+### Bug Fixes
+
+- Auth not works with --path-prefix ([#138](https://github.com/sigoden/dufs/issues/138))
+- Don't search on empty query string ([#140](https://github.com/sigoden/dufs/issues/140))
+- Status code for MKCOL on existing resource ([#142](https://github.com/sigoden/dufs/issues/142))
+- Panic on PROPFIND // ([#144](https://github.com/sigoden/dufs/issues/144))
+
+### Features
+
+- Support unix sockets ([#145](https://github.com/sigoden/dufs/issues/145))
+
+## [0.30.0] - 2022-09-09
 
 ### Bug Fixes
 
