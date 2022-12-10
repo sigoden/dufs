@@ -182,6 +182,7 @@ impl Server {
         let allow_upload = self.args.allow_upload;
         let allow_delete = self.args.allow_delete;
         let allow_search = self.args.allow_search;
+        let allow_archive = self.args.allow_archive;
         let render_index = self.args.render_index;
         let render_spa = self.args.render_spa;
         let render_try_index = self.args.render_try_index;
@@ -195,7 +196,11 @@ impl Server {
             Method::GET | Method::HEAD => {
                 if is_dir {
                     if render_try_index {
-                        if query_params.contains_key("zip") {
+                        if allow_archive && query_params.contains_key("zip") {
+                            if !allow_archive {
+                                status_not_found(&mut res);
+                                return Ok(res);
+                            }
                             self.handle_zip_dir(path, head_only, &mut res).await?;
                         } else if allow_search && query_params.contains_key("q") {
                             self.handle_search_dir(path, &query_params, head_only, &mut res)
@@ -214,6 +219,10 @@ impl Server {
                         self.handle_render_index(path, &query_params, headers, head_only, &mut res)
                             .await?;
                     } else if query_params.contains_key("zip") {
+                        if !allow_archive {
+                            status_not_found(&mut res);
+                            return Ok(res);
+                        }
                         self.handle_zip_dir(path, head_only, &mut res).await?;
                     } else if allow_search && query_params.contains_key("q") {
                         self.handle_search_dir(path, &query_params, head_only, &mut res)
@@ -824,6 +833,7 @@ impl Server {
             allow_upload: self.args.allow_upload,
             allow_delete: self.args.allow_delete,
             allow_search: self.args.allow_search,
+            allow_archive: self.args.allow_archive,
             dir_exists: exist,
         };
         let data = serde_json::to_string(&data).unwrap();
@@ -984,6 +994,7 @@ struct IndexData {
     allow_upload: bool,
     allow_delete: bool,
     allow_search: bool,
+    allow_archive: bool,
     dir_exists: bool,
 }
 

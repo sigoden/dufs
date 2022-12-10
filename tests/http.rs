@@ -38,7 +38,7 @@ fn head_dir_404(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
-fn get_dir_zip(server: TestServer) -> Result<(), Error> {
+fn get_dir_zip(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(format!("{}?zip", server.url()))?;
     assert_eq!(resp.status(), 200);
     assert_eq!(
@@ -50,7 +50,7 @@ fn get_dir_zip(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
-fn head_dir_zip(server: TestServer) -> Result<(), Error> {
+fn head_dir_zip(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"HEAD", format!("{}?zip", server.url())).send()?;
     assert_eq!(resp.status(), 200);
     assert_eq!(

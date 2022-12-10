@@ -109,6 +109,12 @@ pub fn build_cli() -> Command {
                 .help("Allow symlink to files/folders outside root directory"),
         )
         .arg(
+            Arg::new("allow-archive")
+                .long("allow-archive")
+                .action(ArgAction::SetTrue)
+                .help("Allow zip archive generation"),
+        )
+        .arg(
             Arg::new("enable-cors")
                 .long("enable-cors")
                 .action(ArgAction::SetTrue)
@@ -191,6 +197,7 @@ pub struct Args {
     pub allow_delete: bool,
     pub allow_search: bool,
     pub allow_symlink: bool,
+    pub allow_archive: bool,
     pub render_index: bool,
     pub render_spa: bool,
     pub render_try_index: bool,
@@ -244,6 +251,7 @@ impl Args {
         let allow_delete = matches.get_flag("allow-all") || matches.get_flag("allow-delete");
         let allow_search = matches.get_flag("allow-all") || matches.get_flag("allow-search");
         let allow_symlink = matches.get_flag("allow-all") || matches.get_flag("allow-symlink");
+        let allow_archive = matches.get_flag("allow-all") || matches.get_flag("allow-archive");
         let render_index = matches.get_flag("render-index");
         let render_try_index = matches.get_flag("render-try-index");
         let render_spa = matches.get_flag("render-spa");
@@ -286,6 +294,7 @@ impl Args {
             allow_upload,
             allow_search,
             allow_symlink,
+            allow_archive,
             render_index,
             render_try_index,
             render_spa,

@@ -14,6 +14,7 @@
  * @property {boolean} allow_upload
  * @property {boolean} allow_delete
  * @property {boolean} allow_search
+ * @property {boolean} allow_archive
  * @property {boolean} dir_exists
  */
 
@@ -273,12 +274,14 @@ function addPath(file, index) {
   let actionMove = "";
   if (file.path_type.endsWith("Dir")) {
     url += "/";
-    actionDownload = `
-    <div class="action-btn">
-      <a href="${url}?zip" title="Download folder as a .zip file">
-        <svg width="16" height="16" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
-      </a>
-    </div>`;
+    if (DATA.allow_archive) {
+      actionDownload = `
+      <div class="action-btn">
+        <a href="${url}?zip" title="Download folder as a .zip file">
+          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
+        </a>
+      </div>`;
+    }
   } else {
     actionDownload = `
     <div class="action-btn" >
@@ -526,6 +529,10 @@ function ready() {
     if (PARAMS.q) {
       document.getElementById('search').value = PARAMS.q;
     }
+  }
+
+  if (DATA.allow_archive) {
+    document.querySelector(".zip-root").classList.remove("hidden");
   }
 
   addBreadcrumb(DATA.href, DATA.uri_prefix);

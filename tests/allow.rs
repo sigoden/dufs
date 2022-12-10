@@ -21,6 +21,13 @@ fn default_not_allow_delete(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn default_not_allow_archive(server: TestServer) -> Result<(), Error> {
+    let resp = reqwest::blocking::get(format!("{}?zip", server.url()))?;
+    assert_eq!(resp.status(), 404);
+    Ok(())
+}
+
+#[rstest]
 fn default_not_exist_dir(server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(format!("{}404/", server.url()))?;
     assert_eq!(resp.status(), 404);
@@ -69,5 +76,17 @@ fn allow_search(#[with(&["--allow-search"])] server: TestServer) -> Result<(), E
     for p in paths {
         assert!(p.contains("test.html"));
     }
+    Ok(())
+}
+
+#[rstest]
+fn allow_archive(#[with(&["--allow-archive"])] server: TestServer) -> Result<(), Error> {
+    let resp = reqwest::blocking::get(format!("{}?zip", server.url()))?;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(
+        resp.headers().get("content-type").unwrap(),
+        "application/zip"
+    );
+    assert!(resp.headers().contains_key("content-disposition"));
     Ok(())
 }
