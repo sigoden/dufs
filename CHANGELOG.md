@@ -40,7 +40,7 @@ All notable changes to this project will be documented in this file.
 
 ### Bug Fixes
 
-- File path contains special charactors ([#114](https://github.com/sigoden/dufs/issues/114))
+- File path contains special characters ([#114](https://github.com/sigoden/dufs/issues/114))
 
 ### Features
 
@@ -78,7 +78,7 @@ All notable changes to this project will be documented in this file.
 
 ### Bug Fixes
 
-- Unexpect stack overflow when searching a lot ([#87](https://github.com/sigoden/dufs/issues/87))
+- Unexpected stack overflow when searching a lot ([#87](https://github.com/sigoden/dufs/issues/87))
 
 ### Features
 
@@ -171,7 +171,7 @@ All notable changes to this project will be documented in this file.
 
 ### Refactor
 
-- Trival changes ([#41](https://github.com/sigoden/dufs/issues/41))
+- Trivial changes ([#41](https://github.com/sigoden/dufs/issues/41))
 
 ## [0.16.0] - 2022-06-12
 

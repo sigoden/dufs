@@ -498,11 +498,11 @@ function formatDuration(seconds) {
   return `${padZero(h, 2)}:${padZero(m, 2)}:${padZero(s, 2)}`;
 }
 
-function formatPercent(precent) {
-  if (precent > 10) {
-    return precent.toFixed(1) + "%";
+function formatPercent(percent) {
+  if (percent > 10) {
+    return percent.toFixed(1) + "%";
   } else {
-    return precent.toFixed(2) + "%";
+    return percent.toFixed(2) + "%";
   }
 }
 

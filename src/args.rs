@@ -206,7 +206,7 @@ pub struct Args {
 impl Args {
     /// Parse command-line arguments.
     ///
-    /// If a parsing error ocurred, exit the process and print out informative
+    /// If a parsing error occurred, exit the process and print out informative
     /// error message to user.
     pub fn parse(matches: ArgMatches) -> BoxResult<Args> {
         let port = *matches.get_one::<u16>("port").unwrap();
