@@ -213,8 +213,8 @@ impl AuthMethod {
             }
             AuthMethod::Digest => {
                 let digest_value = strip_prefix(authorization.as_bytes(), b"Digest ")?;
-                let digest_vals = to_headermap(digest_value).ok()?;
-                digest_vals
+                let digest_map = to_headermap(digest_value).ok()?;
+                digest_map
                     .get(b"username".as_ref())
                     .and_then(|b| std::str::from_utf8(b).ok())
                     .map(|v| v.to_string())
@@ -251,13 +251,13 @@ impl AuthMethod {
             }
             AuthMethod::Digest => {
                 let digest_value = strip_prefix(authorization.as_bytes(), b"Digest ")?;
-                let digest_vals = to_headermap(digest_value).ok()?;
+                let digest_map = to_headermap(digest_value).ok()?;
                 if let (Some(username), Some(nonce), Some(user_response)) = (
-                    digest_vals
+                    digest_map
                         .get(b"username".as_ref())
                         .and_then(|b| std::str::from_utf8(b).ok()),
-                    digest_vals.get(b"nonce".as_ref()),
-                    digest_vals.get(b"response".as_ref()),
+                    digest_map.get(b"nonce".as_ref()),
+                    digest_map.get(b"response".as_ref()),
                 ) {
                     match validate_nonce(nonce) {
                         Ok(true) => {}
@@ -269,12 +269,12 @@ impl AuthMethod {
                     let mut ha = Context::new();
                     ha.consume(method);
                     ha.consume(b":");
-                    if let Some(uri) = digest_vals.get(b"uri".as_ref()) {
+                    if let Some(uri) = digest_map.get(b"uri".as_ref()) {
                         ha.consume(uri);
                     }
                     let ha = format!("{:x}", ha.compute());
                     let mut correct_response = None;
-                    if let Some(qop) = digest_vals.get(b"qop".as_ref()) {
+                    if let Some(qop) = digest_map.get(b"qop".as_ref()) {
                         if qop == &b"auth".as_ref() || qop == &b"auth-int".as_ref() {
                             correct_response = Some({
                                 let mut c = Context::new();
@@ -282,11 +282,11 @@ impl AuthMethod {
                                 c.consume(b":");
                                 c.consume(nonce);
                                 c.consume(b":");
-                                if let Some(nc) = digest_vals.get(b"nc".as_ref()) {
+                                if let Some(nc) = digest_map.get(b"nc".as_ref()) {
                                     c.consume(nc);
                                 }
                                 c.consume(b":");
-                                if let Some(cnonce) = digest_vals.get(b"cnonce".as_ref()) {
+                                if let Some(cnonce) = digest_map.get(b"cnonce".as_ref()) {
                                     c.consume(cnonce);
                                 }
                                 c.consume(b":");
@@ -375,7 +375,7 @@ fn to_headermap(header: &[u8]) -> Result<HashMap<&[u8], &[u8]>, ()> {
         }
         i += 1;
     }
-    sep.push(i); // same len for both Vecs
+    sep.push(i);
 
     i = 0;
     let mut ret = HashMap::new();
@@ -384,7 +384,7 @@ fn to_headermap(header: &[u8]) -> Result<HashMap<&[u8], &[u8]>, ()> {
             i += 1;
         }
         if a <= i || k <= 1 + a {
-            //keys and vals must contain one char
+            //keys and values must contain one char
             return Err(());
         }
         let key = &header[i..a];

@@ -33,7 +33,7 @@ pub static DIR_ASSETS: &str = "dir-assets/";
 
 /// Directory names for testing purpose
 #[allow(dead_code)]
-pub static DIRECTORIES: &[&str] = &["dira/", "dirb/", "dirc/", DIR_NO_INDEX, DIR_GIT, DIR_ASSETS];
+pub static DIRECTORIES: &[&str] = &["dir1/", "dir2/", "dir3/", DIR_NO_INDEX, DIR_GIT, DIR_ASSETS];
 
 /// Test fixture which creates a temporary directory with a few files and directories inside.
 /// The directories also contain files.

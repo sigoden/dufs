@@ -54,10 +54,10 @@ fn auth_readonly(
 
 #[rstest]
 fn auth_nest(
-    #[with(&["--auth", "/@user:pass@user2:pass2", "--auth", "/dira@user3:pass3", "-A"])]
+    #[with(&["--auth", "/@user:pass@user2:pass2", "--auth", "/dir1@user3:pass3", "-A"])]
     server: TestServer,
 ) -> Result<(), Error> {
-    let url = format!("{}dira/file1", server.url());
+    let url = format!("{}dir1/file1", server.url());
     let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
     assert_eq!(resp.status(), 401);
     let resp = fetch!(b"PUT", &url)
@@ -73,7 +73,7 @@ fn auth_nest(
 
 #[rstest]
 fn auth_nest_share(
-    #[with(&["--auth", "/@user:pass@*", "--auth", "/dira@user3:pass3", "-A"])] server: TestServer,
+    #[with(&["--auth", "/@user:pass@*", "--auth", "/dir1@user3:pass3", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
     let url = format!("{}index.html", server.url());
     let resp = fetch!(b"GET", &url).send()?;
@@ -98,9 +98,9 @@ fn auth_basic(
 
 #[rstest]
 fn auth_webdav_move(
-    #[with(&["--auth", "/@user:pass@*", "--auth", "/dira@user3:pass3", "-A"])] server: TestServer,
+    #[with(&["--auth", "/@user:pass@*", "--auth", "/dir1@user3:pass3", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
-    let origin_url = format!("{}dira/test.html", server.url());
+    let origin_url = format!("{}dir1/test.html", server.url());
     let new_url = format!("{}test2.html", server.url());
     let resp = fetch!(b"MOVE", &origin_url)
         .header("Destination", &new_url)
@@ -111,9 +111,9 @@ fn auth_webdav_move(
 
 #[rstest]
 fn auth_webdav_copy(
-    #[with(&["--auth", "/@user:pass@*", "--auth", "/dira@user3:pass3", "-A"])] server: TestServer,
+    #[with(&["--auth", "/@user:pass@*", "--auth", "/dir1@user3:pass3", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
-    let origin_url = format!("{}dira/test.html", server.url());
+    let origin_url = format!("{}dir1/test.html", server.url());
     let new_url = format!("{}test2.html", server.url());
     let resp = fetch!(b"COPY", &origin_url)
         .header("Destination", &new_url)

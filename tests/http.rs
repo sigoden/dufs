@@ -182,7 +182,7 @@ fn put_file_create_dir(#[with(&["-A"])] server: TestServer) -> Result<(), Error>
 
 #[rstest]
 fn put_file_conflict_dir(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
-    let url = format!("{}dira", server.url());
+    let url = format!("{}dir1", server.url());
     let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
     assert_eq!(resp.status(), 403);
     Ok(())
