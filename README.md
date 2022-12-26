@@ -33,6 +33,12 @@ cargo install dufs
 docker run -v `pwd`:/data -p 5000:5000 --rm -it sigoden/dufs /data -A
 ```
 
+### With [Homebrew](https://brew.sh)
+
+```
+brew install dufs
+```
+
 ### Binaries on macOS, Linux, Windows
 
 Download from [Github Releases](https://github.com/sigoden/dufs/releases), unzip and add dufs to your $PATH.
