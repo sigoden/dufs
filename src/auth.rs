@@ -82,6 +82,11 @@ impl AccessControl {
         if self.rules.is_empty() {
             return GuardType::ReadWrite;
         }
+
+        if method == Method::OPTIONS {
+            return GuardType::ReadOnly;
+        }
+
         let mut controls = vec![];
         for path in walk_path(path) {
             if let Some(control) = self.rules.get(path) {
