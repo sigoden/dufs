@@ -26,12 +26,14 @@ pub fn build_cli() -> Command {
         ))
         .arg(
             Arg::new("root")
+                .env("DUFS_ROOT")
                 .default_value(".")
                 .value_parser(value_parser!(PathBuf))
                 .help("Specific path to serve"),
         )
         .arg(
             Arg::new("bind")
+                .env("DUFS_BIND")
                 .short('b')
                 .long("bind")
                 .help("Specify bind address or unix socket")
@@ -41,6 +43,7 @@ pub fn build_cli() -> Command {
         )
         .arg(
             Arg::new("port")
+                .env("DUFS_PORT")
                 .short('p')
                 .long("port")
                 .default_value("5000")
@@ -50,18 +53,21 @@ pub fn build_cli() -> Command {
         )
         .arg(
             Arg::new("path-prefix")
+                .env("DUFS_PATH_PREFIX")
                 .long("path-prefix")
                 .value_name("path")
                 .help("Specify a path prefix"),
         )
         .arg(
             Arg::new("hidden")
+                .env("DUFS_HIDDEN")
                 .long("hidden")
                 .help("Hide paths from directory listings, separated by `,`")
                 .value_name("value"),
         )
         .arg(
             Arg::new("auth")
+                .env("DUFS_AUTH")
                 .short('a')
                 .long("auth")
                 .help("Add auth for path")
@@ -71,6 +77,7 @@ pub fn build_cli() -> Command {
         )
         .arg(
             Arg::new("auth-method")
+                .env("DUFS_AUTH_METHOD")
                 .long("auth-method")
                 .help("Select auth method")
                 .value_parser(PossibleValuesParser::new(["basic", "digest"]))
@@ -79,6 +86,7 @@ pub fn build_cli() -> Command {
         )
         .arg(
             Arg::new("allow-all")
+                .env("DUFS_ALLOW_ALL")
                 .short('A')
                 .long("allow-all")
                 .action(ArgAction::SetTrue)
@@ -86,60 +94,70 @@ pub fn build_cli() -> Command {
         )
         .arg(
             Arg::new("allow-upload")
+                .env("DUFS_ALLOW_UPLOAD")
                 .long("allow-upload")
                 .action(ArgAction::SetTrue)
                 .help("Allow upload files/folders"),
         )
         .arg(
             Arg::new("allow-delete")
+                .env("DUFS_ALLOW_DELETE")
                 .long("allow-delete")
                 .action(ArgAction::SetTrue)
                 .help("Allow delete files/folders"),
         )
         .arg(
             Arg::new("allow-search")
+                .env("DUFS_ALLOW_SEARCH")
                 .long("allow-search")
                 .action(ArgAction::SetTrue)
                 .help("Allow search files/folders"),
         )
         .arg(
             Arg::new("allow-symlink")
+                .env("DUFS_ALLOW_SYMLINK")
                 .long("allow-symlink")
                 .action(ArgAction::SetTrue)
                 .help("Allow symlink to files/folders outside root directory"),
         )
         .arg(
             Arg::new("allow-archive")
+                .env("DUFS_ALLOW_ARCHIVE")
                 .long("allow-archive")
                 .action(ArgAction::SetTrue)
                 .help("Allow zip archive generation"),
         )
         .arg(
             Arg::new("enable-cors")
+                .env("DUFS_ENABLE_CORS")
                 .long("enable-cors")
                 .action(ArgAction::SetTrue)
                 .help("Enable CORS, sets `Access-Control-Allow-Origin: *`"),
         )
         .arg(
             Arg::new("render-index")
+                .env("DUFS_RENDER_INDEX")
                 .long("render-index")
                 .action(ArgAction::SetTrue)
                 .help("Serve index.html when requesting a directory, returns 404 if not found index.html"),
         )
         .arg(
             Arg::new("render-try-index")
+                .env("DUFS_RENDER_TRY_INDEX")
                 .long("render-try-index")
                 .action(ArgAction::SetTrue)
                 .help("Serve index.html when requesting a directory, returns directory listing if not found index.html"),
         )
         .arg(
             Arg::new("render-spa")
+                .env("DUFS_RENDER_SPA")
                 .long("render-spa")
                 .action(ArgAction::SetTrue)
                 .help("Serve SPA(Single Page Application)"),
         )
         .arg(
             Arg::new("assets")
+                .env("DUFS_ASSETS")
                 .long("assets")
                 .help("Use custom assets to override builtin assets")
                 .value_parser(value_parser!(PathBuf))
@@ -150,6 +168,7 @@ pub fn build_cli() -> Command {
     let app = app
         .arg(
             Arg::new("tls-cert")
+                .env("DUFS_TLS_CERT")
                 .long("tls-cert")
                 .value_name("path")
                 .value_parser(value_parser!(PathBuf))
@@ -157,6 +176,7 @@ pub fn build_cli() -> Command {
         )
         .arg(
             Arg::new("tls-key")
+                .env("DUFS_TLS_KEY")
                 .long("tls-key")
                 .value_name("path")
                 .value_parser(value_parser!(PathBuf))
@@ -165,12 +185,14 @@ pub fn build_cli() -> Command {
 
     app.arg(
         Arg::new("log-format")
+            .env("DUFS_LOG_FORMAT")
             .long("log-format")
             .value_name("format")
             .help("Customize http log format"),
     )
     .arg(
         Arg::new("completions")
+            .env("DUFS_COMPLETIONS")
             .long("completions")
             .value_name("shell")
             .value_parser(value_parser!(Shell))
