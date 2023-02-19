@@ -51,30 +51,30 @@ Dufs is a distinctive utility file server - https://github.com/sigoden/dufs
 Usage: dufs [OPTIONS] [root]
 
 Arguments:
-  [root]  Specific path to serve [env: DUFS_ROOT=] [default: .]
+  [root]  Specific path to serve [default: .]
 
 Options:
-  -b, --bind <addrs>         Specify bind address or unix socket [env: DUFS_BIND=]
-  -p, --port <port>          Specify port to listen on [env: DUFS_PORT=] [default: 5000]
-      --path-prefix <path>   Specify a path prefix [env: DUFS_PATH_PREFIX=]
-      --hidden <value>       Hide paths from directory listings, separated by `,` [env: DUFS_HIDDEN=]
-  -a, --auth <rules>         Add auth for path [env: DUFS_AUTH=]
-      --auth-method <value>  Select auth method [env: DUFS_AUTH_METHOD=] [default: digest] [possible values: basic, digest]
-  -A, --allow-all            Allow all operations [env: DUFS_ALLOW_ALL=]
-      --allow-upload         Allow upload files/folders [env: DUFS_ALLOW_UPLOAD=]
-      --allow-delete         Allow delete files/folders [env: DUFS_ALLOW_DELETE=]
-      --allow-search         Allow search files/folders [env: DUFS_ALLOW_SEARCH=]
-      --allow-symlink        Allow symlink to files/folders outside root directory [env: DUFS_ALLOW_SYMLINK=]
-      --allow-archive        Allow zip archive generation [env: DUFS_ALLOW_ARCHIVE=]
-      --enable-cors          Enable CORS, sets `Access-Control-Allow-Origin: *` [env: DUFS_ENABLE_CORS=]
-      --render-index         Serve index.html when requesting a directory, returns 404 if not found index.html [env: DUFS_RENDER_INDEX=]
-      --render-try-index     Serve index.html when requesting a directory, returns directory listing if not found index.html [env: DUFS_RENDER_TRY_INDEX=]
-      --render-spa           Serve SPA(Single Page Application) [env: DUFS_RENDER_SPA=]
-      --assets <path>        Use custom assets to override builtin assets [env: DUFS_ASSETS=]
-      --tls-cert <path>      Path to an SSL/TLS certificate to serve with HTTPS [env: DUFS_TLS_CERT=]
-      --tls-key <path>       Path to the SSL/TLS certificate's private key [env: DUFS_TLS_KEY=]
-      --log-format <format>  Customize http log format [env: DUFS_LOG_FORMAT=]
-      --completions <shell>  Print shell completion script for <shell> [env: DUFS_COMPLETIONS=] [possible values: bash, elvish, fish, powershell, zsh]
+  -b, --bind <addrs>         Specify bind address or unix socket
+  -p, --port <port>          Specify port to listen on [default: 5000]
+      --path-prefix <path>   Specify a path prefix
+      --hidden <value>       Hide paths from directory listings, separated by `,`
+  -a, --auth <rules>         Add auth for path
+      --auth-method <value>  Select auth method [default: digest] [possible values: basic, digest]
+  -A, --allow-all            Allow all operations
+      --allow-upload         Allow upload files/folders
+      --allow-delete         Allow delete files/folders
+      --allow-search         Allow search files/folders
+      --allow-symlink        Allow symlink to files/folders outside root directory
+      --allow-archive        Allow zip archive generation
+      --enable-cors          Enable CORS, sets `Access-Control-Allow-Origin: *`
+      --render-index         Serve index.html when requesting a directory, returns 404 if not found index.html
+      --render-try-index     Serve index.html when requesting a directory, returns directory listing if not found index.html
+      --render-spa           Serve SPA(Single Page Application)
+      --assets <path>        Use custom assets to override builtin assets
+      --tls-cert <path>      Path to an SSL/TLS certificate to serve with HTTPS
+      --tls-key <path>       Path to the SSL/TLS certificate's private key
+      --log-format <format>  Customize http log format
+      --completions <shell>  Print shell completion script for <shell> [possible values: bash, elvish, fish, powershell, zsh]
   -h, --help                 Print help information
   -V, --version              Print version information
 ```
@@ -273,6 +273,12 @@ dufs --log-format '$remote_addr $remote_user "$request" $status' -a /@admin:admi
 ```
 2022-08-06T07:04:37+08:00 INFO - 127.0.0.1 admin "GET /" 200
 ```
+
+## Environment variables
+
+All options can be set using environment variables prefixed with `DUFS_`.
+
+`dufs --port 8080 --allow-all`  is equal to `DUFS_PORT=8080 DUFS_ALLOW_ALL=true dufs`.
 
 ### Customize UI
 
