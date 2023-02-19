@@ -36,6 +36,16 @@ fn auth_skip(#[with(&["--auth", "/@user:pass@*"])] server: TestServer) -> Result
 }
 
 #[rstest]
+fn auth_skip_on_options_method(
+    #[with(&["--auth", "/@user:pass"])] server: TestServer,
+) -> Result<(), Error> {
+    let url = format!("{}index.html", server.url());
+    let resp = fetch!(b"OPTIONS", &url).send()?;
+    assert_eq!(resp.status(), 200);
+    Ok(())
+}
+
+#[rstest]
 fn auth_readonly(
     #[with(&["--auth", "/@user:pass@user2:pass2", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
