@@ -416,16 +416,24 @@ impl Server {
                     let entry_path = entry.path();
                     let base_name = get_file_name(entry_path);
                     let file_type = entry.file_type();
-                    if is_hidden(&hidden, base_name) {
+                    let mut is_dir_type: bool = file_type.is_dir();
+                    if file_type.is_symlink() {
+                        match std::fs::symlink_metadata(entry_path) {
+                            Ok(meta) => {
+                                is_dir_type = meta.is_dir();
+                            }
+                            Err(_) => {
+                                continue;
+                            }
+                        }
+                    }
+                    if is_hidden(&hidden, base_name, is_dir_type) {
                         if file_type.is_dir() {
                             it.skip_current_dir();
                         }
                         continue;
                     }
                     if !base_name.to_lowercase().contains(&search) {
-                        continue;
-                    }
-                    if entry.path().symlink_metadata().is_err() {
                         continue;
                     }
                     paths.push(entry_path.to_path_buf());
@@ -939,10 +947,10 @@ impl Server {
         while let Ok(Some(entry)) = rd.next_entry().await {
             let entry_path = entry.path();
             let base_name = get_file_name(&entry_path);
-            if is_hidden(&self.args.hidden, base_name) {
-                continue;
-            }
             if let Ok(Some(item)) = self.to_pathitem(entry_path.as_path(), base_path).await {
+                if is_hidden(&self.args.hidden, base_name, item.is_dir()) {
+                    continue;
+                }
                 paths.push(item);
             }
         }
@@ -955,7 +963,6 @@ impl Server {
         base_path: P,
     ) -> BoxResult<Option<PathItem>> {
         let path = path.as_ref();
-        let rel_path = path.strip_prefix(base_path).unwrap();
         let (meta, meta2) = tokio::join!(fs::metadata(&path), fs::symlink_metadata(&path));
         let (meta, meta2) = (meta?, meta2?);
         let is_symlink = meta2.is_symlink();
@@ -974,6 +981,7 @@ impl Server {
             PathType::Dir | PathType::SymlinkDir => None,
             PathType::File | PathType::SymlinkFile => Some(meta.len()),
         };
+        let rel_path = path.strip_prefix(base_path).unwrap();
         let name = normalize_path(rel_path);
         Ok(Some(PathItem {
             path_type,
@@ -1142,7 +1150,18 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
             let entry_path = entry.path();
             let base_name = get_file_name(entry_path);
             let file_type = entry.file_type();
-            if is_hidden(&hidden, base_name) {
+            let mut is_dir_type: bool = file_type.is_dir();
+            if file_type.is_symlink() {
+                match std::fs::symlink_metadata(entry_path) {
+                    Ok(meta) => {
+                        is_dir_type = meta.is_dir();
+                    }
+                    Err(_) => {
+                        continue;
+                    }
+                }
+            }
+            if is_hidden(&hidden, base_name, is_dir_type) {
                 if file_type.is_dir() {
                     it.skip_current_dir();
                 }
@@ -1228,8 +1247,15 @@ fn status_no_content(res: &mut Response) {
     *res.status_mut() = StatusCode::NO_CONTENT;
 }
 
-fn is_hidden(hidden: &[String], file_name: &str) -> bool {
-    hidden.iter().any(|v| glob(v, file_name))
+fn is_hidden(hidden: &[String], file_name: &str, is_dir_type: bool) -> bool {
+    hidden.iter().any(|v| {
+        if is_dir_type {
+            if let Some(x) = v.strip_suffix('/') {
+                return glob(x, file_name);
+            }
+        }
+        glob(v, file_name)
+    })
 }
 
 fn set_webdav_headers(res: &mut Response) {

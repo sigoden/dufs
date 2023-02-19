@@ -55,3 +55,18 @@ fn hidden_search_dir(#[case] server: TestServer, #[case] exist: bool) -> Result<
     }
     Ok(())
 }
+
+#[rstest]
+#[case(server(&["--hidden", "hidden/"]), "dir4/", 1)]
+#[case(server(&["--hidden", "hidden"]), "dir4/", 0)]
+fn hidden_dir_noly(
+    #[case] server: TestServer,
+    #[case] dir: &str,
+    #[case] count: usize,
+) -> Result<(), Error> {
+    let resp = reqwest::blocking::get(format!("{}{}", server.url(), dir))?;
+    assert_eq!(resp.status(), 200);
+    let paths = utils::retrieve_index_paths(&resp.text()?);
+    assert_eq!(paths.len(), count);
+    Ok(())
+}
