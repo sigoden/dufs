@@ -65,6 +65,7 @@ pub fn tmpdir() -> TempDir {
             }
         }
     }
+    tmpdir.child("dir4/hidden").touch().unwrap();
 
     tmpdir
 }
