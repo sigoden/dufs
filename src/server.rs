@@ -643,7 +643,7 @@ impl Server {
                 res.headers_mut()
                     .insert(CONTENT_RANGE, content_range.parse().unwrap());
                 res.headers_mut()
-                    .insert(CONTENT_LENGTH, format!("{}", part_size).parse().unwrap());
+                    .insert(CONTENT_LENGTH, format!("{part_size}").parse().unwrap());
                 if head_only {
                     return Ok(());
                 }
@@ -651,11 +651,11 @@ impl Server {
             } else {
                 *res.status_mut() = StatusCode::RANGE_NOT_SATISFIABLE;
                 res.headers_mut()
-                    .insert(CONTENT_RANGE, format!("bytes */{}", size).parse().unwrap());
+                    .insert(CONTENT_RANGE, format!("bytes */{size}").parse().unwrap());
             }
         } else {
             res.headers_mut()
-                .insert(CONTENT_LENGTH, format!("{}", size).parse().unwrap());
+                .insert(CONTENT_LENGTH, format!("{size}").parse().unwrap());
             if head_only {
                 return Ok(());
             }
@@ -767,15 +767,14 @@ impl Server {
             HeaderValue::from_static("application/xml; charset=utf-8"),
         );
         res.headers_mut()
-            .insert("lock-token", format!("<{}>", token).parse().unwrap());
+            .insert("lock-token", format!("<{token}>").parse().unwrap());
 
         *res.body_mut() = Body::from(format!(
             r#"<?xml version="1.0" encoding="utf-8"?>
 <D:prop xmlns:D="DAV:"><D:lockdiscovery><D:activelock>
-<D:locktoken><D:href>{}</D:href></D:locktoken>
-<D:lockroot><D:href>{}</D:href></D:lockroot>
-</D:activelock></D:lockdiscovery></D:prop>"#,
-            token, req_path
+<D:locktoken><D:href>{token}</D:href></D:locktoken>
+<D:lockroot><D:href>{req_path}</D:href></D:lockroot>
+</D:activelock></D:lockdiscovery></D:prop>"#
         ));
         Ok(())
     }
@@ -783,14 +782,13 @@ impl Server {
     async fn handle_proppatch(&self, req_path: &str, res: &mut Response) -> BoxResult<()> {
         let output = format!(
             r#"<D:response>
-<D:href>{}</D:href>
+<D:href>{req_path}</D:href>
 <D:propstat>
 <D:prop>
 </D:prop>
 <D:status>HTTP/1.1 403 Forbidden</D:status>
 </D:propstat>
-</D:response>"#,
-            req_path
+</D:response>"#
         );
         res_multistatus(res, &output);
         Ok(())
@@ -1021,17 +1019,16 @@ impl PathItem {
         match self.path_type {
             PathType::Dir | PathType::SymlinkDir => format!(
                 r#"<D:response>
-<D:href>{}</D:href>
+<D:href>{href}</D:href>
 <D:propstat>
 <D:prop>
-<D:displayname>{}</D:displayname>
-<D:getlastmodified>{}</D:getlastmodified>
+<D:displayname>{displayname}</D:displayname>
+<D:getlastmodified>{mtime}</D:getlastmodified>
 <D:resourcetype><D:collection/></D:resourcetype>
 </D:prop>
 <D:status>HTTP/1.1 200 OK</D:status>
 </D:propstat>
-</D:response>"#,
-                href, displayname, mtime
+</D:response>"#
             ),
             PathType::File | PathType::SymlinkFile => format!(
                 r#"<D:response>
@@ -1120,9 +1117,8 @@ fn res_multistatus(res: &mut Response, content: &str) {
     *res.body_mut() = Body::from(format!(
         r#"<?xml version="1.0" encoding="utf-8" ?>
 <D:multistatus xmlns:D="DAV:">
-{}
+{content}
 </D:multistatus>"#,
-        content,
     ));
 }
 
@@ -1183,9 +1179,7 @@ fn extract_cache_headers(meta: &Metadata) -> Option<(ETag, LastModified)> {
     let mtime = meta.modified().ok()?;
     let timestamp = to_timestamp(&mtime);
     let size = meta.len();
-    let etag = format!(r#""{}-{}""#, timestamp, size)
-        .parse::<ETag>()
-        .unwrap();
+    let etag = format!(r#""{timestamp}-{size}""#).parse::<ETag>().unwrap();
     let last_modified = LastModified::from(mtime);
     Some((etag, last_modified))
 }

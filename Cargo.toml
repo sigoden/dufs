@@ -11,7 +11,7 @@ categories = ["command-line-utilities", "web-programming::http-server"]
 keywords = ["static", "file", "server", "webdav", "cli"]
 
 [dependencies]
-clap = { version = "4", features = ["wrap_help"] }
+clap = { version = "4", features = ["wrap_help", "env"] }
 clap_complete = "4"
 chrono = "0.4"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util", "signal"]}

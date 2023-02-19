@@ -43,7 +43,7 @@ impl AccessControl {
         }
         for rule in raw_rules {
             let parts: Vec<&str> = rule.split('@').collect();
-            let create_err = || format!("Invalid auth `{}`", rule).into();
+            let create_err = || format!("Invalid auth `{rule}`").into();
             match parts.as_slice() {
                 [path, readwrite] => {
                     let control = PathControl {
@@ -177,7 +177,7 @@ impl Account {
         let user = p[0];
         let pass = p[1];
         let mut h = Context::new();
-        h.consume(format!("{}:{}:{}", user, REALM, pass).as_bytes());
+        h.consume(format!("{user}:{REALM}:{pass}").as_bytes());
         Some(Account {
             user: user.to_owned(),
             pass: format!("{:x}", h.compute()),
@@ -195,7 +195,7 @@ impl AuthMethod {
     pub fn www_auth(&self, stale: bool) -> String {
         match self {
             AuthMethod::Basic => {
-                format!("Basic realm=\"{}\"", REALM)
+                format!("Basic realm=\"{REALM}\"")
             }
             AuthMethod::Digest => {
                 let str_stale = if stale { "stale=true," } else { "" };
