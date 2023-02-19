@@ -41,7 +41,7 @@ async fn main() {
 }
 
 async fn run() -> BoxResult<()> {
-    logger::init().map_err(|e| format!("Failed to init logger, {}", e))?;
+    logger::init().map_err(|e| format!("Failed to init logger, {e}"))?;
     let cmd = build_cli();
     let matches = cmd.get_matches();
     if let Some(generator) = matches.get_one::<Shell>("completions") {
@@ -92,7 +92,7 @@ fn serve(
         match bind_addr {
             BindAddr::Address(ip) => {
                 let incoming = create_addr_incoming(SocketAddr::new(*ip, port))
-                    .map_err(|e| format!("Failed to bind `{}:{}`, {}", ip, port, e))?;
+                    .map_err(|e| format!("Failed to bind `{ip}:{port}`, {e}"))?;
                 match args.tls.as_ref() {
                     #[cfg(feature = "tls")]
                     Some((certs, key)) => {
@@ -180,7 +180,7 @@ fn print_listening(args: Arc<Args>) -> BoxResult<()> {
     }
     if ipv4 || ipv6 {
         let ifaces = if_addrs::get_if_addrs()
-            .map_err(|e| format!("Failed to get local interface addresses: {}", e))?;
+            .map_err(|e| format!("Failed to get local interface addresses: {e}"))?;
         for iface in ifaces.into_iter() {
             let local_ip = iface.ip();
             if ipv4 && local_ip.is_ipv4() {
@@ -212,17 +212,17 @@ fn print_listening(args: Arc<Args>) -> BoxResult<()> {
     } else {
         let info = urls
             .iter()
-            .map(|v| format!("  {}", v))
+            .map(|v| format!("  {v}"))
             .collect::<Vec<String>>()
             .join("\n");
-        println!("Listening on:\n{}\n", info);
+        println!("Listening on:\n{info}\n");
     }
 
     Ok(())
 }
 
 fn handle_err<T>(err: Box<dyn std::error::Error>) -> T {
-    eprintln!("error: {}", err);
+    eprintln!("error: {err}");
     std::process::exit(1);
 }
 

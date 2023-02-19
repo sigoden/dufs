@@ -72,7 +72,7 @@ impl FromStr for LogHttp {
         let mut elements = vec![];
         let mut is_var = false;
         let mut cache = String::new();
-        for c in format!("{} ", s).chars() {
+        for c in format!("{s} ").chars() {
             if c == '$' {
                 if !cache.is_empty() {
                     elements.push(LogElement::Literal(cache.to_string()));

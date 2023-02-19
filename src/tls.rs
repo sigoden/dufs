@@ -150,7 +150,7 @@ pub fn load_private_key<T: AsRef<Path>>(
 
     // Load and return a single private key.
     let keys = rustls_pemfile::read_all(&mut reader)
-        .map_err(|e| format!("There was a problem with reading private key: {:?}", e))?
+        .map_err(|e| format!("There was a problem with reading private key: {e:?}"))?
         .into_iter()
         .find_map(|item| match item {
             rustls_pemfile::Item::RSAKey(key)
