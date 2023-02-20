@@ -11,9 +11,12 @@ use std::time::{Duration, Instant};
 #[allow(dead_code)]
 pub type Error = Box<dyn std::error::Error>;
 
+#[allow(dead_code)]
+pub const BIN_FILE: &str = "😀.bin";
+
 /// File names for testing purpose
 #[allow(dead_code)]
-pub static FILES: &[&str] = &["test.txt", "test.html", "index.html", "😀.bin"];
+pub static FILES: &[&str] = &["test.txt", "test.html", "index.html", BIN_FILE];
 
 /// Directory names for testing directory don't exist
 #[allow(dead_code)]
@@ -42,10 +45,17 @@ pub static DIRECTORIES: &[&str] = &["dir1/", "dir2/", "dir3/", DIR_NO_INDEX, DIR
 pub fn tmpdir() -> TempDir {
     let tmpdir = assert_fs::TempDir::new().expect("Couldn't create a temp dir for tests");
     for file in FILES {
-        tmpdir
-            .child(file)
-            .write_str(&format!("This is {file}"))
-            .expect("Couldn't write to file");
+        if *file == BIN_FILE {
+            tmpdir
+                .child(file)
+                .write_binary(b"bin\0\0123")
+                .expect("Couldn't write to file");
+        } else {
+            tmpdir
+                .child(file)
+                .write_str(&format!("This is {file}"))
+                .expect("Couldn't write to file");
+        }
     }
     for directory in DIRECTORIES {
         if *directory == DIR_ASSETS {
@@ -58,10 +68,17 @@ pub fn tmpdir() -> TempDir {
                 if *directory == DIR_NO_INDEX && *file == "index.html" {
                     continue;
                 }
-                tmpdir
-                    .child(format!("{directory}{file}"))
-                    .write_str(&format!("This is {directory}{file}"))
-                    .expect("Couldn't write to file");
+                if *file == BIN_FILE {
+                    tmpdir
+                        .child(format!("{directory}{file}"))
+                        .write_binary(b"bin\0\0123")
+                        .expect("Couldn't write to file");
+                } else {
+                    tmpdir
+                        .child(format!("{directory}{file}"))
+                        .write_str(&format!("This is {directory}{file}"))
+                        .expect("Couldn't write to file");
+                }
             }
         }
     }

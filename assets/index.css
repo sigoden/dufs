@@ -108,11 +108,10 @@ body {
 }
 
 .main {
-  padding: 3em 1em 0;
+  padding: 3.3em 1em 0;
 }
 
 .empty-folder {
-  padding-top: 1rem;
   font-style: italic;
 }
 
@@ -201,6 +200,25 @@ body {
 .uploader {
   padding-right: 1em;
 }
+
+.editor {
+  width: 100%;
+  height: calc(100vh - 5rem);
+  border: 1px solid #ced4da;
+  outline: none;
+}
+
+.save-btn {
+  margin-left: auto;
+  margin-right: 2em;
+  cursor: pointer;
+  user-select: none;
+}
+
+.not-editable {
+  font-style: italic;
+}
+
 
 @media (min-width: 768px) {
   .path a {

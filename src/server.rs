@@ -29,7 +29,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::SystemTime;
 use tokio::fs::File;
-use tokio::io::{AsyncSeekExt, AsyncWrite};
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWrite};
 use tokio::{fs, io};
 use tokio_util::io::StreamReader;
 use uuid::Uuid;
@@ -43,6 +43,7 @@ const INDEX_JS: &str = include_str!("../assets/index.js");
 const FAVICON_ICO: &[u8] = include_bytes!("../assets/favicon.ico");
 const INDEX_NAME: &str = "index.html";
 const BUF_SIZE: usize = 65536;
+const TEXT_MAX_SIZE: u64 = 4194304; // 4M
 
 pub struct Server {
     args: Arc<Args>,
@@ -232,8 +233,12 @@ impl Server {
                             .await?;
                     }
                 } else if is_file {
-                    self.handle_send_file(path, headers, head_only, &mut res)
-                        .await?;
+                    if query_params.contains_key("edit") {
+                        self.handle_edit_file(path, head_only, &mut res).await?;
+                    } else {
+                        self.handle_send_file(path, headers, head_only, &mut res)
+                            .await?;
+                    }
                 } else if render_spa {
                     self.handle_render_spa(path, headers, head_only, &mut res)
                         .await?;
@@ -673,6 +678,41 @@ impl Server {
         Ok(())
     }
 
+    async fn handle_edit_file(
+        &self,
+        path: &Path,
+        head_only: bool,
+        res: &mut Response,
+    ) -> BoxResult<()> {
+        let (file, meta) = tokio::join!(fs::File::open(path), fs::metadata(path),);
+        let (file, meta) = (file?, meta?);
+        let href = format!("/{}", normalize_path(path.strip_prefix(&self.args.path)?));
+        let mut buffer: Vec<u8> = vec![];
+        file.take(1024).read_to_end(&mut buffer).await?;
+        let editable = meta.len() <= TEXT_MAX_SIZE && content_inspector::inspect(&buffer).is_text();
+        let data = EditData {
+            href,
+            kind: DataKind::Edit,
+            uri_prefix: self.args.uri_prefix.clone(),
+            allow_upload: self.args.allow_upload,
+            allow_delete: self.args.allow_delete,
+            editable,
+        };
+        res.headers_mut()
+            .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
+        let output = self
+            .html
+            .replace("__ASSERTS_PREFIX__", &self.assets_prefix)
+            .replace("__INDEX_DATA__", &serde_json::to_string(&data).unwrap());
+        res.headers_mut()
+            .typed_insert(ContentLength(output.as_bytes().len() as u64));
+        if head_only {
+            return Ok(());
+        }
+        *res.body_mut() = output.into();
+        Ok(())
+    }
+
     async fn handle_propfind_dir(
         &self,
         path: &Path,
@@ -855,6 +895,7 @@ impl Server {
         }
         let href = format!("/{}", normalize_path(path.strip_prefix(&self.args.path)?));
         let data = IndexData {
+            kind: DataKind::Index,
             href,
             uri_prefix: self.args.uri_prefix.clone(),
             allow_upload: self.args.allow_upload,
@@ -1019,8 +1060,15 @@ impl Server {
 }
 
 #[derive(Debug, Serialize)]
+enum DataKind {
+    Index,
+    Edit,
+}
+
+#[derive(Debug, Serialize)]
 struct IndexData {
     href: String,
+    kind: DataKind,
     uri_prefix: String,
     allow_upload: bool,
     allow_delete: bool,
@@ -1028,6 +1076,16 @@ struct IndexData {
     allow_archive: bool,
     dir_exists: bool,
     paths: Vec<PathItem>,
+}
+
+#[derive(Debug, Serialize)]
+struct EditData {
+    href: String,
+    kind: DataKind,
+    uri_prefix: String,
+    allow_upload: bool,
+    allow_delete: bool,
+    editable: bool,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq, Ord, PartialOrd)]

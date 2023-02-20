@@ -1,9 +1,10 @@
 mod fixtures;
 mod utils;
 
-use fixtures::{server, Error, TestServer};
+use fixtures::{server, Error, TestServer, BIN_FILE};
 use rstest::rstest;
 use serde_json::Value;
+use utils::retrive_edit_file;
 
 #[rstest]
 fn get_dir(server: TestServer) -> Result<(), Error> {
@@ -103,12 +104,12 @@ fn get_dir_search(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
 
 #[rstest]
 fn get_dir_search2(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
-    let resp = reqwest::blocking::get(format!("{}?q={}", server.url(), "😀.bin"))?;
+    let resp = reqwest::blocking::get(format!("{}?q={BIN_FILE}", server.url()))?;
     assert_eq!(resp.status(), 200);
     let paths = utils::retrieve_index_paths(&resp.text()?);
     assert!(!paths.is_empty());
     for p in paths {
-        assert!(p.contains("😀.bin"));
+        assert!(p.contains(BIN_FILE));
     }
     Ok(())
 }
@@ -174,6 +175,24 @@ fn head_file(server: TestServer) -> Result<(), Error> {
 fn get_file_404(server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(format!("{}404", server.url()))?;
     assert_eq!(resp.status(), 404);
+    Ok(())
+}
+
+#[rstest]
+fn get_file_edit(server: TestServer) -> Result<(), Error> {
+    let resp = fetch!(b"GET", format!("{}index.html?edit", server.url())).send()?;
+    assert_eq!(resp.status(), 200);
+    let editable = retrive_edit_file(&resp.text().unwrap()).unwrap();
+    assert!(editable);
+    Ok(())
+}
+
+#[rstest]
+fn get_file_edit_bin(server: TestServer) -> Result<(), Error> {
+    let resp = fetch!(b"GET", format!("{}{BIN_FILE}?edit", server.url())).send()?;
+    assert_eq!(resp.status(), 200);
+    let editable = retrive_edit_file(&resp.text().unwrap()).unwrap();
+    assert!(!editable);
     Ok(())
 }
 
