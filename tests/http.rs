@@ -3,6 +3,7 @@ mod utils;
 
 use fixtures::{server, Error, TestServer};
 use rstest::rstest;
+use serde_json::Value;
 
 #[rstest]
 fn get_dir(server: TestServer) -> Result<(), Error> {
@@ -50,6 +51,32 @@ fn get_dir_zip(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn get_dir_json(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let resp = reqwest::blocking::get(format!("{}?json", server.url()))?;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(
+        resp.headers().get("content-type").unwrap(),
+        "application/json"
+    );
+    let json: Value = serde_json::from_str(&resp.text().unwrap()).unwrap();
+    assert!(json["paths"].as_array().is_some());
+    Ok(())
+}
+
+#[rstest]
+fn get_dir_simple(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let resp = reqwest::blocking::get(format!("{}?simple", server.url()))?;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(
+        resp.headers().get("content-type").unwrap(),
+        "text/html; charset=utf-8"
+    );
+    let text = resp.text().unwrap();
+    assert!(text.split('\n').any(|v| v == "index.html"));
+    Ok(())
+}
+
+#[rstest]
 fn head_dir_zip(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"HEAD", format!("{}?zip", server.url())).send()?;
     assert_eq!(resp.status(), 200);
@@ -83,6 +110,15 @@ fn get_dir_search2(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     for p in paths {
         assert!(p.contains("😀.bin"));
     }
+    Ok(())
+}
+
+#[rstest]
+fn get_dir_search3(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let resp = reqwest::blocking::get(format!("{}?q={}&simple", server.url(), "test.html"))?;
+    assert_eq!(resp.status(), 200);
+    let text = resp.text().unwrap();
+    assert!(text.split('\n').any(|v| v == "test.html"));
     Ok(())
 }
 

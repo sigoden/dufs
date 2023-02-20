@@ -44,7 +44,7 @@ pub fn tmpdir() -> TempDir {
     for file in FILES {
         tmpdir
             .child(file)
-            .write_str(&format!("This is {}", file))
+            .write_str(&format!("This is {file}"))
             .expect("Couldn't write to file");
     }
     for directory in DIRECTORIES {
@@ -59,8 +59,8 @@ pub fn tmpdir() -> TempDir {
                     continue;
                 }
                 tmpdir
-                    .child(format!("{}{}", directory, file))
-                    .write_str(&format!("This is {}{}", directory, file))
+                    .child(format!("{directory}{file}"))
+                    .write_str(&format!("This is {directory}{file}"))
                     .expect("Couldn't write to file");
             }
         }
@@ -109,11 +109,11 @@ where
 pub fn wait_for_port(port: u16) {
     let start_wait = Instant::now();
 
-    while !port_check::is_port_reachable(format!("localhost:{}", port)) {
+    while !port_check::is_port_reachable(format!("localhost:{port}")) {
         sleep(Duration::from_millis(100));
 
         if start_wait.elapsed().as_secs() > 1 {
-            panic!("timeout waiting for port {}", port);
+            panic!("timeout waiting for port {port}");
         }
     }
 }

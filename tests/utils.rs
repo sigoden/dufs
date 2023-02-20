@@ -48,7 +48,7 @@ fn retrieve_index_paths_impl(index: &str) -> Option<IndexSet<String>> {
             let name = v.get("name")?.as_str()?;
             let path_type = v.get("path_type")?.as_str()?;
             if path_type.ends_with("Dir") {
-                Some(format!("{}/", name))
+                Some(format!("{name}/"))
             } else {
                 Some(name.to_owned())
             }

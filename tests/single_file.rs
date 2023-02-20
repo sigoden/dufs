@@ -21,11 +21,11 @@ fn single_file(tmpdir: TempDir, port: u16, #[case] file: &str) -> Result<(), Err
 
     wait_for_port(port);
 
-    let resp = reqwest::blocking::get(format!("http://localhost:{}", port))?;
+    let resp = reqwest::blocking::get(format!("http://localhost:{port}"))?;
     assert_eq!(resp.text()?, "This is index.html");
-    let resp = reqwest::blocking::get(format!("http://localhost:{}/", port))?;
+    let resp = reqwest::blocking::get(format!("http://localhost:{port}/"))?;
     assert_eq!(resp.text()?, "This is index.html");
-    let resp = reqwest::blocking::get(format!("http://localhost:{}/index.html", port))?;
+    let resp = reqwest::blocking::get(format!("http://localhost:{port}/index.html"))?;
     assert_eq!(resp.text()?, "This is index.html");
 
     child.kill()?;
@@ -46,13 +46,13 @@ fn path_prefix_single_file(tmpdir: TempDir, port: u16, #[case] file: &str) -> Re
 
     wait_for_port(port);
 
-    let resp = reqwest::blocking::get(format!("http://localhost:{}/xyz", port))?;
+    let resp = reqwest::blocking::get(format!("http://localhost:{port}/xyz"))?;
     assert_eq!(resp.text()?, "This is index.html");
-    let resp = reqwest::blocking::get(format!("http://localhost:{}/xyz/", port))?;
+    let resp = reqwest::blocking::get(format!("http://localhost:{port}/xyz/"))?;
     assert_eq!(resp.text()?, "This is index.html");
-    let resp = reqwest::blocking::get(format!("http://localhost:{}/xyz/index.html", port))?;
+    let resp = reqwest::blocking::get(format!("http://localhost:{port}/xyz/index.html"))?;
     assert_eq!(resp.text()?, "This is index.html");
-    let resp = reqwest::blocking::get(format!("http://localhost:{}", port))?;
+    let resp = reqwest::blocking::get(format!("http://localhost:{port}"))?;
     assert_eq!(resp.status(), 404);
 
     child.kill()?;

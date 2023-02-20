@@ -11,13 +11,13 @@ use std::process::{Command, Stdio};
 fn assets(server: TestServer) -> Result<(), Error> {
     let ver = env!("CARGO_PKG_VERSION");
     let resp = reqwest::blocking::get(server.url())?;
-    let index_js = format!("/__dufs_v{}_index.js", ver);
-    let index_css = format!("/__dufs_v{}_index.css", ver);
-    let favicon_ico = format!("/__dufs_v{}_favicon.ico", ver);
+    let index_js = format!("/__dufs_v{ver}_index.js");
+    let index_css = format!("/__dufs_v{ver}_index.css");
+    let favicon_ico = format!("/__dufs_v{ver}_favicon.ico");
     let text = resp.text()?;
-    assert!(text.contains(&format!(r#"href="{}""#, index_css)));
-    assert!(text.contains(&format!(r#"href="{}""#, favicon_ico)));
-    assert!(text.contains(&format!(r#"src="{}""#, index_js)));
+    assert!(text.contains(&format!(r#"href="{index_css}""#)));
+    assert!(text.contains(&format!(r#"href="{favicon_ico}""#)));
+    assert!(text.contains(&format!(r#"src="{index_js}""#)));
     Ok(())
 }
 
@@ -67,13 +67,13 @@ fn asset_ico(server: TestServer) -> Result<(), Error> {
 fn assets_with_prefix(#[with(&["--path-prefix", "xyz"])] server: TestServer) -> Result<(), Error> {
     let ver = env!("CARGO_PKG_VERSION");
     let resp = reqwest::blocking::get(format!("{}xyz/", server.url()))?;
-    let index_js = format!("/xyz/__dufs_v{}_index.js", ver);
-    let index_css = format!("/xyz/__dufs_v{}_index.css", ver);
-    let favicon_ico = format!("/xyz/__dufs_v{}_favicon.ico", ver);
+    let index_js = format!("/xyz/__dufs_v{ver}_index.js");
+    let index_css = format!("/xyz/__dufs_v{ver}_index.css");
+    let favicon_ico = format!("/xyz/__dufs_v{ver}_favicon.ico");
     let text = resp.text()?;
-    assert!(text.contains(&format!(r#"href="{}""#, index_css)));
-    assert!(text.contains(&format!(r#"href="{}""#, favicon_ico)));
-    assert!(text.contains(&format!(r#"src="{}""#, index_js)));
+    assert!(text.contains(&format!(r#"href="{index_css}""#)));
+    assert!(text.contains(&format!(r#"href="{favicon_ico}""#)));
+    assert!(text.contains(&format!(r#"src="{index_js}""#)));
     Ok(())
 }
 
@@ -108,7 +108,7 @@ fn assets_override(tmpdir: TempDir, port: u16) -> Result<(), Error> {
 
     wait_for_port(port);
 
-    let url = format!("http://localhost:{}", port);
+    let url = format!("http://localhost:{port}");
     let resp = reqwest::blocking::get(&url)?;
     assert!(resp.text()?.starts_with(&format!(
         "/__dufs_v{}_index.js;DATA",
