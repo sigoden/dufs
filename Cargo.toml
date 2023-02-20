@@ -40,6 +40,7 @@ async-stream = "0.3"
 walkdir = "2.3"
 form_urlencoded = "1.0"
 alphanumeric-sort = "1.4"
+content_inspector = "0.2.4"
 
 [features]
 default = ["tls"]

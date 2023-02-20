@@ -25,24 +25,13 @@ macro_rules! fetch {
 }
 
 #[allow(dead_code)]
-pub fn retrieve_index_paths(index: &str) -> IndexSet<String> {
-    retrieve_index_paths_impl(index).unwrap_or_default()
-}
-
-#[allow(dead_code)]
-pub fn encode_uri(v: &str) -> String {
-    let parts: Vec<_> = v.split('/').map(urlencoding::encode).collect();
-    parts.join("/")
-}
-
-fn retrieve_index_paths_impl(index: &str) -> Option<IndexSet<String>> {
-    let lines: Vec<&str> = index.lines().collect();
-    let line = lines.iter().find(|v| v.contains("DATA ="))?;
-    let line_col = line.find("DATA =").unwrap() + 6;
-    let value: Value = line[line_col..].parse().ok()?;
+pub fn retrieve_index_paths(content: &str) -> IndexSet<String> {
+    let value = retrive_json(content).unwrap();
     let paths = value
-        .get("paths")?
-        .as_array()?
+        .get("paths")
+        .unwrap()
+        .as_array()
+        .unwrap()
         .iter()
         .flat_map(|v| {
             let name = v.get("name")?.as_str()?;
@@ -54,5 +43,26 @@ fn retrieve_index_paths_impl(index: &str) -> Option<IndexSet<String>> {
             }
         })
         .collect();
-    Some(paths)
+    paths
+}
+
+#[allow(dead_code)]
+pub fn retrive_edit_file(content: &str) -> Option<bool> {
+    let value = retrive_json(content)?;
+    let value = value.get("editable").unwrap();
+    Some(value.as_bool().unwrap())
+}
+
+#[allow(dead_code)]
+pub fn encode_uri(v: &str) -> String {
+    let parts: Vec<_> = v.split('/').map(urlencoding::encode).collect();
+    parts.join("/")
+}
+
+fn retrive_json(content: &str) -> Option<Value> {
+    let lines: Vec<&str> = content.lines().collect();
+    let line = lines.iter().find(|v| v.contains("DATA ="))?;
+    let line_col = line.find("DATA =").unwrap() + 6;
+    let value: Value = line[line_col..].parse().unwrap();
+    Some(value)
 }

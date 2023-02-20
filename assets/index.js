@@ -7,15 +7,28 @@
  */
 
 /**
- * @typedef {object} DATA
+ * @typedef {IndexDATA|EditDATA} DATA
+ */
+
+/**
+ * @typedef {object} IndexDATA
  * @property {string} href
  * @property {string} uri_prefix
+ * @property {"Index"} kind
  * @property {PathItem[]} paths
  * @property {boolean} allow_upload
  * @property {boolean} allow_delete
  * @property {boolean} allow_search
  * @property {boolean} allow_archive
  * @property {boolean} dir_exists
+ */
+
+/**
+ * @typedef {object} EditDATA
+ * @property {string} href
+ * @property {string} uri_prefix
+ * @property {"Edit"} kind
+ * @property {string} editable
  */
 
 /**
@@ -57,11 +70,43 @@ let $emptyFolder;
 /**
  * @type Element
  */
-let $newFolder;
-/**
- * @type Element
- */
-let $searchbar;
+let $editor;
+
+function ready() {
+  document.title = `Index of ${DATA.href} - Dufs`;
+  $pathsTable = document.querySelector(".paths-table")
+  $pathsTableHead = document.querySelector(".paths-table thead");
+  $pathsTableBody = document.querySelector(".paths-table tbody");
+  $uploadersTable = document.querySelector(".uploaders-table");
+  $emptyFolder = document.querySelector(".empty-folder");
+  $editor = document.querySelector(".editor");
+
+  addBreadcrumb(DATA.href, DATA.uri_prefix);
+
+  if (DATA.kind == "Index") {
+
+    document.querySelector(".index-page").classList.remove("hidden");
+
+    if (DATA.allow_search) {
+      setupSearch()
+    }
+
+    if (DATA.allow_archive) {
+      document.querySelector(".zip-root").classList.remove("hidden");
+    }
+
+    renderPathsTableHead();
+    renderPathsTableBody();
+
+    if (DATA.allow_upload) {
+      dropzone();
+      setupUpload();
+    }
+  } else if (DATA.kind == "Edit") {
+    setupEditor();
+  }
+}
+
 
 class Uploader {
   /**
@@ -83,12 +128,12 @@ class Uploader {
 
   upload() {
     const { idx, name } = this;
-    const url = getUrl(name);
+    const url = newUrl(name);
     const encodedName = encodedStr(name);
     $uploadersTable.insertAdjacentHTML("beforeend", `
   <tr id="upload${idx}" class="uploader">
     <td class="path cell-icon">
-      ${getSvg()}
+      ${getPathSvg()}
     </td>
     <td class="path cell-name">
       <a href="${url}">${encodedName}</a>
@@ -105,7 +150,7 @@ class Uploader {
 
   ajax() {
     Uploader.runnings += 1;
-    const url = getUrl(this.name);
+    const url = newUrl(this.name);
     this.lastUptime = Date.now();
     const ajax = new XMLHttpRequest();
     ajax.upload.addEventListener("progress", e => this.progress(e), false);
@@ -272,7 +317,7 @@ function renderPathsTableBody() {
  */
 function addPath(file, index) {
   const encodedName = encodedStr(file.name);
-  let url = getUrl(file.name)
+  let url = newUrl(file.name)
   let actionDelete = "";
   let actionDownload = "";
   let actionMove = "";
@@ -316,10 +361,10 @@ function addPath(file, index) {
   $pathsTableBody.insertAdjacentHTML("beforeend", `
 <tr id="addPath${index}">
   <td class="path cell-icon">
-    ${getSvg(file.path_type)}
+    ${getPathSvg(file.path_type)}
   </td>
   <td class="path cell-name">
-    <a href="${url}">${encodedName}</a>
+    <a href="${url}?edit" target="_blank">${encodedName}</a>
   </td>
   <td class="cell-mtime">${formatMtime(file.mtime)}</td>
   <td class="cell-size">${formatSize(file.size).join(" ")}</td>
@@ -339,19 +384,16 @@ async function deletePath(index) {
   if (!confirm(`Delete \`${file.name}\`?`)) return;
 
   try {
-    const res = await fetch(getUrl(file.name), {
+    const res = await fetch(newUrl(file.name), {
       method: "DELETE",
     });
-    if (res.status >= 200 && res.status < 300) {
-      document.getElementById(`addPath${index}`).remove();
-      DATA.paths[index] = null;
-      if (!DATA.paths.find(v => !!v)) {
-        $pathsTable.classList.add("hidden");
-        $emptyFolder.textContent = dirEmptyNote;
-        $emptyFolder.classList.remove("hidden");
-      }
-    } else {
-      throw new Error(await res.text())
+    await assertFetch(res);
+    document.getElementById(`addPath${index}`).remove();
+    DATA.paths[index] = null;
+    if (!DATA.paths.find(v => !!v)) {
+      $pathsTable.classList.add("hidden");
+      $emptyFolder.textContent = dirEmptyNote;
+      $emptyFolder.classList.remove("hidden");
     }
   } catch (err) {
     alert(`Cannot delete \`${file.name}\`, ${err.message}`);
@@ -368,7 +410,7 @@ async function movePath(index) {
   const file = DATA.paths[index];
   if (!file) return;
 
-  const fileUrl = getUrl(file.name);
+  const fileUrl = newUrl(file.name);
   const fileUrlObj = new URL(fileUrl)
 
   const prefix = DATA.uri_prefix.slice(0, -1);
@@ -388,11 +430,8 @@ async function movePath(index) {
         "Destination": newFileUrl,
       }
     });
-    if (res.status >= 200 && res.status < 300) {
-      location.href = newFileUrl.split("/").slice(0, -1).join("/")
-    } else {
-      throw new Error(await res.text())
-    }
+    await assertFetch(res);
+    location.href = newFileUrl.split("/").slice(0, -1).join("/")
   } catch (err) {
     alert(`Cannot move \`${filePath}\` to \`${newPath}\`, ${err.message}`);
   }
@@ -426,12 +465,13 @@ function dropzone() {
  * Setup searchbar
  */
 function setupSearch() {
+  const $searchbar = document.querySelector(".searchbar");
   $searchbar.classList.remove("hidden");
   $searchbar.addEventListener("submit", event => {
     event.preventDefault();
     const formData = new FormData($searchbar);
     const q = formData.get("q");
-    let href = getUrl();
+    let href = baseUrl();
     if (q) {
       href += "?q=" + q;
     }
@@ -442,10 +482,8 @@ function setupSearch() {
   }
 }
 
-/**
- * Setup upload
- */
 function setupUpload() {
+  const $newFolder = document.querySelector(".new-folder");
   $newFolder.classList.remove("hidden");
   $newFolder.addEventListener("click", () => {
     const name = prompt("Enter folder name");
@@ -460,19 +498,61 @@ function setupUpload() {
   });
 }
 
+async function setupEditor() {
+  document.querySelector(".editor-page").classList.remove("hidden");;
+
+  const $download = document.querySelector(".download")
+  $download.classList.remove("hidden");
+  $download.href = baseUrl()
+
+  if (!DATA.editable) {
+    const $notEditable = document.querySelector(".not-editable");
+    $notEditable.classList.remove("hidden");
+    $notEditable.textContent = "File is binary or too large.";
+    return;
+  }
+
+  const $saveBtn = document.querySelector(".save-btn");
+  $saveBtn.classList.remove("hidden");
+  $saveBtn.addEventListener("click", saveChange);
+
+  $editor.classList.remove("hidden");
+  try {
+    const res = await fetch(baseUrl());
+    await assertFetch(res);
+    const text = await res.text();
+    $editor.value = text;
+  } catch (err) {
+    alert(`Failed get file, ${err.message}`);
+  }
+}
+
+/**
+ * Save editor change
+ */
+async function saveChange() {
+  try {
+    await fetch(baseUrl(), {
+      method: "PUT",
+      body: $editor.value,
+    });
+  } catch (err) {
+    alert(`Failed to save file, ${err.message}`);
+  }
+}
+
 /**
  * Create a folder
  * @param {string} name 
  */
 async function createFolder(name) {
-  const url = getUrl(name);
+  const url = newUrl(name);
   try {
     const res = await fetch(url, {
       method: "MKCOL",
     });
-    if (res.status >= 200 && res.status < 300) {
-      location.href = url;
-    }
+    await assertFetch(res);
+    location.href = url;
   } catch (err) {
     alert(`Cannot create folder \`${name}\`, ${err.message}`);
   }
@@ -492,15 +572,18 @@ async function addFileEntries(entries, dirs) {
 }
 
 
-function getUrl(name) {
-  let url = location.href.split('?')[0];
+function newUrl(name) {
+  let url = baseUrl();
   if (!url.endsWith("/")) url += "/";
-  if (!name) return url;
   url += name.split("/").map(encodeURIComponent).join("/");
   return url;
 }
 
-function getSvg(path_type) {
+function baseUrl() {
+  return location.href.split('?')[0];
+}
+
+function getPathSvg(path_type) {
   switch (path_type) {
     case "Dir":
       return `<svg height="16" viewBox="0 0 14 16" width="14"><path fill-rule="evenodd" d="M13 4H7V3c0-.66-.31-1-1-1H1c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1V5c0-.55-.45-1-1-1zM6 4H1V3h5v1z"></path></svg>`;
@@ -558,30 +641,8 @@ function encodedStr(rawStr) {
   });
 }
 
-function ready() {
-  document.title = `Index of ${DATA.href} - Dufs`;
-  $pathsTable = document.querySelector(".paths-table")
-  $pathsTableHead = document.querySelector(".paths-table thead");
-  $pathsTableBody = document.querySelector(".paths-table tbody");
-  $uploadersTable = document.querySelector(".uploaders-table");
-  $emptyFolder = document.querySelector(".empty-folder");
-  $newFolder = document.querySelector(".new-folder");
-  $searchbar = document.querySelector(".searchbar");
-
-  if (DATA.allow_search) {
-    setupSearch()
-  }
-
-  if (DATA.allow_archive) {
-    document.querySelector(".zip-root").classList.remove("hidden");
-  }
-
-  addBreadcrumb(DATA.href, DATA.uri_prefix);
-  renderPathsTableHead();
-  renderPathsTableBody();
-
-  if (DATA.allow_upload) {
-    dropzone();
-    setupUpload();
+async function assertFetch(res) {
+  if (!(res.status >= 200 && res.status < 300)) {
+    throw new Error(await res.text())
   }
 }
