@@ -831,24 +831,50 @@ impl Server {
         } else {
             paths.sort_unstable();
         }
+        if query_params.contains_key("simple") {
+            let output = paths
+                .into_iter()
+                .map(|v| {
+                    if v.is_dir() {
+                        format!("{}/\n", v.name)
+                    } else {
+                        format!("{}\n", v.name)
+                    }
+                })
+                .collect::<Vec<String>>()
+                .join("");
+            res.headers_mut()
+                .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
+            res.headers_mut()
+                .typed_insert(ContentLength(output.as_bytes().len() as u64));
+            *res.body_mut() = output.into();
+            if head_only {
+                return Ok(());
+            }
+            return Ok(());
+        }
         let href = format!("/{}", normalize_path(path.strip_prefix(&self.args.path)?));
         let data = IndexData {
             href,
             uri_prefix: self.args.uri_prefix.clone(),
-            paths,
             allow_upload: self.args.allow_upload,
             allow_delete: self.args.allow_delete,
             allow_search: self.args.allow_search,
             allow_archive: self.args.allow_archive,
             dir_exists: exist,
+            paths,
         };
-        let data = serde_json::to_string(&data).unwrap();
-        let output = self
-            .html
-            .replace("__ASSERTS_PREFIX__", &self.assets_prefix)
-            .replace("__INDEX_DATA__", &data);
-        res.headers_mut()
-            .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
+        let output = if query_params.contains_key("json") {
+            res.headers_mut()
+                .typed_insert(ContentType::from(mime_guess::mime::APPLICATION_JSON));
+            serde_json::to_string_pretty(&data).unwrap()
+        } else {
+            res.headers_mut()
+                .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
+            self.html
+                .replace("__ASSERTS_PREFIX__", &self.assets_prefix)
+                .replace("__INDEX_DATA__", &serde_json::to_string(&data).unwrap())
+        };
         res.headers_mut()
             .typed_insert(ContentLength(output.as_bytes().len() as u64));
         if head_only {
@@ -996,12 +1022,12 @@ impl Server {
 struct IndexData {
     href: String,
     uri_prefix: String,
-    paths: Vec<PathItem>,
     allow_upload: bool,
     allow_delete: bool,
     allow_search: bool,
     allow_archive: bool,
     dir_exists: bool,
+    paths: Vec<PathItem>,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq, Ord, PartialOrd)]

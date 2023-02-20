@@ -171,6 +171,16 @@ Delete a file/folder
 curl -X DELETE http://127.0.0.1:5000/path-to-file-or-folder
 ```
 
+List/search directory contents
+
+```
+curl http://127.0.0.1:5000?simple                 # output pathname only, just like `ls -1`
+
+curl http://127.0.0.1:5000?json                   # output name/mtime/type/size and other information in json format
+
+curl http://127.0.0.1:5000?q=Dockerfile&simple    # search for files, just like `find -name Dockerfile`
+```
+
 <details>
 <summary><h2>Advanced topics</h2></summary>
 
