@@ -58,6 +58,10 @@ let $emptyFolder;
  * @type Element
  */
 let $newFolder;
+/**
+ * @type Element
+ */
+let $searchbar;
 
 class Uploader {
   /**
@@ -106,7 +110,7 @@ class Uploader {
     const ajax = new XMLHttpRequest();
     ajax.upload.addEventListener("progress", e => this.progress(e), false);
     ajax.addEventListener("readystatechange", () => {
-      if(ajax.readyState === 4) {
+      if (ajax.readyState === 4) {
         if (ajax.status >= 200 && ajax.status < 300) {
           this.complete();
         } else {
@@ -119,7 +123,7 @@ class Uploader {
     ajax.open("PUT", url);
     ajax.send(this.file);
   }
-  
+
 
   progress(event) {
     const now = Date.now();
@@ -182,7 +186,7 @@ function addBreadcrumb(href, uri_prefix) {
     const name = parts[i];
     if (i > 0) {
       if (!path.endsWith("/")) {
-        path  += "/";
+        path += "/";
       }
       path += encodeURIComponent(name);
     }
@@ -224,20 +228,20 @@ function renderPathsTableHead() {
   $pathsTableHead.insertAdjacentHTML("beforeend", `
     <tr>
       ${headerItems.map(item => {
-        let svg = `<svg width="12" height="12" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M11.5 15a.5.5 0 0 0 .5-.5V2.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L11 2.707V14.5a.5.5 0 0 0 .5.5zm-7-14a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L4 13.293V1.5a.5.5 0 0 1 .5-.5z"/></svg>`;
-        let order = "asc";
-        if (PARAMS.sort === item.name) {
-          if (PARAMS.order === "asc") {
-            order = "desc";
-            svg = `<svg width="12" height="12" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 15a.5.5 0 0 0 .5-.5V2.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L7.5 2.707V14.5a.5.5 0 0 0 .5.5z"/></svg>`
-          } else {
-            svg = `<svg width="12" height="12" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 1a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L7.5 13.293V1.5A.5.5 0 0 1 8 1z"/></svg>`
-          }
-        }
-        const qs = new URLSearchParams({...PARAMS, order, sort: item.name }).toString();
-        const icon = `<span>${svg}</span>`
-        return `<th class="cell-${item.name}" ${item.props}><a href="?${qs}">${item.text}${icon}</a></th>`
-      }).join("\n")}
+    let svg = `<svg width="12" height="12" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M11.5 15a.5.5 0 0 0 .5-.5V2.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L11 2.707V14.5a.5.5 0 0 0 .5.5zm-7-14a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L4 13.293V1.5a.5.5 0 0 1 .5-.5z"/></svg>`;
+    let order = "asc";
+    if (PARAMS.sort === item.name) {
+      if (PARAMS.order === "asc") {
+        order = "desc";
+        svg = `<svg width="12" height="12" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 15a.5.5 0 0 0 .5-.5V2.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L7.5 2.707V14.5a.5.5 0 0 0 .5.5z"/></svg>`
+      } else {
+        svg = `<svg width="12" height="12" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 1a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L7.5 13.293V1.5A.5.5 0 0 1 8 1z"/></svg>`
+      }
+    }
+    const qs = new URLSearchParams({ ...PARAMS, order, sort: item.name }).toString();
+    const icon = `<span>${svg}</span>`
+    return `<th class="cell-${item.name}" ${item.props}><a href="?${qs}">${item.text}${icon}</a></th>`
+  }).join("\n")}
       <th class="cell-actions">Actions</th>
     </tr>
   `);
@@ -339,13 +343,13 @@ async function deletePath(index) {
       method: "DELETE",
     });
     if (res.status >= 200 && res.status < 300) {
-        document.getElementById(`addPath${index}`).remove();
-        DATA.paths[index] = null;
-        if (!DATA.paths.find(v => !!v)) {
-          $pathsTable.classList.add("hidden");
-          $emptyFolder.textContent = dirEmptyNote;
-          $emptyFolder.classList.remove("hidden");
-        }
+      document.getElementById(`addPath${index}`).remove();
+      DATA.paths[index] = null;
+      if (!DATA.paths.find(v => !!v)) {
+        $pathsTable.classList.add("hidden");
+        $emptyFolder.textContent = dirEmptyNote;
+        $emptyFolder.classList.remove("hidden");
+      }
     } else {
       throw new Error(await res.text())
     }
@@ -368,7 +372,7 @@ async function movePath(index) {
   const fileUrlObj = new URL(fileUrl)
 
   const prefix = DATA.uri_prefix.slice(0, -1);
-    
+
   const filePath = decodeURIComponent(fileUrlObj.pathname.slice(prefix.length));
 
   let newPath = prompt("Enter new path", filePath)
@@ -395,27 +399,65 @@ async function movePath(index) {
 }
 
 function dropzone() {
-    ["drag", "dragstart", "dragend", "dragover", "dragenter", "dragleave", "drop"].forEach(name => {
-      document.addEventListener(name, e => {
-          e.preventDefault();
-          e.stopPropagation();
-      });
+  ["drag", "dragstart", "dragend", "dragover", "dragenter", "dragleave", "drop"].forEach(name => {
+    document.addEventListener(name, e => {
+      e.preventDefault();
+      e.stopPropagation();
     });
-    document.addEventListener("drop", e => {
-      if (!e.dataTransfer.items[0].webkitGetAsEntry) {
-        const files = e.dataTransfer.files.filter(v => v.size > 0);
-        for (const file of files) {
-          new Uploader(file, []).upload();
-        }
-      } else {
-        const entries = [];
-        const len = e.dataTransfer.items.length;
-        for (let i = 0; i < len; i++) {
-          entries.push(e.dataTransfer.items[i].webkitGetAsEntry());
-        }
-        addFileEntries(entries, [])
+  });
+  document.addEventListener("drop", e => {
+    if (!e.dataTransfer.items[0].webkitGetAsEntry) {
+      const files = e.dataTransfer.files.filter(v => v.size > 0);
+      for (const file of files) {
+        new Uploader(file, []).upload();
       }
-    });
+    } else {
+      const entries = [];
+      const len = e.dataTransfer.items.length;
+      for (let i = 0; i < len; i++) {
+        entries.push(e.dataTransfer.items[i].webkitGetAsEntry());
+      }
+      addFileEntries(entries, [])
+    }
+  });
+}
+
+/**
+ * Setup searchbar
+ */
+function setupSearch() {
+  $searchbar.classList.remove("hidden");
+  $searchbar.addEventListener("submit", event => {
+    event.preventDefault();
+    const formData = new FormData($searchbar);
+    const q = formData.get("q");
+    let href = getUrl();
+    if (q) {
+      href += "?q=" + q;
+    }
+    location.href = href;
+  });
+  if (PARAMS.q) {
+    document.getElementById('search').value = PARAMS.q;
+  }
+}
+
+/**
+ * Setup upload
+ */
+function setupUpload() {
+  $newFolder.classList.remove("hidden");
+  $newFolder.addEventListener("click", () => {
+    const name = prompt("Enter folder name");
+    if (name) createFolder(name);
+  });
+  document.querySelector(".upload-file").classList.remove("hidden");
+  document.getElementById("file").addEventListener("change", e => {
+    const files = e.target.files;
+    for (let file of files) {
+      new Uploader(file, []).upload();
+    }
+  });
 }
 
 /**
@@ -451,11 +493,11 @@ async function addFileEntries(entries, dirs) {
 
 
 function getUrl(name) {
-    let url = location.href.split('?')[0];
-    if (!url.endsWith("/")) url += "/";
-    if (!name) return url;
-    url += name.split("/").map(encodeURIComponent).join("/");
-    return url;
+  let url = location.href.split('?')[0];
+  if (!url.endsWith("/")) url += "/";
+  if (!name) return url;
+  url += name.split("/").map(encodeURIComponent).join("/");
+  return url;
 }
 
 function getSvg(path_type) {
@@ -511,8 +553,8 @@ function formatPercent(percent) {
 }
 
 function encodedStr(rawStr) {
-  return rawStr.replace(/[\u00A0-\u9999<>\&]/g, function(i) {
-    return '&#'+i.charCodeAt(0)+';';
+  return rawStr.replace(/[\u00A0-\u9999<>\&]/g, function (i) {
+    return '&#' + i.charCodeAt(0) + ';';
   });
 }
 
@@ -523,24 +565,11 @@ function ready() {
   $pathsTableBody = document.querySelector(".paths-table tbody");
   $uploadersTable = document.querySelector(".uploaders-table");
   $emptyFolder = document.querySelector(".empty-folder");
-  $searchForm = document.querySelector(".searchbar");
   $newFolder = document.querySelector(".new-folder");
+  $searchbar = document.querySelector(".searchbar");
 
   if (DATA.allow_search) {
-    $searchForm.classList.remove("hidden");
-    $searchForm.addEventListener("submit", event => {
-        event.preventDefault();
-        const formData = new FormData($searchForm);
-        const q = formData.get("q");
-        let href = getUrl();
-        if (q) {
-          href += "?q=" + q;
-        }
-        location.href = href;
-    });
-    if (PARAMS.q) {
-      document.getElementById('search').value = PARAMS.q;
-    }
+    setupSearch()
   }
 
   if (DATA.allow_archive) {
@@ -553,19 +582,6 @@ function ready() {
 
   if (DATA.allow_upload) {
     dropzone();
-    if (DATA.allow_delete) {
-      $newFolder.classList.remove("hidden");
-      $newFolder.addEventListener("click", () => {
-        const name = prompt("Enter name of new folder");
-        if (name) createFolder(name);
-      });
-    }
-    document.querySelector(".upload-file").classList.remove("hidden");
-    document.getElementById("file").addEventListener("change", e => {
-      const files = e.target.files;
-      for (let file of files) {
-        new Uploader(file, []).upload();
-      }
-    });
+    setupUpload();
   }
 }

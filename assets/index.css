@@ -7,6 +7,7 @@ html {
 body {
   /* prevent premature breadcrumb wrapping on mobile */
   min-width: 500px;
+  margin: 0;
 }
 
 .hidden {
@@ -17,7 +18,10 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  padding: 1em 1em 0;
+  padding: 0.6em 1em;
+  position: fixed;
+  width: 100%;
+  background-color: white;
 }
 
 .breadcrumb {
@@ -104,7 +108,7 @@ body {
 }
 
 .main {
-  padding: 0 1em;
+  padding: 3em 1em 0;
 }
 
 .empty-folder {
