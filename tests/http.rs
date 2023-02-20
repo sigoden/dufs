@@ -72,7 +72,7 @@ fn get_dir_simple(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
         "text/html; charset=utf-8"
     );
     let text = resp.text().unwrap();
-    assert!(text.split("\n").find(|v| *v == "index.html").is_some());
+    assert!(text.split('\n').any(|v| v == "index.html"));
     Ok(())
 }
 
@@ -118,7 +118,7 @@ fn get_dir_search3(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(format!("{}?q={}&simple", server.url(), "test.html"))?;
     assert_eq!(resp.status(), 200);
     let text = resp.text().unwrap();
-    assert!(text.split("\n").find(|v| *v == "test.html").is_some());
+    assert!(text.split('\n').any(|v| v == "test.html"));
     Ok(())
 }
 

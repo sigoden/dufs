@@ -31,7 +31,7 @@ fn log_remote_user(
 
     let stdout = child.stdout.as_mut().expect("Failed to get stdout");
 
-    let req = fetch!(b"GET", &format!("http://localhost:{}", port));
+    let req = fetch!(b"GET", &format!("http://localhost:{port}"));
 
     let resp = if is_basic {
         req.basic_auth("user", Some("pass")).send()?
@@ -66,7 +66,7 @@ fn no_log(tmpdir: TempDir, port: u16, #[case] args: &[&str]) -> Result<(), Error
 
     let stdout = child.stdout.as_mut().expect("Failed to get stdout");
 
-    let resp = fetch!(b"GET", &format!("http://localhost:{}", port)).send()?;
+    let resp = fetch!(b"GET", &format!("http://localhost:{port}")).send()?;
     assert_eq!(resp.status(), 200);
 
     let mut buf = [0; 1000];
