@@ -453,6 +453,7 @@ async function addFileEntries(entries, dirs) {
 function getUrl(name) {
     let url = location.href.split('?')[0];
     if (!url.endsWith("/")) url += "/";
+    if (!name) return url;
     url += name.split("/").map(encodeURIComponent).join("/");
     return url;
 }
@@ -522,10 +523,21 @@ function ready() {
   $pathsTableBody = document.querySelector(".paths-table tbody");
   $uploadersTable = document.querySelector(".uploaders-table");
   $emptyFolder = document.querySelector(".empty-folder");
+  $searchForm = document.querySelector(".searchbar");
   $newFolder = document.querySelector(".new-folder");
 
   if (DATA.allow_search) {
-    document.querySelector(".searchbar").classList.remove("hidden");
+    $searchForm.classList.remove("hidden");
+    $searchForm.addEventListener("submit", event => {
+        event.preventDefault();
+        const formData = new FormData($searchForm);
+        const q = formData.get("q");
+        let href = getUrl();
+        if (q) {
+          href += "?q=" + q;
+        }
+        location.href = href;
+    });
     if (PARAMS.q) {
       document.getElementById('search').value = PARAMS.q;
     }
