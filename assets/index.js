@@ -84,7 +84,6 @@ function ready() {
 
   if (DATA.kind == "Index") {
     document.title = `Index of ${DATA.href} - Dufs`;
-
     document.querySelector(".index-page").classList.remove("hidden");
 
     if (DATA.allow_search) {
@@ -101,9 +100,12 @@ function ready() {
     if (DATA.allow_upload) {
       dropzone();
       setupUpload();
+      setupNewFile();
     }
   } else if (DATA.kind == "Edit") {
     document.title = `Edit of ${DATA.href} - Dufs`;
+    document.querySelector(".editor-page").classList.remove("hidden");;
+
 
     setupEditor();
   }
@@ -497,9 +499,16 @@ function setupUpload() {
   });
 }
 
-async function setupEditor() {
-  document.querySelector(".editor-page").classList.remove("hidden");;
+function setupNewFile() {
+  const $newFile = document.querySelector(".new-file");
+  $newFile.classList.remove("hidden");
+  $newFile.addEventListener("click", () => {
+    const name = prompt("Enter file name");
+    if (name) createFile(name);
+  });
+}
 
+async function setupEditor() {
   const $download = document.querySelector(".download")
   $download.classList.remove("hidden");
   $download.href = baseUrl()
@@ -554,6 +563,20 @@ async function createFolder(name) {
     location.href = url;
   } catch (err) {
     alert(`Cannot create folder \`${name}\`, ${err.message}`);
+  }
+}
+
+async function createFile(name) {
+  const url = newUrl(name);
+  try {
+    const res = await fetch(url, {
+      method: "PUT",
+      body: "",
+    });
+    await assertFetch(res);
+    location.href = url + "?edit";
+  } catch (err) {
+    alert(`Cannot create file \`${name}\`, ${err.message}`);
   }
 }
 
