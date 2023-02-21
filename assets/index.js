@@ -7,27 +7,16 @@
  */
 
 /**
- * @typedef {IndexDATA|EditDATA} DATA
- */
-
-/**
- * @typedef {object} IndexDATA
+ * @typedef {object} DATA
  * @property {string} href
  * @property {string} uri_prefix
- * @property {"Index"} kind
+ * @property {"Index" | "Edit"} kind
  * @property {PathItem[]} paths
  * @property {boolean} allow_upload
  * @property {boolean} allow_delete
  * @property {boolean} allow_search
  * @property {boolean} allow_archive
  * @property {boolean} dir_exists
- */
-
-/**
- * @typedef {object} EditDATA
- * @property {string} href
- * @property {string} uri_prefix
- * @property {"Edit"} kind
  * @property {string} editable
  */
 
@@ -46,6 +35,17 @@ var DATA;
 const PARAMS = Object.fromEntries(new URLSearchParams(window.location.search).entries());
 
 const dirEmptyNote = PARAMS.q ? 'No results' : DATA.dir_exists ? 'Empty folder' : 'Folder will be created when a file is uploaded';
+
+const ICONS = {
+  dir: `<svg height="16" viewBox="0 0 14 16" width="14"><path fill-rule="evenodd" d="M13 4H7V3c0-.66-.31-1-1-1H1c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1V5c0-.55-.45-1-1-1zM6 4H1V3h5v1z"></path></svg>`,
+  symlinkFile: `<svg height="16" viewBox="0 0 12 16" width="12"><path fill-rule="evenodd" d="M8.5 1H1c-.55 0-1 .45-1 1v12c0 .55.45 1 1 1h10c.55 0 1-.45 1-1V4.5L8.5 1zM11 14H1V2h7l3 3v9zM6 4.5l4 3-4 3v-2c-.98-.02-1.84.22-2.55.7-.71.48-1.19 1.25-1.45 2.3.02-1.64.39-2.88 1.13-3.73.73-.84 1.69-1.27 2.88-1.27v-2H6z"></path></svg>`,
+  symlinkDir: `<svg height="16" viewBox="0 0 14 16" width="14"><path fill-rule="evenodd" d="M13 4H7V3c0-.66-.31-1-1-1H1c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1V5c0-.55-.45-1-1-1zM1 3h5v1H1V3zm6 9v-2c-.98-.02-1.84.22-2.55.7-.71.48-1.19 1.25-1.45 2.3.02-1.64.39-2.88 1.13-3.73C4.86 8.43 5.82 8 7.01 8V6l4 3-4 3H7z"></path></svg>`,
+  file: `<svg height="16" viewBox="0 0 12 16" width="12"><path fill-rule="evenodd" d="M6 5H2V4h4v1zM2 8h7V7H2v1zm0 2h7V9H2v1zm0 2h7v-1H2v1zm10-7.5V14c0 .55-.45 1-1 1H1c-.55 0-1-.45-1-1V2c0-.55.45-1 1-1h7.5L12 4.5zM11 5L8 2H1v12h10V5z"></path></svg>`,
+  download: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>`,
+  move: `<svg width="16" height="16" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1.5 1.5A.5.5 0 0 0 1 2v4.8a2.5 2.5 0 0 0 2.5 2.5h9.793l-3.347 3.346a.5.5 0 0 0 .708.708l4.2-4.2a.5.5 0 0 0 0-.708l-4-4a.5.5 0 0 0-.708.708L13.293 8.3H3.5A1.5 1.5 0 0 1 2 6.8V2a.5.5 0 0 0-.5-.5z"/></svg>`,
+  edit: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/></svg>`,
+  delete: `<svg width="16" height="16" fill="currentColor"viewBox="0 0 16 16"><path d="M6.854 7.146a.5.5 0 1 0-.708.708L7.293 9l-1.147 1.146a.5.5 0 0 0 .708.708L8 9.707l1.146 1.147a.5.5 0 0 0 .708-.708L8.707 9l1.147-1.146a.5.5 0 0 0-.708-.708L8 8.293 6.854 7.146z"/><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/></svg>`,
+}
 
 /**
  * @type Element
@@ -73,7 +73,6 @@ let $emptyFolder;
 let $editor;
 
 function ready() {
-  document.title = `Index of ${DATA.href} - Dufs`;
   $pathsTable = document.querySelector(".paths-table")
   $pathsTableHead = document.querySelector(".paths-table thead");
   $pathsTableBody = document.querySelector(".paths-table tbody");
@@ -84,6 +83,7 @@ function ready() {
   addBreadcrumb(DATA.href, DATA.uri_prefix);
 
   if (DATA.kind == "Index") {
+    document.title = `Index of ${DATA.href} - Dufs`;
 
     document.querySelector(".index-page").classList.remove("hidden");
 
@@ -103,6 +103,8 @@ function ready() {
       setupUpload();
     }
   } else if (DATA.kind == "Edit") {
+    document.title = `Edit of ${DATA.href} - Dufs`;
+
     setupEditor();
   }
 }
@@ -321,41 +323,38 @@ function addPath(file, index) {
   let actionDelete = "";
   let actionDownload = "";
   let actionMove = "";
-  if (file.path_type.endsWith("Dir")) {
+  let actionEdit = "";
+  let isDir = file.path_type.endsWith("Dir");
+  if (isDir) {
     url += "/";
     if (DATA.allow_archive) {
       actionDownload = `
       <div class="action-btn">
-        <a href="${url}?zip" title="Download folder as a .zip file">
-          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
-        </a>
+        <a href="${url}?zip" title="Download folder as a .zip file">${ICONS.download}</a>
       </div>`;
     }
   } else {
     actionDownload = `
     <div class="action-btn" >
-      <a href="${url}" title="Download file" download>
-        <svg width="16" height="16" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
-      </a>
+      <a href="${url}" title="Download file" download>${ICONS.download}</a>
     </div>`;
   }
   if (DATA.allow_delete) {
     if (DATA.allow_upload) {
-      actionMove = `
-      <div onclick="movePath(${index})" class="action-btn" id="moveBtn${index}" title="Move to new path">
-        <svg width="16" height="16" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1.5 1.5A.5.5 0 0 0 1 2v4.8a2.5 2.5 0 0 0 2.5 2.5h9.793l-3.347 3.346a.5.5 0 0 0 .708.708l4.2-4.2a.5.5 0 0 0 0-.708l-4-4a.5.5 0 0 0-.708.708L13.293 8.3H3.5A1.5 1.5 0 0 1 2 6.8V2a.5.5 0 0 0-.5-.5z"/></svg>
-      </div>`;
+      actionMove = `<div onclick="movePath(${index})" class="action-btn" id="moveBtn${index}" title="Move to new path">${ICONS.move}</div>`;
+      if (!isDir) {
+        actionEdit = `<a class="action-btn" title="Edit file" target="_blank" href="${url}?edit">${ICONS.edit}</a>`;
+      }
     }
     actionDelete = `
-    <div onclick="deletePath(${index})" class="action-btn" id="deleteBtn${index}" title="Delete">
-      <svg width="16" height="16" fill="currentColor"viewBox="0 0 16 16"><path d="M6.854 7.146a.5.5 0 1 0-.708.708L7.293 9l-1.147 1.146a.5.5 0 0 0 .708.708L8 9.707l1.146 1.147a.5.5 0 0 0 .708-.708L8.707 9l1.147-1.146a.5.5 0 0 0-.708-.708L8 8.293 6.854 7.146z"/><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/></svg>
-    </div>`;
+    <div onclick="deletePath(${index})" class="action-btn" id="deleteBtn${index}" title="Delete">${ICONS.delete}</div>`;
   }
   let actionCell = `
   <td class="cell-actions">
     ${actionDownload}
     ${actionMove}
     ${actionDelete}
+    ${actionEdit}
   </td>`
 
   $pathsTableBody.insertAdjacentHTML("beforeend", `
@@ -364,7 +363,7 @@ function addPath(file, index) {
     ${getPathSvg(file.path_type)}
   </td>
   <td class="path cell-name">
-    <a href="${url}?edit" target="_blank">${encodedName}</a>
+    <a href="${url}">${encodedName}</a>
   </td>
   <td class="cell-mtime">${formatMtime(file.mtime)}</td>
   <td class="cell-size">${formatSize(file.size).join(" ")}</td>
@@ -508,7 +507,7 @@ async function setupEditor() {
   if (!DATA.editable) {
     const $notEditable = document.querySelector(".not-editable");
     $notEditable.classList.remove("hidden");
-    $notEditable.textContent = "File is binary or too large.";
+    $notEditable.textContent = "Cannot edit file because it is too large or binary.";
     return;
   }
 
@@ -586,13 +585,13 @@ function baseUrl() {
 function getPathSvg(path_type) {
   switch (path_type) {
     case "Dir":
-      return `<svg height="16" viewBox="0 0 14 16" width="14"><path fill-rule="evenodd" d="M13 4H7V3c0-.66-.31-1-1-1H1c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1V5c0-.55-.45-1-1-1zM6 4H1V3h5v1z"></path></svg>`;
+      return ICONS.dir;
     case "SymlinkFile":
-      return `<svg height="16" viewBox="0 0 12 16" width="12"><path fill-rule="evenodd" d="M8.5 1H1c-.55 0-1 .45-1 1v12c0 .55.45 1 1 1h10c.55 0 1-.45 1-1V4.5L8.5 1zM11 14H1V2h7l3 3v9zM6 4.5l4 3-4 3v-2c-.98-.02-1.84.22-2.55.7-.71.48-1.19 1.25-1.45 2.3.02-1.64.39-2.88 1.13-3.73.73-.84 1.69-1.27 2.88-1.27v-2H6z"></path></svg>`;
+      return ICONS.symlinkFile;
     case "SymlinkDir":
-      return `<svg height="16" viewBox="0 0 14 16" width="14"><path fill-rule="evenodd" d="M13 4H7V3c0-.66-.31-1-1-1H1c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1V5c0-.55-.45-1-1-1zM1 3h5v1H1V3zm6 9v-2c-.98-.02-1.84.22-2.55.7-.71.48-1.19 1.25-1.45 2.3.02-1.64.39-2.88 1.13-3.73C4.86 8.43 5.82 8 7.01 8V6l4 3-4 3H7z"></path></svg>`;
+      return ICONS.symlinkDir;
     default:
-      return `<svg height="16" viewBox="0 0 12 16" width="12"><path fill-rule="evenodd" d="M6 5H2V4h4v1zM2 8h7V7H2v1zm0 2h7V9H2v1zm0 2h7v-1H2v1zm10-7.5V14c0 .55-.45 1-1 1H1c-.55 0-1-.45-1-1V2c0-.55.45-1 1-1h7.5L12 4.5zM11 5L8 2H1v12h10V5z"></path></svg>`;
+      return ICONS.file;
   }
 }
 
@@ -612,9 +611,9 @@ function padZero(value, size) {
 }
 
 function formatSize(size) {
-  if (!size) return []
+  if (size == null) return []
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  if (size == 0) return [0, "Byte"];
+  if (size == 0) return [0, "B"];
   const i = parseInt(Math.floor(Math.log(size) / Math.log(1024)));
   return [Math.round(size / Math.pow(1024, i), 2), sizes[i]];
 }
