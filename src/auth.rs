@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose, Engine as _};
 use headers::HeaderValue;
 use hyper::Method;
 use lazy_static::lazy_static;
@@ -215,8 +216,9 @@ impl AuthMethod {
     pub fn get_user(&self, authorization: &HeaderValue) -> Option<String> {
         match self {
             AuthMethod::Basic => {
-                let value: Vec<u8> =
-                    base64::decode(strip_prefix(authorization.as_bytes(), b"Basic ")?).ok()?;
+                let value: Vec<u8> = general_purpose::STANDARD_NO_PAD
+                    .decode(strip_prefix(authorization.as_bytes(), b"Basic ")?)
+                    .ok()?;
                 let parts: Vec<&str> = std::str::from_utf8(&value).ok()?.split(':').collect();
                 Some(parts[0].to_string())
             }
@@ -239,8 +241,9 @@ impl AuthMethod {
     ) -> Option<()> {
         match self {
             AuthMethod::Basic => {
-                let basic_value: Vec<u8> =
-                    base64::decode(strip_prefix(authorization.as_bytes(), b"Basic ")?).ok()?;
+                let basic_value: Vec<u8> = general_purpose::STANDARD_NO_PAD
+                    .decode(strip_prefix(authorization.as_bytes(), b"Basic ")?)
+                    .ok()?;
                 let parts: Vec<&str> = std::str::from_utf8(&basic_value).ok()?.split(':').collect();
 
                 if parts[0] != auth_user {

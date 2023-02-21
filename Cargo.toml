@@ -21,11 +21,11 @@ percent-encoding = "2.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 futures = "0.3"
-base64 = "0.13"
-async_zip = { version = "0.0.8", default-features = false, features = ["deflate"] }
+base64 = "0.21"
+async_zip = { version = "0.0.12", default-features = false, features = ["deflate"] }
 headers = "0.3"
 mime_guess = "2.0"
-if-addrs = "0.7"
+if-addrs = "0.8"
 rustls = { version = "0.20", default-features = false, features = ["tls12"], optional = true }
 rustls-pemfile = { version = "1", optional = true }
 tokio-rustls = { version = "0.23", optional = true }
@@ -51,7 +51,7 @@ assert_cmd = "2"
 reqwest = { version = "0.11", features = ["blocking", "multipart", "rustls-tls"], default-features = false }
 assert_fs = "1"
 port_check = "0.1"
-rstest = "0.15"
+rstest = "0.16"
 regex = "1"
 url = "2"
 diqwest = { version = "1", features = ["blocking"] }

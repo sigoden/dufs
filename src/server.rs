@@ -4,8 +4,8 @@ use crate::{Args, BoxResult};
 use walkdir::WalkDir;
 use xml::escape::escape_str_pcdata;
 
-use async_zip::write::{EntryOptions, ZipFileWriter};
-use async_zip::Compression;
+use async_zip::write::ZipFileWriter;
+use async_zip::{Compression, ZipEntryBuilder};
 use chrono::{TimeZone, Utc};
 use futures::TryStreamExt;
 use headers::{
@@ -1140,7 +1140,10 @@ impl PathItem {
     }
 
     pub fn to_dav_xml(&self, prefix: &str) -> String {
-        let mtime = Utc.timestamp_millis(self.mtime as i64).to_rfc2822();
+        let mtime = Utc
+            .timestamp_millis_opt(self.mtime as i64)
+            .unwrap()
+            .to_rfc2822();
         let mut href = encode_uri(&format!("{}{}", prefix, &self.name));
         if self.is_dir() && !href.ends_with('/') {
             href.push('/');
@@ -1305,10 +1308,10 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
             Some(v) => v,
             None => continue,
         };
-        let entry_options =
-            EntryOptions::new(filename.to_owned(), Compression::Deflate).unix_permissions(0o644);
+        let builder =
+            ZipEntryBuilder::new(filename.into(), Compression::Deflate).unix_permissions(0o644);
         let mut file = File::open(&zip_path).await?;
-        let mut file_writer = writer.write_entry_stream(entry_options).await?;
+        let mut file_writer = writer.write_entry_stream(builder).await?;
         io::copy(&mut file, &mut file_writer).await?;
         file_writer.close().await?;
     }
