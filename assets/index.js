@@ -16,6 +16,8 @@
  * @property {boolean} allow_delete
  * @property {boolean} allow_search
  * @property {boolean} allow_archive
+ * @property {boolean} auth
+ * @property {string} user
  * @property {boolean} dir_exists
  * @property {string} editable
  */
@@ -71,6 +73,10 @@ let $emptyFolder;
  * @type Element
  */
 let $editor;
+/**
+ * @type Element
+ */
+let $userBtn;
 
 function ready() {
   $pathsTable = document.querySelector(".paths-table")
@@ -79,12 +85,17 @@ function ready() {
   $uploadersTable = document.querySelector(".uploaders-table");
   $emptyFolder = document.querySelector(".empty-folder");
   $editor = document.querySelector(".editor");
+  $userBtn = document.querySelector(".user-btn");
 
   addBreadcrumb(DATA.href, DATA.uri_prefix);
 
   if (DATA.kind == "Index") {
     document.title = `Index of ${DATA.href} - Dufs`;
     document.querySelector(".index-page").classList.remove("hidden");
+
+    if (DATA.auth) {
+      setupAuth();
+    }
 
     if (DATA.allow_search) {
       setupSearch()
@@ -105,7 +116,6 @@ function ready() {
   } else if (DATA.kind == "Edit") {
     document.title = `Edit of ${DATA.href} - Dufs`;
     document.querySelector(".editor-page").classList.remove("hidden");;
-
 
     setupEditor();
   }
@@ -203,16 +213,22 @@ Uploader.globalIdx = 0;
 
 Uploader.runnings = 0;
 
+Uploader.auth = false;
+
 /**
  * @type Uploader[]
  */
 Uploader.queues = [];
 
 
-Uploader.runQueue = () => {
+Uploader.runQueue = async () => {
   if (Uploader.runnings > 2) return;
   let uploader = Uploader.queues.shift();
   if (!uploader) return;
+  if (!Uploader.auth) {
+    Uploader.auth = true;
+    await login();
+  }
   uploader.ajax();
 }
 
@@ -365,7 +381,7 @@ function addPath(file, index) {
     ${getPathSvg(file.path_type)}
   </td>
   <td class="path cell-name">
-    <a href="${url}">${encodedName}</a>
+    <a href="${url}" target="_blank">${encodedName}</a>
   </td>
   <td class="cell-mtime">${formatMtime(file.mtime)}</td>
   <td class="cell-size">${formatSize(file.size).join(" ")}</td>
@@ -385,10 +401,11 @@ async function deletePath(index) {
   if (!confirm(`Delete \`${file.name}\`?`)) return;
 
   try {
+    await login();
     const res = await fetch(newUrl(file.name), {
       method: "DELETE",
     });
-    await assertFetch(res);
+    await assertResOK(res);
     document.getElementById(`addPath${index}`).remove();
     DATA.paths[index] = null;
     if (!DATA.paths.find(v => !!v)) {
@@ -425,14 +442,15 @@ async function movePath(index) {
   const newFileUrl = fileUrlObj.origin + prefix + newPath.split("/").map(encodeURIComponent).join("/");
 
   try {
+    await login();
     const res = await fetch(fileUrl, {
       method: "MOVE",
       headers: {
         "Destination": newFileUrl,
       }
     });
-    await assertFetch(res);
-    location.href = newFileUrl.split("/").slice(0, -1).join("/")
+    await assertResOK(res);
+    location.href = newFileUrl.split("/").slice(0, -1).join("/");
   } catch (err) {
     alert(`Cannot move \`${filePath}\` to \`${newPath}\`, ${err.message}`);
   }
@@ -445,7 +463,7 @@ function dropzone() {
       e.stopPropagation();
     });
   });
-  document.addEventListener("drop", e => {
+  document.addEventListener("drop", async e => {
     if (!e.dataTransfer.items[0].webkitGetAsEntry) {
       const files = e.dataTransfer.files.filter(v => v.size > 0);
       for (const file of files) {
@@ -461,6 +479,18 @@ function dropzone() {
     }
   });
 }
+
+function setupAuth() {
+  if (DATA.user) {
+    $userBtn.classList.remove("hidden");
+    $userBtn.title = DATA.user;
+  } else {
+    const $loginBtn = document.querySelector(".login-btn");
+    $loginBtn.classList.remove("hidden");
+    $loginBtn.addEventListener("click", () => login(true));
+  }
+}
+
 
 /**
  * Setup searchbar
@@ -491,7 +521,7 @@ function setupUpload() {
     if (name) createFolder(name);
   });
   document.querySelector(".upload-file").classList.remove("hidden");
-  document.getElementById("file").addEventListener("change", e => {
+  document.getElementById("file").addEventListener("change", async e => {
     const files = e.target.files;
     for (let file of files) {
       new Uploader(file, []).upload();
@@ -527,7 +557,7 @@ async function setupEditor() {
   $editor.classList.remove("hidden");
   try {
     const res = await fetch(baseUrl());
-    await assertFetch(res);
+    await assertResOK(res);
     const text = await res.text();
     $editor.value = text;
   } catch (err) {
@@ -549,6 +579,24 @@ async function saveChange() {
   }
 }
 
+async function login(alert = false) {
+  if (!DATA.auth) return;
+  try {
+    const res = await fetch(baseUrl() + "?auth");
+    await assertResOK(res);
+    document.querySelector(".login-btn").classList.add("hidden");
+    $userBtn.classList.remove("hidden");
+    $userBtn.title = "";
+  } catch (err) {
+    let message = `Cannot login, ${err.message}`;
+    if (alert) {
+      alert(message);
+    } else {
+      throw new Error(message);
+    }
+  }
+}
+
 /**
  * Create a folder
  * @param {string} name 
@@ -556,10 +604,11 @@ async function saveChange() {
 async function createFolder(name) {
   const url = newUrl(name);
   try {
+    await login();
     const res = await fetch(url, {
       method: "MKCOL",
     });
-    await assertFetch(res);
+    await assertResOK(res);
     location.href = url;
   } catch (err) {
     alert(`Cannot create folder \`${name}\`, ${err.message}`);
@@ -569,11 +618,12 @@ async function createFolder(name) {
 async function createFile(name) {
   const url = newUrl(name);
   try {
+    await login();
     const res = await fetch(url, {
       method: "PUT",
       body: "",
     });
-    await assertFetch(res);
+    await assertResOK(res);
     location.href = url + "?edit";
   } catch (err) {
     alert(`Cannot create file \`${name}\`, ${err.message}`);
@@ -663,7 +713,7 @@ function encodedStr(rawStr) {
   });
 }
 
-async function assertFetch(res) {
+async function assertResOK(res) {
   if (!(res.status >= 200 && res.status < 300)) {
     throw new Error(await res.text())
   }

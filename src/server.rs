@@ -144,6 +144,18 @@ impl Server {
             return Ok(res);
         }
 
+        let query = req.uri().query().unwrap_or_default();
+        let query_params: HashMap<String, String> = form_urlencoded::parse(query.as_bytes())
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+
+        if query_params.contains_key("auth") {
+            if !guard_type.is_readwrite() {
+                self.auth_reject(&mut res);
+            }
+            return Ok(res);
+        }
+
         let head_only = method == Method::HEAD;
 
         if self.args.path_is_file {
@@ -169,11 +181,6 @@ impl Server {
         };
 
         let path = path.as_path();
-
-        let query = req.uri().query().unwrap_or_default();
-        let query_params: HashMap<String, String> = form_urlencoded::parse(query.as_bytes())
-            .map(|(k, v)| (k.to_string(), v.to_string()))
-            .collect();
 
         let (is_miss, is_dir, is_file, size) = match fs::metadata(path).await.ok() {
             Some(meta) => (false, meta.is_dir(), meta.is_file(), meta.len()),
@@ -204,21 +211,32 @@ impl Server {
                             }
                             self.handle_zip_dir(path, head_only, &mut res).await?;
                         } else if allow_search && query_params.contains_key("q") {
-                            self.handle_search_dir(path, &query_params, head_only, &mut res)
+                            let user = self.retrieve_user(authorization);
+                            self.handle_search_dir(path, &query_params, head_only, user, &mut res)
                                 .await?;
                         } else {
+                            let user = self.retrieve_user(authorization);
                             self.handle_render_index(
                                 path,
                                 &query_params,
                                 headers,
                                 head_only,
+                                user,
                                 &mut res,
                             )
                             .await?;
                         }
                     } else if render_index || render_spa {
-                        self.handle_render_index(path, &query_params, headers, head_only, &mut res)
-                            .await?;
+                        let user = self.retrieve_user(authorization);
+                        self.handle_render_index(
+                            path,
+                            &query_params,
+                            headers,
+                            head_only,
+                            user,
+                            &mut res,
+                        )
+                        .await?;
                     } else if query_params.contains_key("zip") {
                         if !allow_archive {
                             status_not_found(&mut res);
@@ -226,15 +244,19 @@ impl Server {
                         }
                         self.handle_zip_dir(path, head_only, &mut res).await?;
                     } else if allow_search && query_params.contains_key("q") {
-                        self.handle_search_dir(path, &query_params, head_only, &mut res)
+                        let user = self.retrieve_user(authorization);
+                        self.handle_search_dir(path, &query_params, head_only, user, &mut res)
                             .await?;
                     } else {
-                        self.handle_ls_dir(path, true, &query_params, head_only, &mut res)
+                        let user = self.retrieve_user(authorization);
+                        self.handle_ls_dir(path, true, &query_params, head_only, user, &mut res)
                             .await?;
                     }
                 } else if is_file {
                     if query_params.contains_key("edit") {
-                        self.handle_edit_file(path, head_only, &mut res).await?;
+                        let user = self.retrieve_user(authorization);
+                        self.handle_edit_file(path, head_only, user, &mut res)
+                            .await?;
                     } else {
                         self.handle_send_file(path, headers, head_only, &mut res)
                             .await?;
@@ -243,7 +265,8 @@ impl Server {
                     self.handle_render_spa(path, headers, head_only, &mut res)
                         .await?;
                 } else if allow_upload && req_path.ends_with('/') {
-                    self.handle_ls_dir(path, false, &query_params, head_only, &mut res)
+                    let user = self.retrieve_user(authorization);
+                    self.handle_ls_dir(path, false, &query_params, head_only, user, &mut res)
                         .await?;
                 } else {
                     status_not_found(&mut res);
@@ -382,6 +405,7 @@ impl Server {
         exist: bool,
         query_params: &HashMap<String, String>,
         head_only: bool,
+        user: Option<String>,
         res: &mut Response,
     ) -> BoxResult<()> {
         let mut paths = vec![];
@@ -394,7 +418,7 @@ impl Server {
                 }
             }
         };
-        self.send_index(path, paths, exist, query_params, head_only, res)
+        self.send_index(path, paths, exist, query_params, head_only, user, res)
     }
 
     async fn handle_search_dir(
@@ -402,6 +426,7 @@ impl Server {
         path: &Path,
         query_params: &HashMap<String, String>,
         head_only: bool,
+        user: Option<String>,
         res: &mut Response,
     ) -> BoxResult<()> {
         let mut paths: Vec<PathItem> = vec![];
@@ -452,7 +477,7 @@ impl Server {
                 }
             }
         }
-        self.send_index(path, paths, true, query_params, head_only, res)
+        self.send_index(path, paths, true, query_params, head_only, user, res)
     }
 
     async fn handle_zip_dir(
@@ -495,6 +520,7 @@ impl Server {
         query_params: &HashMap<String, String>,
         headers: &HeaderMap<HeaderValue>,
         head_only: bool,
+        user: Option<String>,
         res: &mut Response,
     ) -> BoxResult<()> {
         let index_path = path.join(INDEX_NAME);
@@ -507,7 +533,7 @@ impl Server {
             self.handle_send_file(&index_path, headers, head_only, res)
                 .await?;
         } else if self.args.render_try_index {
-            self.handle_ls_dir(path, true, query_params, head_only, res)
+            self.handle_ls_dir(path, true, query_params, head_only, user, res)
                 .await?;
         } else {
             status_not_found(res)
@@ -682,6 +708,7 @@ impl Server {
         &self,
         path: &Path,
         head_only: bool,
+        user: Option<String>,
         res: &mut Response,
     ) -> BoxResult<()> {
         let (file, meta) = tokio::join!(fs::File::open(path), fs::metadata(path),);
@@ -696,6 +723,8 @@ impl Server {
             uri_prefix: self.args.uri_prefix.clone(),
             allow_upload: self.args.allow_upload,
             allow_delete: self.args.allow_delete,
+            auth: self.args.auth.valid(),
+            user,
             editable,
         };
         res.headers_mut()
@@ -842,6 +871,7 @@ impl Server {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn send_index(
         &self,
         path: &Path,
@@ -849,6 +879,7 @@ impl Server {
         exist: bool,
         query_params: &HashMap<String, String>,
         head_only: bool,
+        user: Option<String>,
         res: &mut Response,
     ) -> BoxResult<()> {
         if let Some(sort) = query_params.get("sort") {
@@ -903,6 +934,8 @@ impl Server {
             allow_search: self.args.allow_search,
             allow_archive: self.args.allow_archive,
             dir_exists: exist,
+            auth: self.args.auth.valid(),
+            user,
             paths,
         };
         let output = if query_params.contains_key("json") {
@@ -1057,6 +1090,10 @@ impl Server {
             size,
         }))
     }
+
+    fn retrieve_user(&self, authorization: Option<&HeaderValue>) -> Option<String> {
+        self.args.auth_method.get_user(authorization?)
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -1075,6 +1112,8 @@ struct IndexData {
     allow_search: bool,
     allow_archive: bool,
     dir_exists: bool,
+    auth: bool,
+    user: Option<String>,
     paths: Vec<PathItem>,
 }
 
@@ -1085,6 +1124,8 @@ struct EditData {
     uri_prefix: String,
     allow_upload: bool,
     allow_delete: bool,
+    auth: bool,
+    user: Option<String>,
     editable: bool,
 }
 

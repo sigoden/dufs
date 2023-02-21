@@ -72,6 +72,10 @@ impl AccessControl {
         Ok(Self { rules })
     }
 
+    pub fn valid(&self) -> bool {
+        !self.rules.is_empty()
+    }
+
     pub fn guard(
         &self,
         path: &str,
@@ -133,6 +137,9 @@ pub enum GuardType {
 impl GuardType {
     pub fn is_reject(&self) -> bool {
         *self == GuardType::Reject
+    }
+    pub fn is_readwrite(&self) -> bool {
+        *self == GuardType::ReadWrite
     }
 }
 
