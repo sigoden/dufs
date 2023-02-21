@@ -18,6 +18,7 @@ use crate::server::{Request, Server};
 #[cfg(feature = "tls")]
 use crate::tls::{TlsAcceptor, TlsStream};
 
+use anyhow::{anyhow, Result};
 use std::net::{IpAddr, SocketAddr, TcpListener as StdTcpListener};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -33,15 +34,16 @@ use hyper::service::{make_service_fn, service_fn};
 #[cfg(feature = "tls")]
 use rustls::ServerConfig;
 
-pub type BoxResult<T> = Result<T, Box<dyn std::error::Error>>;
-
 #[tokio::main]
 async fn main() {
-    run().await.unwrap_or_else(handle_err)
+    run().await.unwrap_or_else(|err| {
+        eprintln!("error: {err}");
+        std::process::exit(1);
+    })
 }
 
-async fn run() -> BoxResult<()> {
-    logger::init().map_err(|e| format!("Failed to init logger, {e}"))?;
+async fn run() -> Result<()> {
+    logger::init().map_err(|e| anyhow!("Failed to init logger, {e}"))?;
     let cmd = build_cli();
     let matches = cmd.get_matches();
     if let Some(generator) = matches.get_one::<Shell>("completions") {
@@ -74,8 +76,8 @@ async fn run() -> BoxResult<()> {
 fn serve(
     args: Arc<Args>,
     running: Arc<AtomicBool>,
-) -> BoxResult<Vec<JoinHandle<Result<(), hyper::Error>>>> {
-    let inner = Arc::new(Server::new(args.clone(), running));
+) -> Result<Vec<JoinHandle<Result<(), hyper::Error>>>> {
+    let inner = Arc::new(Server::init(args.clone(), running)?);
     let mut handles = vec![];
     let port = args.port;
     for bind_addr in args.addrs.iter() {
@@ -92,7 +94,7 @@ fn serve(
         match bind_addr {
             BindAddr::Address(ip) => {
                 let incoming = create_addr_incoming(SocketAddr::new(*ip, port))
-                    .map_err(|e| format!("Failed to bind `{ip}:{port}`, {e}"))?;
+                    .map_err(|e| anyhow!("Failed to bind `{ip}:{port}`, {e}"))?;
                 match args.tls.as_ref() {
                     #[cfg(feature = "tls")]
                     Some((certs, key)) => {
@@ -132,7 +134,7 @@ fn serve(
                 #[cfg(unix)]
                 {
                     let listener = tokio::net::UnixListener::bind(path)
-                        .map_err(|e| format!("Failed to bind `{}`, {}", path.display(), e))?;
+                        .map_err(|e| anyhow!("Failed to bind `{}`, {e}", path.display()))?;
                     let acceptor = unix::UnixAcceptor::from_listener(listener);
                     let new_service = make_service_fn(move |_| serve_func(None));
                     let server = tokio::spawn(hyper::Server::builder(acceptor).serve(new_service));
@@ -144,7 +146,7 @@ fn serve(
     Ok(handles)
 }
 
-fn create_addr_incoming(addr: SocketAddr) -> BoxResult<AddrIncoming> {
+fn create_addr_incoming(addr: SocketAddr) -> Result<AddrIncoming> {
     use socket2::{Domain, Protocol, Socket, Type};
     let socket = Socket::new(Domain::for_address(addr), Type::STREAM, Some(Protocol::TCP))?;
     if addr.is_ipv6() {
@@ -159,7 +161,7 @@ fn create_addr_incoming(addr: SocketAddr) -> BoxResult<AddrIncoming> {
     Ok(incoming)
 }
 
-fn print_listening(args: Arc<Args>) -> BoxResult<()> {
+fn print_listening(args: Arc<Args>) -> Result<()> {
     let mut bind_addrs = vec![];
     let (mut ipv4, mut ipv6) = (false, false);
     for bind_addr in args.addrs.iter() {
@@ -180,7 +182,7 @@ fn print_listening(args: Arc<Args>) -> BoxResult<()> {
     }
     if ipv4 || ipv6 {
         let ifaces = if_addrs::get_if_addrs()
-            .map_err(|e| format!("Failed to get local interface addresses: {e}"))?;
+            .map_err(|e| anyhow!("Failed to get local interface addresses: {e}"))?;
         for iface in ifaces.into_iter() {
             let local_ip = iface.ip();
             if ipv4 && local_ip.is_ipv4() {
@@ -219,11 +221,6 @@ fn print_listening(args: Arc<Args>) -> BoxResult<()> {
     }
 
     Ok(())
-}
-
-fn handle_err<T>(err: Box<dyn std::error::Error>) -> T {
-    eprintln!("error: {err}");
-    std::process::exit(1);
 }
 
 async fn shutdown_signal() {

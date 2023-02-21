@@ -1,12 +1,13 @@
 use crate::streamer::Streamer;
 use crate::utils::{decode_uri, encode_uri, get_file_name, glob, try_get_file_name};
-use crate::{Args, BoxResult};
+use crate::Args;
+use anyhow::{anyhow, Result};
 use walkdir::WalkDir;
 use xml::escape::escape_str_pcdata;
 
 use async_zip::write::ZipFileWriter;
 use async_zip::{Compression, ZipEntryBuilder};
-use chrono::{TimeZone, Utc};
+use chrono::{LocalResult, TimeZone, Utc};
 use futures::TryStreamExt;
 use headers::{
     AcceptRanges, AccessControlAllowCredentials, AccessControlAllowOrigin, Connection,
@@ -54,7 +55,7 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new(args: Arc<Args>, running: Arc<AtomicBool>) -> Self {
+    pub fn init(args: Arc<Args>, running: Arc<AtomicBool>) -> Result<Self> {
         let assets_prefix = format!("{}__dufs_v{}_", args.uri_prefix, env!("CARGO_PKG_VERSION"));
         let single_file_req_paths = if args.path_is_file {
             vec![
@@ -70,16 +71,16 @@ impl Server {
             vec![]
         };
         let html = match args.assets_path.as_ref() {
-            Some(path) => Cow::Owned(std::fs::read_to_string(path.join("index.html")).unwrap()),
+            Some(path) => Cow::Owned(std::fs::read_to_string(path.join("index.html"))?),
             None => Cow::Borrowed(INDEX_HTML),
         };
-        Self {
+        Ok(Self {
             args,
             running,
             single_file_req_paths,
             assets_prefix,
             html,
-        }
+        })
     }
 
     pub async fn call(
@@ -121,7 +122,7 @@ impl Server {
         Ok(res)
     }
 
-    pub async fn handle(self: Arc<Self>, req: Request) -> BoxResult<Response> {
+    pub async fn handle(self: Arc<Self>, req: Request) -> Result<Response> {
         let mut res = Response::default();
 
         let req_path = req.uri().path();
@@ -140,7 +141,7 @@ impl Server {
             self.args.auth_method.clone(),
         );
         if guard_type.is_reject() {
-            self.auth_reject(&mut res);
+            self.auth_reject(&mut res)?;
             return Ok(res);
         }
 
@@ -356,12 +357,7 @@ impl Server {
         Ok(res)
     }
 
-    async fn handle_upload(
-        &self,
-        path: &Path,
-        mut req: Request,
-        res: &mut Response,
-    ) -> BoxResult<()> {
+    async fn handle_upload(&self, path: &Path, mut req: Request, res: &mut Response) -> Result<()> {
         ensure_path_parent(path).await?;
 
         let mut file = match fs::File::create(&path).await {
@@ -386,7 +382,7 @@ impl Server {
         Ok(())
     }
 
-    async fn handle_delete(&self, path: &Path, is_dir: bool, res: &mut Response) -> BoxResult<()> {
+    async fn handle_delete(&self, path: &Path, is_dir: bool, res: &mut Response) -> Result<()> {
         match is_dir {
             true => fs::remove_dir_all(path).await?,
             false => fs::remove_file(path).await?,
@@ -404,7 +400,7 @@ impl Server {
         head_only: bool,
         user: Option<String>,
         res: &mut Response,
-    ) -> BoxResult<()> {
+    ) -> Result<()> {
         let mut paths = vec![];
         if exist {
             paths = match self.list_dir(path, path).await {
@@ -425,9 +421,12 @@ impl Server {
         head_only: bool,
         user: Option<String>,
         res: &mut Response,
-    ) -> BoxResult<()> {
+    ) -> Result<()> {
         let mut paths: Vec<PathItem> = vec![];
-        let search = query_params.get("q").unwrap().to_lowercase();
+        let search = query_params
+            .get("q")
+            .ok_or_else(|| anyhow!("invalid q"))?
+            .to_lowercase();
         if !search.is_empty() {
             let path_buf = path.to_path_buf();
             let hidden = Arc::new(self.args.hidden.to_vec());
@@ -477,12 +476,7 @@ impl Server {
         self.send_index(path, paths, true, query_params, head_only, user, res)
     }
 
-    async fn handle_zip_dir(
-        &self,
-        path: &Path,
-        head_only: bool,
-        res: &mut Response,
-    ) -> BoxResult<()> {
+    async fn handle_zip_dir(&self, path: &Path, head_only: bool, res: &mut Response) -> Result<()> {
         let (mut writer, reader) = tokio::io::duplex(BUF_SIZE);
         let filename = try_get_file_name(path)?;
         res.headers_mut().insert(
@@ -490,8 +484,7 @@ impl Server {
             HeaderValue::from_str(&format!(
                 "attachment; filename=\"{}.zip\"",
                 encode_uri(filename),
-            ))
-            .unwrap(),
+            ))?,
         );
         res.headers_mut()
             .insert("content-type", HeaderValue::from_static("application/zip"));
@@ -519,7 +512,7 @@ impl Server {
         head_only: bool,
         user: Option<String>,
         res: &mut Response,
-    ) -> BoxResult<()> {
+    ) -> Result<()> {
         let index_path = path.join(INDEX_NAME);
         if fs::metadata(&index_path)
             .await
@@ -544,7 +537,7 @@ impl Server {
         headers: &HeaderMap<HeaderValue>,
         head_only: bool,
         res: &mut Response,
-    ) -> BoxResult<()> {
+    ) -> Result<()> {
         if path.extension().is_none() {
             let path = self.args.path.join(INDEX_NAME);
             self.handle_send_file(&path, headers, head_only, res)
@@ -560,7 +553,7 @@ impl Server {
         req_path: &str,
         headers: &HeaderMap<HeaderValue>,
         res: &mut Response,
-    ) -> BoxResult<bool> {
+    ) -> Result<bool> {
         if let Some(name) = req_path.strip_prefix(&self.assets_prefix) {
             match self.args.assets_path.as_ref() {
                 Some(assets_path) => {
@@ -606,7 +599,7 @@ impl Server {
         headers: &HeaderMap<HeaderValue>,
         head_only: bool,
         res: &mut Response,
-    ) -> BoxResult<()> {
+    ) -> Result<()> {
         let (file, meta) = tokio::join!(fs::File::open(path), fs::metadata(path),);
         let (mut file, meta) = (file?, meta?);
         let mut use_range = true;
@@ -657,8 +650,7 @@ impl Server {
         let filename = try_get_file_name(path)?;
         res.headers_mut().insert(
             CONTENT_DISPOSITION,
-            HeaderValue::from_str(&format!("inline; filename=\"{}\"", encode_uri(filename),))
-                .unwrap(),
+            HeaderValue::from_str(&format!("inline; filename=\"{}\"", encode_uri(filename),))?,
         );
 
         res.headers_mut().typed_insert(AcceptRanges::bytes());
@@ -677,9 +669,9 @@ impl Server {
                 *res.status_mut() = StatusCode::PARTIAL_CONTENT;
                 let content_range = format!("bytes {}-{}/{}", range.start, end, size);
                 res.headers_mut()
-                    .insert(CONTENT_RANGE, content_range.parse().unwrap());
+                    .insert(CONTENT_RANGE, content_range.parse()?);
                 res.headers_mut()
-                    .insert(CONTENT_LENGTH, format!("{part_size}").parse().unwrap());
+                    .insert(CONTENT_LENGTH, format!("{part_size}").parse()?);
                 if head_only {
                     return Ok(());
                 }
@@ -687,11 +679,11 @@ impl Server {
             } else {
                 *res.status_mut() = StatusCode::RANGE_NOT_SATISFIABLE;
                 res.headers_mut()
-                    .insert(CONTENT_RANGE, format!("bytes */{size}").parse().unwrap());
+                    .insert(CONTENT_RANGE, format!("bytes */{size}").parse()?);
             }
         } else {
             res.headers_mut()
-                .insert(CONTENT_LENGTH, format!("{size}").parse().unwrap());
+                .insert(CONTENT_LENGTH, format!("{size}").parse()?);
             if head_only {
                 return Ok(());
             }
@@ -707,7 +699,7 @@ impl Server {
         head_only: bool,
         user: Option<String>,
         res: &mut Response,
-    ) -> BoxResult<()> {
+    ) -> Result<()> {
         let (file, meta) = tokio::join!(fs::File::open(path), fs::metadata(path),);
         let (file, meta) = (file?, meta?);
         let href = format!("/{}", normalize_path(path.strip_prefix(&self.args.path)?));
@@ -729,7 +721,7 @@ impl Server {
         let output = self
             .html
             .replace("__ASSERTS_PREFIX__", &self.assets_prefix)
-            .replace("__INDEX_DATA__", &serde_json::to_string(&data).unwrap());
+            .replace("__INDEX_DATA__", &serde_json::to_string(&data)?);
         res.headers_mut()
             .typed_insert(ContentLength(output.as_bytes().len() as u64));
         if head_only {
@@ -744,7 +736,7 @@ impl Server {
         path: &Path,
         headers: &HeaderMap<HeaderValue>,
         res: &mut Response,
-    ) -> BoxResult<()> {
+    ) -> Result<()> {
         let depth: u32 = match headers.get("depth") {
             Some(v) => match v.to_str().ok().and_then(|v| v.parse().ok()) {
                 Some(v) => v,
@@ -755,7 +747,10 @@ impl Server {
             },
             None => 1,
         };
-        let mut paths = vec![self.to_pathitem(path, &self.args.path).await?.unwrap()];
+        let mut paths = match self.to_pathitem(path, &self.args.path).await? {
+            Some(v) => vec![v],
+            None => vec![],
+        };
         if depth != 0 {
             match self.list_dir(path, &self.args.path).await {
                 Ok(child) => paths.extend(child),
@@ -776,7 +771,7 @@ impl Server {
         Ok(())
     }
 
-    async fn handle_propfind_file(&self, path: &Path, res: &mut Response) -> BoxResult<()> {
+    async fn handle_propfind_file(&self, path: &Path, res: &mut Response) -> Result<()> {
         if let Some(pathitem) = self.to_pathitem(path, &self.args.path).await? {
             res_multistatus(res, &pathitem.to_dav_xml(self.args.uri_prefix.as_str()));
         } else {
@@ -785,13 +780,13 @@ impl Server {
         Ok(())
     }
 
-    async fn handle_mkcol(&self, path: &Path, res: &mut Response) -> BoxResult<()> {
+    async fn handle_mkcol(&self, path: &Path, res: &mut Response) -> Result<()> {
         fs::create_dir_all(path).await?;
         *res.status_mut() = StatusCode::CREATED;
         Ok(())
     }
 
-    async fn handle_copy(&self, path: &Path, req: &Request, res: &mut Response) -> BoxResult<()> {
+    async fn handle_copy(&self, path: &Path, req: &Request, res: &mut Response) -> Result<()> {
         let dest = match self.extract_dest(req, res) {
             Some(dest) => dest,
             None => {
@@ -813,7 +808,7 @@ impl Server {
         Ok(())
     }
 
-    async fn handle_move(&self, path: &Path, req: &Request, res: &mut Response) -> BoxResult<()> {
+    async fn handle_move(&self, path: &Path, req: &Request, res: &mut Response) -> Result<()> {
         let dest = match self.extract_dest(req, res) {
             Some(dest) => dest,
             None => {
@@ -829,7 +824,7 @@ impl Server {
         Ok(())
     }
 
-    async fn handle_lock(&self, req_path: &str, auth: bool, res: &mut Response) -> BoxResult<()> {
+    async fn handle_lock(&self, req_path: &str, auth: bool, res: &mut Response) -> Result<()> {
         let token = if auth {
             format!("opaquelocktoken:{}", Uuid::new_v4())
         } else {
@@ -841,7 +836,7 @@ impl Server {
             HeaderValue::from_static("application/xml; charset=utf-8"),
         );
         res.headers_mut()
-            .insert("lock-token", format!("<{token}>").parse().unwrap());
+            .insert("lock-token", format!("<{token}>").parse()?);
 
         *res.body_mut() = Body::from(format!(
             r#"<?xml version="1.0" encoding="utf-8"?>
@@ -853,7 +848,7 @@ impl Server {
         Ok(())
     }
 
-    async fn handle_proppatch(&self, req_path: &str, res: &mut Response) -> BoxResult<()> {
+    async fn handle_proppatch(&self, req_path: &str, res: &mut Response) -> Result<()> {
         let output = format!(
             r#"<D:response>
 <D:href>{req_path}</D:href>
@@ -878,7 +873,7 @@ impl Server {
         head_only: bool,
         user: Option<String>,
         res: &mut Response,
-    ) -> BoxResult<()> {
+    ) -> Result<()> {
         if let Some(sort) = query_params.get("sort") {
             if sort == "name" {
                 paths.sort_by(|v1, v2| {
@@ -938,13 +933,13 @@ impl Server {
         let output = if query_params.contains_key("json") {
             res.headers_mut()
                 .typed_insert(ContentType::from(mime_guess::mime::APPLICATION_JSON));
-            serde_json::to_string_pretty(&data).unwrap()
+            serde_json::to_string_pretty(&data)?
         } else {
             res.headers_mut()
                 .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
             self.html
                 .replace("__ASSERTS_PREFIX__", &self.assets_prefix)
-                .replace("__INDEX_DATA__", &serde_json::to_string(&data).unwrap())
+                .replace("__INDEX_DATA__", &serde_json::to_string(&data)?)
         };
         res.headers_mut()
             .typed_insert(ContentLength(output.as_bytes().len() as u64));
@@ -955,13 +950,13 @@ impl Server {
         Ok(())
     }
 
-    fn auth_reject(&self, res: &mut Response) {
-        let value = self.args.auth_method.www_auth(false);
+    fn auth_reject(&self, res: &mut Response) -> Result<()> {
+        let value = self.args.auth_method.www_auth(false)?;
         set_webdav_headers(res);
         res.headers_mut().typed_insert(Connection::close());
-        res.headers_mut()
-            .insert(WWW_AUTHENTICATE, value.parse().unwrap());
+        res.headers_mut().insert(WWW_AUTHENTICATE, value.parse()?);
         *res.status_mut() = StatusCode::UNAUTHORIZED;
+        Ok(())
     }
 
     async fn is_root_contained(&self, path: &Path) -> bool {
@@ -1038,7 +1033,7 @@ impl Server {
         }
     }
 
-    async fn list_dir(&self, entry_path: &Path, base_path: &Path) -> BoxResult<Vec<PathItem>> {
+    async fn list_dir(&self, entry_path: &Path, base_path: &Path) -> Result<Vec<PathItem>> {
         let mut paths: Vec<PathItem> = vec![];
         let mut rd = fs::read_dir(entry_path).await?;
         while let Ok(Some(entry)) = rd.next_entry().await {
@@ -1054,11 +1049,7 @@ impl Server {
         Ok(paths)
     }
 
-    async fn to_pathitem<P: AsRef<Path>>(
-        &self,
-        path: P,
-        base_path: P,
-    ) -> BoxResult<Option<PathItem>> {
+    async fn to_pathitem<P: AsRef<Path>>(&self, path: P, base_path: P) -> Result<Option<PathItem>> {
         let path = path.as_ref();
         let (meta, meta2) = tokio::join!(fs::metadata(&path), fs::symlink_metadata(&path));
         let (meta, meta2) = (meta?, meta2?);
@@ -1078,7 +1069,7 @@ impl Server {
             PathType::Dir | PathType::SymlinkDir => None,
             PathType::File | PathType::SymlinkFile => Some(meta.len()),
         };
-        let rel_path = path.strip_prefix(base_path).unwrap();
+        let rel_path = path.strip_prefix(base_path)?;
         let name = normalize_path(rel_path);
         Ok(Some(PathItem {
             path_type,
@@ -1140,10 +1131,10 @@ impl PathItem {
     }
 
     pub fn to_dav_xml(&self, prefix: &str) -> String {
-        let mtime = Utc
-            .timestamp_millis_opt(self.mtime as i64)
-            .unwrap()
-            .to_rfc2822();
+        let mtime = match Utc.timestamp_millis_opt(self.mtime as i64) {
+            LocalResult::Single(v) => v.to_rfc2822(),
+            _ => String::new(),
+        };
         let mut href = encode_uri(&format!("{}{}", prefix, &self.name));
         if self.is_dir() && !href.ends_with('/') {
             href.push('/');
@@ -1198,7 +1189,7 @@ enum PathType {
 
 fn to_timestamp(time: &SystemTime) -> u64 {
     time.duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .as_millis() as u64
 }
 
@@ -1211,7 +1202,7 @@ fn normalize_path<P: AsRef<Path>>(path: P) -> String {
     }
 }
 
-async fn ensure_path_parent(path: &Path) -> BoxResult<()> {
+async fn ensure_path_parent(path: &Path) -> Result<()> {
     if let Some(parent) = path.parent() {
         if fs::symlink_metadata(parent).await.is_err() {
             fs::create_dir_all(&parent).await?;
@@ -1260,7 +1251,7 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
     dir: &Path,
     hidden: &[String],
     running: Arc<AtomicBool>,
-) -> BoxResult<()> {
+) -> Result<()> {
     let mut writer = ZipFileWriter::new(writer);
     let hidden = Arc::new(hidden.to_vec());
     let hidden = hidden.clone();
@@ -1323,7 +1314,7 @@ fn extract_cache_headers(meta: &Metadata) -> Option<(ETag, LastModified)> {
     let mtime = meta.modified().ok()?;
     let timestamp = to_timestamp(&mtime);
     let size = meta.len();
-    let etag = format!(r#""{timestamp}-{size}""#).parse::<ETag>().unwrap();
+    let etag = format!(r#""{timestamp}-{size}""#).parse::<ETag>().ok()?;
     let last_modified = LastModified::from(mtime);
     Some((etag, last_modified))
 }
@@ -1338,11 +1329,11 @@ fn parse_range(headers: &HeaderMap<HeaderValue>) -> Option<RangeValue> {
     let range_hdr = headers.get(RANGE)?;
     let hdr = range_hdr.to_str().ok()?;
     let mut sp = hdr.splitn(2, '=');
-    let units = sp.next().unwrap();
+    let units = sp.next()?;
     if units == "bytes" {
         let range = sp.next()?;
         let mut sp_range = range.splitn(2, '-');
-        let start: u64 = sp_range.next().unwrap().parse().ok()?;
+        let start: u64 = sp_range.next()?.parse().ok()?;
         let end: Option<u64> = if let Some(end) = sp_range.next() {
             if end.is_empty() {
                 None

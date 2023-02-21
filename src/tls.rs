@@ -1,3 +1,4 @@
+use anyhow::{anyhow, bail, Result};
 use core::task::{Context, Poll};
 use futures::ready;
 use hyper::server::accept::Accept;
@@ -124,33 +125,30 @@ impl Accept for TlsAcceptor {
 }
 
 // Load public certificate from file.
-pub fn load_certs<T: AsRef<Path>>(
-    filename: T,
-) -> Result<Vec<Certificate>, Box<dyn std::error::Error>> {
+pub fn load_certs<T: AsRef<Path>>(filename: T) -> Result<Vec<Certificate>> {
     // Open certificate file.
     let cert_file = fs::File::open(filename.as_ref())
-        .map_err(|e| format!("Failed to access `{}`, {}", filename.as_ref().display(), e))?;
+        .map_err(|e| anyhow!("Failed to access `{}`, {e}", filename.as_ref().display()))?;
     let mut reader = io::BufReader::new(cert_file);
 
     // Load and return certificate.
-    let certs = rustls_pemfile::certs(&mut reader).map_err(|_| "Failed to load certificate")?;
+    let certs =
+        rustls_pemfile::certs(&mut reader).map_err(|_| anyhow!("Failed to load certificate"))?;
     if certs.is_empty() {
-        return Err("No supported certificate in file".into());
+        bail!("No supported certificate in file");
     }
     Ok(certs.into_iter().map(Certificate).collect())
 }
 
 // Load private key from file.
-pub fn load_private_key<T: AsRef<Path>>(
-    filename: T,
-) -> Result<PrivateKey, Box<dyn std::error::Error>> {
+pub fn load_private_key<T: AsRef<Path>>(filename: T) -> Result<PrivateKey> {
     let key_file = fs::File::open(filename.as_ref())
-        .map_err(|e| format!("Failed to access `{}`, {}", filename.as_ref().display(), e))?;
+        .map_err(|e| anyhow!("Failed to access `{}`, {e}", filename.as_ref().display()))?;
     let mut reader = io::BufReader::new(key_file);
 
     // Load and return a single private key.
     let keys = rustls_pemfile::read_all(&mut reader)
-        .map_err(|e| format!("There was a problem with reading private key: {e:?}"))?
+        .map_err(|e| anyhow!("There was a problem with reading private key: {e}"))?
         .into_iter()
         .find_map(|item| match item {
             rustls_pemfile::Item::RSAKey(key)
@@ -158,7 +156,7 @@ pub fn load_private_key<T: AsRef<Path>>(
             | rustls_pemfile::Item::ECKey(key) => Some(key),
             _ => None,
         })
-        .ok_or("No supported private key in file")?;
+        .ok_or_else(|| anyhow!("No supported private key in file"))?;
 
     Ok(PrivateKey(keys))
 }

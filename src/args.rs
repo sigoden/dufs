@@ -1,3 +1,4 @@
+use anyhow::{anyhow, bail, Result};
 use clap::builder::PossibleValuesParser;
 use clap::{value_parser, Arg, ArgAction, ArgMatches, Command};
 use clap_complete::{generate, Generator, Shell};
@@ -13,7 +14,6 @@ use crate::log_http::{LogHttp, DEFAULT_LOG_FORMAT};
 #[cfg(feature = "tls")]
 use crate::tls::{load_certs, load_private_key};
 use crate::utils::encode_uri;
-use crate::BoxResult;
 
 pub fn build_cli() -> Command {
     let app = Command::new(env!("CARGO_CRATE_NAME"))
@@ -257,7 +257,7 @@ impl Args {
     ///
     /// If a parsing error occurred, exit the process and print out informative
     /// error message to user.
-    pub fn parse(matches: ArgMatches) -> BoxResult<Args> {
+    pub fn parse(matches: ArgMatches) -> Result<Args> {
         let port = *matches.get_one::<u16>("port").unwrap();
         let addrs = matches
             .get_many::<String>("bind")
@@ -346,7 +346,7 @@ impl Args {
         })
     }
 
-    fn parse_addrs(addrs: &[&str]) -> BoxResult<Vec<BindAddr>> {
+    fn parse_addrs(addrs: &[&str]) -> Result<Vec<BindAddr>> {
         let mut bind_addrs = vec![];
         let mut invalid_addrs = vec![];
         for addr in addrs {
@@ -364,15 +364,15 @@ impl Args {
             }
         }
         if !invalid_addrs.is_empty() {
-            return Err(format!("Invalid bind address `{}`", invalid_addrs.join(",")).into());
+            bail!("Invalid bind address `{}`", invalid_addrs.join(","));
         }
         Ok(bind_addrs)
     }
 
-    fn parse_path<P: AsRef<Path>>(path: P) -> BoxResult<PathBuf> {
+    fn parse_path<P: AsRef<Path>>(path: P) -> Result<PathBuf> {
         let path = path.as_ref();
         if !path.exists() {
-            return Err(format!("Path `{}` doesn't exist", path.display()).into());
+            bail!("Path `{}` doesn't exist", path.display());
         }
 
         env::current_dir()
@@ -380,13 +380,13 @@ impl Args {
                 p.push(path); // If path is absolute, it replaces the current path.
                 std::fs::canonicalize(p)
             })
-            .map_err(|err| format!("Failed to access path `{}`: {}", path.display(), err,).into())
+            .map_err(|err| anyhow!("Failed to access path `{}`: {}", path.display(), err,))
     }
 
-    fn parse_assets_path<P: AsRef<Path>>(path: P) -> BoxResult<PathBuf> {
+    fn parse_assets_path<P: AsRef<Path>>(path: P) -> Result<PathBuf> {
         let path = Self::parse_path(path)?;
         if !path.join("index.html").exists() {
-            return Err(format!("Path `{}` doesn't contains index.html", path.display()).into());
+            bail!("Path `{}` doesn't contains index.html", path.display());
         }
         Ok(path)
     }

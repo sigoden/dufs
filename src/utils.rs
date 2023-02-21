@@ -1,5 +1,15 @@
-use crate::BoxResult;
-use std::{borrow::Cow, path::Path};
+use anyhow::{anyhow, Result};
+use std::{
+    borrow::Cow,
+    path::Path,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
+
+pub fn unix_now() -> Result<Duration> {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|err| anyhow!("Invalid system time, {err}"))
+}
 
 pub fn encode_uri(v: &str) -> String {
     let parts: Vec<_> = v.split('/').map(urlencoding::encode).collect();
@@ -18,10 +28,10 @@ pub fn get_file_name(path: &Path) -> &str {
         .unwrap_or_default()
 }
 
-pub fn try_get_file_name(path: &Path) -> BoxResult<&str> {
+pub fn try_get_file_name(path: &Path) -> Result<&str> {
     path.file_name()
         .and_then(|v| v.to_str())
-        .ok_or_else(|| format!("Failed to get file name of `{}`", path.display()).into())
+        .ok_or_else(|| anyhow!("Failed to get file name of `{}`", path.display()))
 }
 
 pub fn glob(source: &str, target: &str) -> bool {

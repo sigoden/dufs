@@ -1,16 +1,13 @@
+use anyhow::{anyhow, bail, Result};
 use base64::{engine::general_purpose, Engine as _};
 use headers::HeaderValue;
 use hyper::Method;
 use lazy_static::lazy_static;
 use md5::Context;
-use std::{
-    collections::HashMap,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::utils::encode_uri;
-use crate::BoxResult;
+use crate::utils::{encode_uri, unix_now};
 
 const REALM: &str = "DUFS";
 const DIGEST_AUTH_TIMEOUT: u32 = 86400;
@@ -37,14 +34,14 @@ pub struct PathControl {
 }
 
 impl AccessControl {
-    pub fn new(raw_rules: &[&str], uri_prefix: &str) -> BoxResult<Self> {
+    pub fn new(raw_rules: &[&str], uri_prefix: &str) -> Result<Self> {
         let mut rules = HashMap::default();
         if raw_rules.is_empty() {
             return Ok(Self { rules });
         }
         for rule in raw_rules {
             let parts: Vec<&str> = rule.split('@').collect();
-            let create_err = || format!("Invalid auth `{rule}`").into();
+            let create_err = || anyhow!("Invalid auth `{rule}`");
             match parts.as_slice() {
                 [path, readwrite] => {
                     let control = PathControl {
@@ -197,19 +194,17 @@ pub enum AuthMethod {
 }
 
 impl AuthMethod {
-    pub fn www_auth(&self, stale: bool) -> String {
+    pub fn www_auth(&self, stale: bool) -> Result<String> {
         match self {
-            AuthMethod::Basic => {
-                format!("Basic realm=\"{REALM}\"")
-            }
+            AuthMethod::Basic => Ok(format!("Basic realm=\"{REALM}\"")),
             AuthMethod::Digest => {
                 let str_stale = if stale { "stale=true," } else { "" };
-                format!(
+                Ok(format!(
                     "Digest realm=\"{}\",nonce=\"{}\",{}qop=\"auth\"",
                     REALM,
-                    create_nonce(),
+                    create_nonce()?,
                     str_stale
-                )
+                ))
             }
         }
     }
@@ -334,16 +329,16 @@ impl AuthMethod {
 
 /// Check if a nonce is still valid.
 /// Return an error if it was never valid
-fn validate_nonce(nonce: &[u8]) -> Result<bool, ()> {
+fn validate_nonce(nonce: &[u8]) -> Result<bool> {
     if nonce.len() != 34 {
-        return Err(());
+        bail!("invalid nonce");
     }
     //parse hex
     if let Ok(n) = std::str::from_utf8(nonce) {
         //get time
         if let Ok(secs_nonce) = u32::from_str_radix(&n[..8], 16) {
             //check time
-            let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+            let now = unix_now()?;
             let secs_now = now.as_secs() as u32;
 
             if let Some(dur) = secs_now.checked_sub(secs_nonce) {
@@ -357,7 +352,7 @@ fn validate_nonce(nonce: &[u8]) -> Result<bool, ()> {
             }
         }
     }
-    Err(())
+    bail!("invalid nonce");
 }
 
 fn strip_prefix<'a>(search: &'a [u8], prefix: &[u8]) -> Option<&'a [u8]> {
@@ -413,12 +408,12 @@ fn to_headermap(header: &[u8]) -> Result<HashMap<&[u8], &[u8]>, ()> {
     Ok(ret)
 }
 
-fn create_nonce() -> String {
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+fn create_nonce() -> Result<String> {
+    let now = unix_now()?;
     let secs = now.as_secs() as u32;
     let mut h = NONCESTARTHASH.clone();
     h.consume(secs.to_be_bytes());
 
     let n = format!("{:08x}{:032x}", secs, h.compute());
-    n[..34].to_string()
+    Ok(n[..34].to_string())
 }

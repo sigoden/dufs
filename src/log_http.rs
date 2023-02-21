@@ -67,7 +67,7 @@ impl LogHttp {
 }
 
 impl FromStr for LogHttp {
-    type Err = Box<dyn std::error::Error>;
+    type Err = anyhow::Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut elements = vec![];
         let mut is_var = false;
