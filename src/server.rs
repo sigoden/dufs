@@ -149,10 +149,7 @@ impl Server {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
 
-        if query_params.contains_key("auth") {
-            if !guard_type.is_readwrite() {
-                self.auth_reject(&mut res);
-            }
+        if method.as_str() == "WRITEABLE" {
             return Ok(res);
         }
 

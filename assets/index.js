@@ -582,7 +582,9 @@ async function saveChange() {
 async function login(alert = false) {
   if (!DATA.auth) return;
   try {
-    const res = await fetch(baseUrl() + "?auth");
+    const res = await fetch(baseUrl(), {
+      method: "WRITEABLE",
+    });
     await assertResOK(res);
     document.querySelector(".login-btn").classList.add("hidden");
     $userBtn.classList.remove("hidden");

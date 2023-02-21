@@ -138,9 +138,6 @@ impl GuardType {
     pub fn is_reject(&self) -> bool {
         *self == GuardType::Reject
     }
-    pub fn is_readwrite(&self) -> bool {
-        *self == GuardType::ReadWrite
-    }
 }
 
 fn sanitize_path(path: &str, uri_prefix: &str) -> String {

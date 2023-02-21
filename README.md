@@ -12,7 +12,7 @@ Dufs is a distinctive utility file server that supports static serving, uploadin
 - Serve static files
 - Download folder as zip file
 - Upload files and folders (Drag & Drop)
-- Search files
+- Create/Edit/Search files
 - Partial responses (Parallel/Resume download)
 - Path level access control
 - Support https
@@ -171,14 +171,31 @@ Delete a file/folder
 curl -X DELETE http://127.0.0.1:5000/path-to-file-or-folder
 ```
 
+Create a directory
+
+```
+curl -X MKCOL https://127.0.0.1:5000/path-to-folder
+```
+
+Move the file/folder to the new path
+
+```
+curl -X MOVE https://127.0.0.1:5000/path -H "Destination: https://127.0.0.1:5000/new-path"
+```
+
 List/search directory contents
 
 ```
-curl http://127.0.0.1:5000?simple                 # output pathname only, just like `ls -1`
-
+curl http://127.0.0.1:5000?simple                 # output name only, just like `ls -1`
 curl http://127.0.0.1:5000?json                   # output name/mtime/type/size and other information in json format
-
 curl http://127.0.0.1:5000?q=Dockerfile&simple    # search for files, just like `find -name Dockerfile`
+```
+
+With authorization
+
+```
+curl --user user:pass --digest http://192.168.8.10:5000/file  # digest auth
+curl --user user:pass http://192.168.8.10:5000/file           # basic auth
 ```
 
 <details>
