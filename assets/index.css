@@ -208,9 +208,12 @@ body {
   outline: none;
 }
 
-.save-btn {
+.toolbox2 {
   margin-left: auto;
   margin-right: 2em;
+}
+
+.save-btn {
   cursor: pointer;
   user-select: none;
 }

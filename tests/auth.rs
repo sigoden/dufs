@@ -46,6 +46,20 @@ fn auth_skip_on_options_method(
 }
 
 #[rstest]
+fn auth_check(
+    #[with(&["--auth", "/@user:pass@user2:pass2", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    let url = format!("{}index.html?auth", server.url());
+    let resp = fetch!(b"GET", &url).send()?;
+    assert_eq!(resp.status(), 401);
+    let resp = fetch!(b"GET", &url).send_with_digest_auth("user2", "pass2")?;
+    assert_eq!(resp.status(), 401);
+    let resp = fetch!(b"GET", &url).send_with_digest_auth("user", "pass")?;
+    assert_eq!(resp.status(), 200);
+    Ok(())
+}
+
+#[rstest]
 fn auth_readonly(
     #[with(&["--auth", "/@user:pass@user2:pass2", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
