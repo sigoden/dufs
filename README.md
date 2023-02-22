@@ -5,7 +5,7 @@
 
 Dufs is a distinctive utility file server that supports static serving, uploading, searching, accessing control, webdav...
 
-![demo](https://user-images.githubusercontent.com/4012553/220502713-eb5a0560-da3b-463b-81ea-85c4569abc66.png)
+![demo](https://user-images.githubusercontent.com/4012553/220506356-fcba9bd3-f0d5-4aa0-a4c0-ef8f12da7e07.png)
 
 ## Features
 
