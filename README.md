@@ -5,7 +5,7 @@
 
 Dufs is a distinctive utility file server that supports static serving, uploading, searching, accessing control, webdav...
 
-![demo](https://user-images.githubusercontent.com/4012553/220506356-fcba9bd3-f0d5-4aa0-a4c0-ef8f12da7e07.png)
+![demo](https://user-images.githubusercontent.com/4012553/220513063-ff0f186b-ac54-4682-9af4-47a9781dee0d.png)
 
 ## Features
 
@@ -81,13 +81,13 @@ Options:
 
 ## Examples
 
-Serve current working directory
+Serve current working directory in readonly mode
 
 ```
 dufs
 ```
 
-Allow all operations like upload/delete/search...
+Allow all operations like upload/delete/search/create/edit...
 
 ```
 dufs -A
@@ -186,8 +186,8 @@ curl -X MOVE https://127.0.0.1:5000/path -H "Destination: https://127.0.0.1:5000
 List/search directory contents
 
 ```
-curl http://127.0.0.1:5000?simple                 # output name only, just like `ls -1`
-curl http://127.0.0.1:5000?json                   # output name/mtime/type/size and other information in json format
+curl http://127.0.0.1:5000?simple                 # output names only, just like `ls -1`
+curl http://127.0.0.1:5000?json                   # output paths in json format
 curl http://127.0.0.1:5000?q=Dockerfile&simple    # search for files, just like `find -name Dockerfile`
 ```
 
