@@ -253,6 +253,10 @@ body {
     fill: #fff;
   }
 
+  .head {
+    background-color: #111;
+  }
+
   .searchbar {
     background-color: #111;
     border-color: #fff6;
