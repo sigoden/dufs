@@ -58,7 +58,8 @@ body {
   margin-right: 10px;
 }
 
-.toolbox>div {
+.toolbox > a,
+.toolbox > div {
   /* vertically align with breadcrumb text */
   height: 1.1rem;
 }
@@ -147,7 +148,7 @@ body {
 }
 
 .paths-table .cell-actions {
-  width: 90px;
+  width: 75px;
   display: flex;
   padding-left: 0.6em;
 }
@@ -191,6 +192,7 @@ body {
 
 .action-btn {
   padding-right: 0.3em;
+  cursor: pointer;
 }
 
 .uploaders-table {
@@ -221,7 +223,6 @@ body {
 .not-editable {
   font-style: italic;
 }
-
 
 @media (min-width: 768px) {
   .path a {

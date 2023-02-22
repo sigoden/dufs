@@ -36,6 +36,13 @@ var DATA;
  */
 const PARAMS = Object.fromEntries(new URLSearchParams(window.location.search).entries());
 
+const IFRAME_FORMATS = [
+  ".pdf",
+  ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg",
+  ".mp4", ".mov", ".avi", ".wmv", ".flv", ".webm",
+  ".mp3", ".ogg", ".wav", ".m4a",
+];
+
 const dirEmptyNote = PARAMS.q ? 'No results' : DATA.dir_exists ? 'Empty folder' : 'Folder will be created when a file is uploaded';
 
 const ICONS = {
@@ -45,7 +52,7 @@ const ICONS = {
   file: `<svg height="16" viewBox="0 0 12 16" width="12"><path fill-rule="evenodd" d="M6 5H2V4h4v1zM2 8h7V7H2v1zm0 2h7V9H2v1zm0 2h7v-1H2v1zm10-7.5V14c0 .55-.45 1-1 1H1c-.55 0-1-.45-1-1V2c0-.55.45-1 1-1h7.5L12 4.5zM11 5L8 2H1v12h10V5z"></path></svg>`,
   download: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>`,
   move: `<svg width="16" height="16" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1.5 1.5A.5.5 0 0 0 1 2v4.8a2.5 2.5 0 0 0 2.5 2.5h9.793l-3.347 3.346a.5.5 0 0 0 .708.708l4.2-4.2a.5.5 0 0 0 0-.708l-4-4a.5.5 0 0 0-.708.708L13.293 8.3H3.5A1.5 1.5 0 0 1 2 6.8V2a.5.5 0 0 0-.5-.5z"/></svg>`,
-  edit: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/></svg>`,
+  edit: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/><path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/></svg>`,
   delete: `<svg width="16" height="16" fill="currentColor"viewBox="0 0 16 16"><path d="M6.854 7.146a.5.5 0 1 0-.708.708L7.293 9l-1.147 1.146a.5.5 0 0 0 .708.708L8 9.707l1.146 1.147a.5.5 0 0 0 .708-.708L8.707 9l1.147-1.146a.5.5 0 0 0-.708-.708L8 8.293 6.854 7.146z"/><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/></svg>`,
 }
 
@@ -93,31 +100,13 @@ function ready() {
     document.title = `Index of ${DATA.href} - Dufs`;
     document.querySelector(".index-page").classList.remove("hidden");
 
-    if (DATA.auth) {
-      setupAuth();
-    }
+    setupIndexPage();
 
-    if (DATA.allow_search) {
-      setupSearch()
-    }
-
-    if (DATA.allow_archive) {
-      document.querySelector(".zip-root").classList.remove("hidden");
-    }
-
-    renderPathsTableHead();
-    renderPathsTableBody();
-
-    if (DATA.allow_upload) {
-      dropzone();
-      setupUpload();
-      setupNewFile();
-    }
   } else if (DATA.kind == "Edit") {
     document.title = `Edit of ${DATA.href} - Dufs`;
     document.querySelector(".editor-page").classList.remove("hidden");;
 
-    setupEditor();
+    setupEditPage();
   }
 }
 
@@ -269,6 +258,33 @@ function addBreadcrumb(href, uri_prefix) {
   }
 }
 
+function setupIndexPage() {
+  if (DATA.allow_archive) {
+    const $download = document.querySelector(".download");
+    $download.href = baseUrl() + "?zip";
+    $download.title = "Download folder as div .zip file";
+    $download.classList.remove("hidden");
+  }
+
+  if (DATA.allow_upload) {
+    setupDropzone();
+    setupUploadFile();
+    setupNewFolder();
+    setupNewFile();
+  }
+
+  if (DATA.auth) {
+    setupAuth();
+  }
+
+  if (DATA.allow_search) {
+    setupSearch()
+  }
+
+  renderPathsTableHead();
+  renderPathsTableBody();
+}
+
 /**
  * Render path table thead
  */
@@ -359,8 +375,9 @@ function addPath(file, index) {
   }
   if (DATA.allow_delete) {
     if (DATA.allow_upload) {
-      actionMove = `<div onclick="movePath(${index})" class="action-btn" id="moveBtn${index}" title="Move to new path">${ICONS.move}</div>`;
-      if (!isDir) {
+      if (isDir) {
+        actionMove = `<div onclick="movePath(${index})" class="action-btn" id="moveBtn${index}" title="Move to new path">${ICONS.move}</div>`;
+      } else {
         actionEdit = `<a class="action-btn" title="Edit file" target="_blank" href="${url}?edit">${ICONS.edit}</a>`;
       }
     }
@@ -371,8 +388,8 @@ function addPath(file, index) {
   <td class="cell-actions">
     ${actionDownload}
     ${actionMove}
-    ${actionDelete}
     ${actionEdit}
+    ${actionDelete}
   </td>`
 
   $pathsTableBody.insertAdjacentHTML("beforeend", `
@@ -381,7 +398,7 @@ function addPath(file, index) {
     ${getPathSvg(file.path_type)}
   </td>
   <td class="path cell-name">
-    <a href="${url}" target="_blank">${encodedName}</a>
+    <a href="${url}" ${isDir ? "" : `target="_blank"`}>${encodedName}</a>
   </td>
   <td class="cell-mtime">${formatMtime(file.mtime)}</td>
   <td class="cell-size">${formatSize(file.size).join(" ")}</td>
@@ -389,74 +406,7 @@ function addPath(file, index) {
 </tr>`)
 }
 
-/**
- * Delete path
- * @param {number} index 
- * @returns 
- */
-async function deletePath(index) {
-  const file = DATA.paths[index];
-  if (!file) return;
-
-  if (!confirm(`Delete \`${file.name}\`?`)) return;
-
-  try {
-    await login();
-    const res = await fetch(newUrl(file.name), {
-      method: "DELETE",
-    });
-    await assertResOK(res);
-    document.getElementById(`addPath${index}`).remove();
-    DATA.paths[index] = null;
-    if (!DATA.paths.find(v => !!v)) {
-      $pathsTable.classList.add("hidden");
-      $emptyFolder.textContent = dirEmptyNote;
-      $emptyFolder.classList.remove("hidden");
-    }
-  } catch (err) {
-    alert(`Cannot delete \`${file.name}\`, ${err.message}`);
-  }
-}
-
-
-/**
- * Move path
- * @param {number} index 
- * @returns 
- */
-async function movePath(index) {
-  const file = DATA.paths[index];
-  if (!file) return;
-
-  const fileUrl = newUrl(file.name);
-  const fileUrlObj = new URL(fileUrl)
-
-  const prefix = DATA.uri_prefix.slice(0, -1);
-
-  const filePath = decodeURIComponent(fileUrlObj.pathname.slice(prefix.length));
-
-  let newPath = prompt("Enter new path", filePath)
-  if (!newPath) return;
-  if (!newPath.startsWith("/")) newPath = "/" + newPath;
-  if (filePath === newPath) return;
-  const newFileUrl = fileUrlObj.origin + prefix + newPath.split("/").map(encodeURIComponent).join("/");
-
-  try {
-    await login();
-    const res = await fetch(fileUrl, {
-      method: "MOVE",
-      headers: {
-        "Destination": newFileUrl,
-      }
-    });
-    await assertResOK(res);
-    location.href = newFileUrl.split("/").slice(0, -1).join("/");
-  } catch (err) {
-    alert(`Cannot move \`${filePath}\` to \`${newPath}\`, ${err.message}`);
-  }
-}
-
-function dropzone() {
+function setupDropzone() {
   ["drag", "dragstart", "dragend", "dragover", "dragenter", "dragleave", "drop"].forEach(name => {
     document.addEventListener(name, e => {
       e.preventDefault();
@@ -491,10 +441,6 @@ function setupAuth() {
   }
 }
 
-
-/**
- * Setup searchbar
- */
 function setupSearch() {
   const $searchbar = document.querySelector(".searchbar");
   $searchbar.classList.remove("hidden");
@@ -513,19 +459,22 @@ function setupSearch() {
   }
 }
 
-function setupUpload() {
-  const $newFolder = document.querySelector(".new-folder");
-  $newFolder.classList.remove("hidden");
-  $newFolder.addEventListener("click", () => {
-    const name = prompt("Enter folder name");
-    if (name) createFolder(name);
-  });
+function setupUploadFile() {
   document.querySelector(".upload-file").classList.remove("hidden");
   document.getElementById("file").addEventListener("change", async e => {
     const files = e.target.files;
     for (let file of files) {
       new Uploader(file, []).upload();
     }
+  });
+}
+
+function setupNewFolder() {
+  const $newFolder = document.querySelector(".new-folder");
+  $newFolder.classList.remove("hidden");
+  $newFolder.addEventListener("click", () => {
+    const name = prompt("Enter folder name");
+    if (name) createFolder(name);
   });
 }
 
@@ -538,15 +487,43 @@ function setupNewFile() {
   });
 }
 
-async function setupEditor() {
-  const $download = document.querySelector(".download")
+async function setupEditPage() {
+  const url = baseUrl();
+
+  const $download = document.querySelector(".download");
   $download.classList.remove("hidden");
-  $download.href = baseUrl()
+  $download.href = url;
+
+  const $moveFile = document.querySelector(".move-file");
+  $moveFile.classList.remove("hidden");
+  $moveFile.addEventListener("click", async () => {
+    const query = location.href.slice(url.length);
+    const newFileUrl = await doMovePath(url);
+    if (newFileUrl) {
+      location.href = newFileUrl + query;
+    }
+  });
+
+  const $deleteFile = document.querySelector(".delete-file");
+  $deleteFile.classList.remove("hidden");
+  $deleteFile.addEventListener("click", async () => {
+    const url = baseUrl();
+    const name = baseName(url);
+    await doDeletePath(name, url, () => {
+      location.href = location.href.split("/").slice(0, -1).join("/");
+    });
+  })
 
   if (!DATA.editable) {
     const $notEditable = document.querySelector(".not-editable");
-    $notEditable.classList.remove("hidden");
-    $notEditable.textContent = "Cannot edit file because it is too large or binary.";
+    const url = baseUrl();
+    const ext = extName(baseName(url));
+    if (IFRAME_FORMATS.find(v => v === ext)) {
+      $notEditable.insertAdjacentHTML("afterend", `<iframe src="${url}" sandbox width="100%" height="${window.innerHeight - 100}px"></iframe>`)
+    } else {
+      $notEditable.classList.remove("hidden");
+      $notEditable.textContent = "Cannot edit because it is too large or binary.";
+    }
     return;
   }
 
@@ -564,6 +541,91 @@ async function setupEditor() {
     alert(`Failed get file, ${err.message}`);
   }
 }
+
+/**
+ * Delete path
+ * @param {number} index 
+ * @returns 
+ */
+async function deletePath(index) {
+  const file = DATA.paths[index];
+  if (!file) return;
+  await doDeletePath(file.name, newUrl(file.name), () => {
+    document.getElementById(`addPath${index}`)?.remove();
+    DATA.paths[index] = null;
+    if (!DATA.paths.find(v => !!v)) {
+      $pathsTable.classList.add("hidden");
+      $emptyFolder.textContent = dirEmptyNote;
+      $emptyFolder.classList.remove("hidden");
+    }
+  })
+}
+
+async function doDeletePath(name, url, cb) {
+  if (!confirm(`Delete \`${name}\`?`)) return;
+  try {
+    await login();
+    const res = await fetch(url, {
+      method: "DELETE",
+    });
+    await assertResOK(res);
+    cb();
+  } catch (err) {
+    alert(`Cannot delete \`${file.name}\`, ${err.message}`);
+  }
+}
+
+/**
+ * Move path
+ * @param {number} index 
+ * @returns 
+ */
+async function movePath(index) {
+  const file = DATA.paths[index];
+  if (!file) return;
+  const fileUrl = newUrl(file.name);
+  const newFileUrl = await doMovePath(fileUrl);
+  if (newFileUrl) {
+    location.href = newFileUrl.split("/").slice(0, -1).join("/");
+  }
+}
+
+async function doMovePath(fileUrl) {
+  const fileUrlObj = new URL(fileUrl)
+
+  const prefix = DATA.uri_prefix.slice(0, -1);
+
+  const filePath = decodeURIComponent(fileUrlObj.pathname.slice(prefix.length));
+
+  let newPath = prompt("Enter new path", filePath)
+  if (!newPath) return;
+  if (!newPath.startsWith("/")) newPath = "/" + newPath;
+  if (filePath === newPath) return;
+  const newFileUrl = fileUrlObj.origin + prefix + newPath.split("/").map(encodeURIComponent).join("/");
+
+  try {
+    await login();
+    const res1 = await fetch(newFileUrl, {
+      method: "HEAD",
+    });
+    if (res1.status === 200) {
+      if (!confirm("Override exsis file?")) {
+        return;
+      }
+    }
+    const res2 = await fetch(fileUrl, {
+      method: "MOVE",
+      headers: {
+        "Destination": newFileUrl,
+      }
+    });
+    await assertResOK(res2);
+    return newFileUrl;
+  } catch (err) {
+    alert(`Cannot move \`${filePath}\` to \`${newPath}\`, ${err.message}`);
+  }
+}
+
 
 /**
  * Save editor change
@@ -655,6 +717,20 @@ function newUrl(name) {
 
 function baseUrl() {
   return location.href.split('?')[0];
+}
+
+function baseName(url) {
+  return decodeURIComponent(url.split("/").filter(v => v.length > 0).slice(-1)[0])
+}
+
+function extName(filename) {
+  const dotIndex = filename.lastIndexOf('.');
+
+  if (dotIndex === -1 || dotIndex === 0 || dotIndex === filename.length - 1) {
+    return '';
+  }
+
+  return filename.substring(dotIndex);
 }
 
 function getPathSvg(path_type) {
