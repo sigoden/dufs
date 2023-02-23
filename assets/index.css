@@ -58,8 +58,8 @@ body {
   margin-right: 10px;
 }
 
-.toolbox > a,
-.toolbox > div {
+.toolbox>a,
+.toolbox>div {
   /* vertically align with breadcrumb text */
   height: 1.1rem;
 }
@@ -272,5 +272,10 @@ body {
 
   .paths-table tbody tr:hover {
     background-color: #1a1a1a;
+  }
+
+  .editor {
+    background: black;
+    color: white;
   }
 }
