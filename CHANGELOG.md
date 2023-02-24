@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.32.0] - 2023-02-22
+
+### Bug Fixes
+
+- Set the STOPSIGNAL to SIGINT for Dockerfile
+- Remove Method::Options auth check ([#168](https://github.com/sigoden/dufs/issues/168))
+- Clear search input also clear query ([#178](https://github.com/sigoden/dufs/issues/178))
+
+### Features
+
+- [**breaking**] Add option --allow-archive ([#152](https://github.com/sigoden/dufs/issues/152))
+- Use env var for args ([#170](https://github.com/sigoden/dufs/issues/170))
+- Hiding only directories instead of files ([#175](https://github.com/sigoden/dufs/issues/175))
+- API to search and list directories ([#177](https://github.com/sigoden/dufs/issues/177))
+- Support edit files ([#179](https://github.com/sigoden/dufs/issues/179))
+- Support new file ([#180](https://github.com/sigoden/dufs/issues/180))
+- Ui improves the login experience ([#182](https://github.com/sigoden/dufs/issues/182))
+
 ## [0.31.0] - 2022-11-11
 
 ### Bug Fixes
