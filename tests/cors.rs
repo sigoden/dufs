@@ -23,7 +23,7 @@ fn cors(#[with(&["--enable-cors"])] server: TestServer) -> Result<(), Error> {
     );
     assert_eq!(
         resp.headers().get("access-control-allow-headers").unwrap(),
-        "Authorization,Destination,Range"
+        "Authorization,Destination,Range,Content-Type"
     );
     assert_eq!(
         resp.headers().get("access-control-expose-headers").unwrap(),
