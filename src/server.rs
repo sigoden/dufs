@@ -638,14 +638,10 @@ impl Server {
             None
         };
 
-        if let Some(mime) = mime_guess::from_path(path).first() {
-            res.headers_mut().typed_insert(ContentType::from(mime));
-        } else {
-            res.headers_mut().insert(
-                CONTENT_TYPE,
-                HeaderValue::from_static("application/octet-stream"),
-            );
-        }
+        res.headers_mut().insert(
+            CONTENT_TYPE,
+            HeaderValue::from_str(&get_content_type(path).await?)?,
+        );
 
         let filename = try_get_file_name(path)?;
         res.headers_mut().insert(
@@ -1381,4 +1377,35 @@ fn set_webdav_headers(res: &mut Response) {
     );
     res.headers_mut()
         .insert("DAV", HeaderValue::from_static("1,2"));
+}
+
+async fn get_content_type(path: &Path) -> Result<String> {
+    let mut buffer: Vec<u8> = vec![];
+    fs::File::open(path)
+        .await?
+        .take(1024)
+        .read_to_end(&mut buffer)
+        .await?;
+    let mime = mime_guess::from_path(path).first();
+    let is_text = content_inspector::inspect(&buffer).is_text();
+    let content_type = if is_text {
+        let mut detector = chardetng::EncodingDetector::new();
+        detector.feed(&buffer, buffer.len() < 1024);
+        let (enc, confident) = detector.guess_assess(None, true);
+        let charset = if confident {
+            format!("; charset={}", enc.name())
+        } else {
+            "".into()
+        };
+        match mime {
+            Some(m) => format!("{m}{charset}"),
+            None => format!("text/plain{charset}"),
+        }
+    } else {
+        match mime {
+            Some(m) => m.to_string(),
+            None => "application/octet-stream".into(),
+        }
+    };
+    Ok(content_type)
 }
