@@ -46,15 +46,12 @@ pub fn tmpdir() -> TempDir {
     let tmpdir = assert_fs::TempDir::new().expect("Couldn't create a temp dir for tests");
     for file in FILES {
         if *file == BIN_FILE {
-            tmpdir
-                .child(file)
-                .write_binary(b"bin\0\0123")
-                .expect("Couldn't write to file");
+            tmpdir.child(file).write_binary(b"bin\0\0123").unwrap();
         } else {
             tmpdir
                 .child(file)
                 .write_str(&format!("This is {file}"))
-                .expect("Couldn't write to file");
+                .unwrap();
         }
     }
     for directory in DIRECTORIES {
@@ -62,7 +59,7 @@ pub fn tmpdir() -> TempDir {
             tmpdir
                 .child(format!("{}{}", directory, "index.html"))
                 .write_str("__ASSERTS_PREFIX__index.js;DATA = __INDEX_DATA__")
-                .expect("Couldn't write to file");
+                .unwrap();
         } else {
             for file in FILES {
                 if *directory == DIR_NO_INDEX && *file == "index.html" {
@@ -72,17 +69,37 @@ pub fn tmpdir() -> TempDir {
                     tmpdir
                         .child(format!("{directory}{file}"))
                         .write_binary(b"bin\0\0123")
-                        .expect("Couldn't write to file");
+                        .unwrap();
                 } else {
                     tmpdir
                         .child(format!("{directory}{file}"))
                         .write_str(&format!("This is {directory}{file}"))
-                        .expect("Couldn't write to file");
+                        .unwrap();
                 }
             }
         }
     }
     tmpdir.child("dir4/hidden").touch().unwrap();
+    tmpdir
+        .child("content-types/bin.tar")
+        .write_binary(b"\x7f\x45\x4c\x46\x02\x01\x00\x00")
+        .unwrap();
+    tmpdir
+        .child("content-types/bin")
+        .write_binary(b"\x7f\x45\x4c\x46\x02\x01\x00\x00")
+        .unwrap();
+    tmpdir
+        .child("content-types/file-utf8.txt")
+        .write_str("世界")
+        .unwrap();
+    tmpdir
+        .child("content-types/file-gbk.txt")
+        .write_binary(b"\xca\xc0\xbd\xe7")
+        .unwrap();
+    tmpdir
+        .child("content-types/file")
+        .write_str("世界")
+        .unwrap();
 
     tmpdir
 }

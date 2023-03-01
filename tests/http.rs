@@ -148,7 +148,10 @@ fn empty_search(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
 fn get_file(server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(format!("{}index.html", server.url()))?;
     assert_eq!(resp.status(), 200);
-    assert_eq!(resp.headers().get("content-type").unwrap(), "text/html");
+    assert_eq!(
+        resp.headers().get("content-type").unwrap(),
+        "text/html; charset=UTF-8"
+    );
     assert_eq!(resp.headers().get("accept-ranges").unwrap(), "bytes");
     assert!(resp.headers().contains_key("etag"));
     assert!(resp.headers().contains_key("last-modified"));
@@ -161,7 +164,10 @@ fn get_file(server: TestServer) -> Result<(), Error> {
 fn head_file(server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"HEAD", format!("{}index.html", server.url())).send()?;
     assert_eq!(resp.status(), 200);
-    assert_eq!(resp.headers().get("content-type").unwrap(), "text/html");
+    assert_eq!(
+        resp.headers().get("content-type").unwrap(),
+        "text/html; charset=UTF-8"
+    );
     assert_eq!(resp.headers().get("accept-ranges").unwrap(), "bytes");
     assert!(resp.headers().contains_key("content-disposition"));
     assert!(resp.headers().contains_key("etag"));
@@ -257,5 +263,35 @@ fn delete_file(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
 fn delete_file_404(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"DELETE", format!("{}file1", server.url())).send()?;
     assert_eq!(resp.status(), 404);
+    Ok(())
+}
+
+#[rstest]
+fn get_file_content_type(server: TestServer) -> Result<(), Error> {
+    let resp = reqwest::blocking::get(format!("{}content-types/bin.tar", server.url()))?;
+    assert_eq!(
+        resp.headers().get("content-type").unwrap(),
+        "application/x-tar"
+    );
+    let resp = reqwest::blocking::get(format!("{}content-types/bin", server.url()))?;
+    assert_eq!(
+        resp.headers().get("content-type").unwrap(),
+        "application/octet-stream"
+    );
+    let resp = reqwest::blocking::get(format!("{}content-types/file-utf8.txt", server.url()))?;
+    assert_eq!(
+        resp.headers().get("content-type").unwrap(),
+        "text/plain; charset=UTF-8"
+    );
+    let resp = reqwest::blocking::get(format!("{}content-types/file-gbk.txt", server.url()))?;
+    assert_eq!(
+        resp.headers().get("content-type").unwrap(),
+        "text/plain; charset=GBK"
+    );
+    let resp = reqwest::blocking::get(format!("{}content-types/file", server.url()))?;
+    assert_eq!(
+        resp.headers().get("content-type").unwrap(),
+        "text/plain; charset=UTF-8"
+    );
     Ok(())
 }
