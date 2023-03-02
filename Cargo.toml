@@ -43,6 +43,7 @@ alphanumeric-sort = "1.4"
 content_inspector = "0.2"
 anyhow = "1.0"
 chardetng = "0.1"
+glob = "0.3.1"
 
 [features]
 default = ["tls"]
