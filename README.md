@@ -243,21 +243,18 @@ Since dufs only allows viewing/downloading, `admin` can only view/download files
 
 ### Hide Paths
 
-Dufs supports hiding paths from directory listings via option `--hidden`.
+Dufs supports hiding paths from directory listings via option `--hidden <glob>,...`.
 
 ```
 dufs --hidden .git,.DS_Store,tmp
 ```
 
-`--hidden` also supports a variant glob:
-
-- `?` matches any single character
-- `*` matches any (possibly empty) sequence of characters
-- `**`, `[..]`, `[!..]` is not supported
+> The glob used in --hidden only matches file and directory names, not paths. So `--hidden dir1/file` is invalid.
 
 ```sh
-dufs --hidden '.*'
-dufs --hidden '*.log,*.lock'
+dufs --hidden '.*'            # hidden dotfiles
+dufs --hidden '*/'            # hidden all folders
+dufs --hidden '*.log,*.lock'  # hidden by exts
 ```
 
 ### Log Format
