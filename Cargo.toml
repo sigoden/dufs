@@ -25,7 +25,7 @@ base64 = "0.21"
 async_zip = { version = "0.0.12", default-features = false, features = ["deflate"] }
 headers = "0.3"
 mime_guess = "2.0"
-if-addrs = "0.8"
+if-addrs = "0.10.1"
 rustls = { version = "0.20", default-features = false, features = ["tls12"], optional = true }
 rustls-pemfile = { version = "1", optional = true }
 tokio-rustls = { version = "0.23", optional = true }
@@ -35,7 +35,7 @@ uuid = { version = "1.1", features = ["v4", "fast-rng"] }
 urlencoding = "2.1"
 xml-rs = "0.8"
 log = "0.4"
-socket2 = "0.4"
+socket2 = "0.5"
 async-stream = "0.3"
 walkdir = "2.3"
 form_urlencoded = "1.0"
