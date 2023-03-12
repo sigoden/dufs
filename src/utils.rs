@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use std::{
     borrow::Cow,
     path::Path,
@@ -8,7 +8,7 @@ use std::{
 pub fn unix_now() -> Result<Duration> {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map_err(|err| anyhow!("Invalid system time, {err}"))
+        .with_context(|| "Invalid system time")
 }
 
 pub fn encode_uri(v: &str) -> String {

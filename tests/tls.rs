@@ -37,7 +37,7 @@ fn wrong_path_cert() -> Result<(), Error> {
         .args(["--tls-cert", "wrong", "--tls-key", "tests/data/key.pem"])
         .assert()
         .failure()
-        .stderr(contains("error: Failed to access `wrong`"));
+        .stderr(contains("Failed to access `wrong`"));
 
     Ok(())
 }
@@ -49,7 +49,7 @@ fn wrong_path_key() -> Result<(), Error> {
         .args(["--tls-cert", "tests/data/cert.pem", "--tls-key", "wrong"])
         .assert()
         .failure()
-        .stderr(contains("error: Failed to access `wrong`"));
+        .stderr(contains("Failed to access `wrong`"));
 
     Ok(())
 }
