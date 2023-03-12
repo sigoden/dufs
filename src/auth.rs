@@ -211,7 +211,7 @@ impl AuthMethod {
     pub fn get_user(&self, authorization: &HeaderValue) -> Option<String> {
         match self {
             AuthMethod::Basic => {
-                let value: Vec<u8> = general_purpose::STANDARD_NO_PAD
+                let value: Vec<u8> = general_purpose::STANDARD
                     .decode(strip_prefix(authorization.as_bytes(), b"Basic ")?)
                     .ok()?;
                 let parts: Vec<&str> = std::str::from_utf8(&value).ok()?.split(':').collect();
@@ -236,7 +236,7 @@ impl AuthMethod {
     ) -> Option<()> {
         match self {
             AuthMethod::Basic => {
-                let basic_value: Vec<u8> = general_purpose::STANDARD_NO_PAD
+                let basic_value: Vec<u8> = general_purpose::STANDARD
                     .decode(strip_prefix(authorization.as_bytes(), b"Basic ")?)
                     .ok()?;
                 let parts: Vec<&str> = std::str::from_utf8(&basic_value).ok()?.split(':').collect();

@@ -106,15 +106,19 @@ fn auth_nest_share(
 }
 
 #[rstest]
+#[case(server(&["--auth", "/@user:pass", "--auth-method", "basic", "-A"]), "user", "pass")]
+#[case(server(&["--auth", "/@u1:p1", "--auth-method", "basic", "-A"]), "u1", "p1")]
 fn auth_basic(
-    #[with(&["--auth", "/@user:pass", "--auth-method", "basic", "-A"])] server: TestServer,
+    #[case] server: TestServer,
+    #[case] user: &str,
+    #[case] pass: &str,
 ) -> Result<(), Error> {
     let url = format!("{}file1", server.url());
     let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
     assert_eq!(resp.status(), 401);
     let resp = fetch!(b"PUT", &url)
         .body(b"abc".to_vec())
-        .basic_auth("user", Some("pass"))
+        .basic_auth(user, Some(pass))
         .send()?;
     assert_eq!(resp.status(), 201);
     Ok(())
