@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Context as AnyhowContext, Result};
 use core::task::{Context, Poll};
 use futures::ready;
 use hyper::server::accept::Accept;
@@ -128,12 +128,11 @@ impl Accept for TlsAcceptor {
 pub fn load_certs<T: AsRef<Path>>(filename: T) -> Result<Vec<Certificate>> {
     // Open certificate file.
     let cert_file = fs::File::open(filename.as_ref())
-        .map_err(|e| anyhow!("Failed to access `{}`, {e}", filename.as_ref().display()))?;
+        .with_context(|| format!("Failed to access `{}`", filename.as_ref().display()))?;
     let mut reader = io::BufReader::new(cert_file);
 
     // Load and return certificate.
-    let certs =
-        rustls_pemfile::certs(&mut reader).map_err(|_| anyhow!("Failed to load certificate"))?;
+    let certs = rustls_pemfile::certs(&mut reader).with_context(|| "Failed to load certificate")?;
     if certs.is_empty() {
         bail!("No supported certificate in file");
     }
@@ -143,12 +142,12 @@ pub fn load_certs<T: AsRef<Path>>(filename: T) -> Result<Vec<Certificate>> {
 // Load private key from file.
 pub fn load_private_key<T: AsRef<Path>>(filename: T) -> Result<PrivateKey> {
     let key_file = fs::File::open(filename.as_ref())
-        .map_err(|e| anyhow!("Failed to access `{}`, {e}", filename.as_ref().display()))?;
+        .with_context(|| format!("Failed to access `{}`", filename.as_ref().display()))?;
     let mut reader = io::BufReader::new(key_file);
 
     // Load and return a single private key.
     let keys = rustls_pemfile::read_all(&mut reader)
-        .map_err(|e| anyhow!("There was a problem with reading private key: {e}"))?
+        .with_context(|| "There was a problem with reading private key")?
         .into_iter()
         .find_map(|item| match item {
             rustls_pemfile::Item::RSAKey(key)

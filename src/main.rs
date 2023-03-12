@@ -18,7 +18,7 @@ use crate::server::{Request, Server};
 #[cfg(feature = "tls")]
 use crate::tls::{TlsAcceptor, TlsStream};
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use std::net::{IpAddr, SocketAddr, TcpListener as StdTcpListener};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -35,14 +35,7 @@ use hyper::service::{make_service_fn, service_fn};
 use rustls::ServerConfig;
 
 #[tokio::main]
-async fn main() {
-    run().await.unwrap_or_else(|err| {
-        eprintln!("error: {err}");
-        std::process::exit(1);
-    })
-}
-
-async fn run() -> Result<()> {
+async fn main() -> Result<()> {
     logger::init().map_err(|e| anyhow!("Failed to init logger, {e}"))?;
     let cmd = build_cli();
     let matches = cmd.get_matches();
@@ -94,7 +87,7 @@ fn serve(
         match bind_addr {
             BindAddr::Address(ip) => {
                 let incoming = create_addr_incoming(SocketAddr::new(*ip, port))
-                    .map_err(|e| anyhow!("Failed to bind `{ip}:{port}`, {e}"))?;
+                    .with_context(|| format!("Failed to bind `{ip}:{port}`"))?;
                 match args.tls.as_ref() {
                     #[cfg(feature = "tls")]
                     Some((certs, key)) => {
@@ -134,7 +127,7 @@ fn serve(
                 #[cfg(unix)]
                 {
                     let listener = tokio::net::UnixListener::bind(path)
-                        .map_err(|e| anyhow!("Failed to bind `{}`, {e}", path.display()))?;
+                        .with_context(|| format!("Failed to bind `{}`", path.display()))?;
                     let acceptor = unix::UnixAcceptor::from_listener(listener);
                     let new_service = make_service_fn(move |_| serve_func(None));
                     let server = tokio::spawn(hyper::Server::builder(acceptor).serve(new_service));
@@ -181,8 +174,8 @@ fn print_listening(args: Arc<Args>) -> Result<()> {
         }
     }
     if ipv4 || ipv6 {
-        let ifaces = if_addrs::get_if_addrs()
-            .map_err(|e| anyhow!("Failed to get local interface addresses: {e}"))?;
+        let ifaces =
+            if_addrs::get_if_addrs().with_context(|| "Failed to get local interface addresses")?;
         for iface in ifaces.into_iter() {
             let local_ip = iface.ip();
             if ipv4 && local_ip.is_ipv4() {

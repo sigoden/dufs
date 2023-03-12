@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Context, Result};
 use clap::builder::PossibleValuesParser;
 use clap::{value_parser, Arg, ArgAction, ArgMatches, Command};
 use clap_complete::{generate, Generator, Shell};
@@ -380,7 +380,7 @@ impl Args {
                 p.push(path); // If path is absolute, it replaces the current path.
                 std::fs::canonicalize(p)
             })
-            .map_err(|err| anyhow!("Failed to access path `{}`: {}", path.display(), err,))
+            .with_context(|| format!("Failed to access path `{}`", path.display()))
     }
 
     fn parse_assets_path<P: AsRef<Path>>(path: P) -> Result<PathBuf> {
