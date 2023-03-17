@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.33.0] - 2023-03-17
+
+### Bug Fixes
+
+- Cors allow-request-header add content-type ([#184](https://github.com/sigoden/dufs/issues/184))
+- Hidden don't works on some files ([#188](https://github.com/sigoden/dufs/issues/188))
+- Basic auth sometimes does not work ([#194](https://github.com/sigoden/dufs/issues/194))
+
+### Features
+
+- Guess plain text encoding then set content-type charset ([#186](https://github.com/sigoden/dufs/issues/186))
+
+### Refactor
+
+- Improve error handle ([#195](https://github.com/sigoden/dufs/issues/195))
+
 ## [0.32.0] - 2023-02-22
 
 ### Bug Fixes
