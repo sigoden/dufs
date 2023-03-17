@@ -535,8 +535,15 @@ async function setupEditPage() {
   try {
     const res = await fetch(baseUrl());
     await assertResOK(res);
-    const text = await res.text();
-    $editor.value = text;
+    const encoding = getEncoding(res.headers.get("content-type"));
+    if (encoding === "utf-8") {
+      $editor.value = await res.text();
+    } else {
+      const bytes = await res.arrayBuffer();
+      const dataView = new DataView(bytes)
+      const decoder = new TextDecoder(encoding)
+      $editor.value = decoder.decode(dataView);
+    }
   } catch (err) {
     alert(`Failed get file, ${err.message}`);
   }
@@ -795,4 +802,15 @@ async function assertResOK(res) {
   if (!(res.status >= 200 && res.status < 300)) {
     throw new Error(await res.text())
   }
+}
+
+function getEncoding(contentType) {
+    const charset = contentType?.split(";")[1];
+    if (/charset/i.test(charset)) {
+      let encoding = charset.split("=")[1];
+      if (encoding) {
+        return encoding.toLowerCase()
+      }
+    }
+    return 'utf-8'
 }
