@@ -185,6 +185,17 @@ fn get_file_404(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn get_file_emoji_path(server: TestServer) -> Result<(), Error> {
+    let resp = reqwest::blocking::get(format!("{}{BIN_FILE}", server.url()))?;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(
+        resp.headers().get("content-disposition").unwrap(),
+        "inline; filename=\"😀.bin\"; filename*=UTF-8''%F0%9F%98%80.bin"
+    );
+    Ok(())
+}
+
+#[rstest]
 fn get_file_edit(server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"GET", format!("{}index.html?edit", server.url())).send()?;
     assert_eq!(resp.status(), 200);
