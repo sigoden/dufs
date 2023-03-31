@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Context, Result};
+use chrono::{DateTime, Utc};
 use std::{
     borrow::Cow,
     path::Path,
@@ -26,6 +27,21 @@ pub fn get_file_name(path: &Path) -> &str {
     path.file_name()
         .and_then(|v| v.to_str())
         .unwrap_or_default()
+}
+
+#[cfg(unix)]
+pub async fn get_file_mtime_and_mode(path: &Path) -> Result<(DateTime<Utc>, u16)> {
+    use std::os::unix::prelude::MetadataExt;
+    let meta = tokio::fs::metadata(path).await?;
+    let datetime: DateTime<Utc> = meta.modified()?.into();
+    Ok((datetime, meta.mode() as u16))
+}
+
+#[cfg(not(unix))]
+pub async fn get_file_mtime_and_mode(path: &Path) -> Result<(DateTime<Utc>, u16)> {
+    let meta = tokio::fs::metadata(&path).await?;
+    let datetime: DateTime<Utc> = meta.modified()?.into();
+    Ok((datetime, 0o644))
 }
 
 pub fn try_get_file_name(path: &Path) -> Result<&str> {

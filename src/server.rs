@@ -1,5 +1,7 @@
 use crate::streamer::Streamer;
-use crate::utils::{decode_uri, encode_uri, get_file_name, glob, try_get_file_name};
+use crate::utils::{
+    decode_uri, encode_uri, get_file_mtime_and_mode, get_file_name, glob, try_get_file_name,
+};
 use crate::Args;
 use anyhow::{anyhow, Result};
 use walkdir::WalkDir;
@@ -7,7 +9,7 @@ use xml::escape::escape_str_pcdata;
 
 use async_zip::write::ZipFileWriter;
 use async_zip::{Compression, ZipDateTime, ZipEntryBuilder};
-use chrono::{DateTime, LocalResult, TimeZone, Utc};
+use chrono::{LocalResult, TimeZone, Utc};
 use futures::TryStreamExt;
 use headers::{
     AcceptRanges, AccessControlAllowCredentials, AccessControlAllowOrigin, Connection,
@@ -1286,14 +1288,7 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
             Some(v) => v,
             None => continue,
         };
-        let meta = fs::metadata(&zip_path).await?;
-        let datetime: DateTime<Utc> = meta.modified()?.into();
-        let mode = if cfg!(unix) {
-            use std::os::unix::prelude::MetadataExt;
-            meta.mode() as u16
-        } else {
-            0o644
-        };
+        let (datetime, mode) = get_file_mtime_and_mode(&zip_path).await?;
         let builder = ZipEntryBuilder::new(filename.into(), Compression::Deflate)
             .unix_permissions(mode)
             .last_modification_date(ZipDateTime::from_chrono(&datetime));
