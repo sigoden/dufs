@@ -25,6 +25,7 @@ use std::collections::HashMap;
 use std::fs::Metadata;
 use std::io::SeekFrom;
 use std::net::SocketAddr;
+use std::os::unix::prelude::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -1289,7 +1290,7 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
         let meta = fs::metadata(&zip_path).await?;
         let datetime: DateTime<Utc> = meta.modified()?.into();
         let builder = ZipEntryBuilder::new(filename.into(), Compression::Deflate)
-            .unix_permissions(0o644)
+            .unix_permissions(meta.mode() as u16)
             .last_modification_date(ZipDateTime::from_chrono(&datetime));
         let mut file = File::open(&zip_path).await?;
         let mut file_writer = writer.write_entry_stream(builder).await?;
