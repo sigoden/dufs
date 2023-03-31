@@ -25,7 +25,6 @@ use std::collections::HashMap;
 use std::fs::Metadata;
 use std::io::SeekFrom;
 use std::net::SocketAddr;
-use std::os::unix::prelude::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -1290,6 +1289,7 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
         let meta = fs::metadata(&zip_path).await?;
         let datetime: DateTime<Utc> = meta.modified()?.into();
         let mode = if cfg!(unix) {
+            use std::os::unix::prelude::MetadataExt;
             meta.mode() as u16
         } else {
             0o644
