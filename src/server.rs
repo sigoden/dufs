@@ -1,12 +1,14 @@
 use crate::streamer::Streamer;
-use crate::utils::{decode_uri, encode_uri, get_file_name, glob, try_get_file_name};
+use crate::utils::{
+    decode_uri, encode_uri, get_file_mtime_and_mode, get_file_name, glob, try_get_file_name,
+};
 use crate::Args;
 use anyhow::{anyhow, Result};
 use walkdir::WalkDir;
 use xml::escape::escape_str_pcdata;
 
 use async_zip::write::ZipFileWriter;
-use async_zip::{Compression, ZipEntryBuilder};
+use async_zip::{Compression, ZipDateTime, ZipEntryBuilder};
 use chrono::{LocalResult, TimeZone, Utc};
 use futures::TryStreamExt;
 use headers::{
@@ -1286,8 +1288,10 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
             Some(v) => v,
             None => continue,
         };
-        let builder =
-            ZipEntryBuilder::new(filename.into(), Compression::Deflate).unix_permissions(0o644);
+        let (datetime, mode) = get_file_mtime_and_mode(&zip_path).await?;
+        let builder = ZipEntryBuilder::new(filename.into(), Compression::Deflate)
+            .unix_permissions(mode)
+            .last_modification_date(ZipDateTime::from_chrono(&datetime));
         let mut file = File::open(&zip_path).await?;
         let mut file_writer = writer.write_entry_stream(builder).await?;
         io::copy(&mut file, &mut file_writer).await?;
