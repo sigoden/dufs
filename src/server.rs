@@ -479,13 +479,7 @@ impl Server {
     async fn handle_zip_dir(&self, path: &Path, head_only: bool, res: &mut Response) -> Result<()> {
         let (mut writer, reader) = tokio::io::duplex(BUF_SIZE);
         let filename = try_get_file_name(path)?;
-        res.headers_mut().insert(
-            CONTENT_DISPOSITION,
-            HeaderValue::from_str(&format!(
-                "attachment; filename=\"{}.zip\"",
-                encode_uri(filename),
-            ))?,
-        );
+        set_content_diposition(res, false, &format!("{}.zip", filename))?;
         res.headers_mut()
             .insert("content-type", HeaderValue::from_static("application/zip"));
         if head_only {
@@ -644,10 +638,7 @@ impl Server {
         );
 
         let filename = try_get_file_name(path)?;
-        res.headers_mut().insert(
-            CONTENT_DISPOSITION,
-            HeaderValue::from_str(&format!("inline; filename=\"{}\"", encode_uri(filename),))?,
-        );
+        set_content_diposition(res, true, filename)?;
 
         res.headers_mut().typed_insert(AcceptRanges::bytes());
 
@@ -1357,6 +1348,21 @@ fn status_not_found(res: &mut Response) {
 
 fn status_no_content(res: &mut Response) {
     *res.status_mut() = StatusCode::NO_CONTENT;
+}
+
+fn set_content_diposition(res: &mut Response, inline: bool, filename: &str) -> Result<()> {
+    let kind = if inline { "inline" } else { "attachment" };
+    let value = if filename.is_ascii() {
+        HeaderValue::from_str(&format!("{kind}; filename=\"{}\"", filename,))?
+    } else {
+        HeaderValue::from_str(&format!(
+            "{kind}; filename=\"{}\"; filename*=UTF-8''{}",
+            filename,
+            encode_uri(filename),
+        ))?
+    };
+    res.headers_mut().insert(CONTENT_DISPOSITION, value);
+    Ok(())
 }
 
 fn is_hidden(hidden: &[String], file_name: &str, is_dir_type: bool) -> bool {
