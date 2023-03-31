@@ -1289,8 +1289,13 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
         };
         let meta = fs::metadata(&zip_path).await?;
         let datetime: DateTime<Utc> = meta.modified()?.into();
+        let mode = if cfg!(unix) {
+            meta.mode() as u16
+        } else {
+            0o644
+        };
         let builder = ZipEntryBuilder::new(filename.into(), Compression::Deflate)
-            .unix_permissions(meta.mode() as u16)
+            .unix_permissions(mode)
             .last_modification_date(ZipDateTime::from_chrono(&datetime));
         let mut file = File::open(&zip_path).await?;
         let mut file_writer = writer.write_entry_stream(builder).await?;
