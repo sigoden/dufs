@@ -6,8 +6,8 @@ use walkdir::WalkDir;
 use xml::escape::escape_str_pcdata;
 
 use async_zip::write::ZipFileWriter;
-use async_zip::{Compression, ZipEntryBuilder};
-use chrono::{LocalResult, TimeZone, Utc};
+use async_zip::{Compression, ZipDateTime, ZipEntryBuilder};
+use chrono::{DateTime, LocalResult, TimeZone, Utc};
 use futures::TryStreamExt;
 use headers::{
     AcceptRanges, AccessControlAllowCredentials, AccessControlAllowOrigin, Connection,
@@ -1286,8 +1286,11 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
             Some(v) => v,
             None => continue,
         };
-        let builder =
-            ZipEntryBuilder::new(filename.into(), Compression::Deflate).unix_permissions(0o644);
+        let meta = fs::metadata(&zip_path).await?;
+        let datetime: DateTime<Utc> = meta.modified()?.into();
+        let builder = ZipEntryBuilder::new(filename.into(), Compression::Deflate)
+            .unix_permissions(0o644)
+            .last_modification_date(ZipDateTime::from_chrono(&datetime));
         let mut file = File::open(&zip_path).await?;
         let mut file_writer = writer.write_entry_stream(builder).await?;
         io::copy(&mut file, &mut file_writer).await?;
