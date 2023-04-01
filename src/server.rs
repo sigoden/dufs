@@ -12,9 +12,9 @@ use async_zip::{Compression, ZipDateTime, ZipEntryBuilder};
 use chrono::{LocalResult, TimeZone, Utc};
 use futures::TryStreamExt;
 use headers::{
-    AcceptRanges, AccessControlAllowCredentials, AccessControlAllowOrigin, Connection,
-    ContentLength, ContentType, ETag, HeaderMap, HeaderMapExt, IfModifiedSince, IfNoneMatch,
-    IfRange, LastModified, Range,
+    AcceptRanges, AccessControlAllowCredentials, AccessControlAllowOrigin, ContentLength,
+    ContentType, ETag, HeaderMap, HeaderMapExt, IfModifiedSince, IfNoneMatch, IfRange,
+    LastModified, Range,
 };
 use hyper::header::{
     HeaderValue, AUTHORIZATION, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE,
@@ -942,8 +942,8 @@ impl Server {
     fn auth_reject(&self, res: &mut Response) -> Result<()> {
         let value = self.args.auth_method.www_auth(false)?;
         set_webdav_headers(res);
-        res.headers_mut().typed_insert(Connection::close());
         res.headers_mut().insert(WWW_AUTHENTICATE, value.parse()?);
+        // set 401 to make the browser pop up the login box
         *res.status_mut() = StatusCode::UNAUTHORIZED;
         Ok(())
     }
@@ -973,8 +973,7 @@ impl Server {
             self.args.auth_method.clone(),
         );
         if guard_type.is_reject() {
-            *res.status_mut() = StatusCode::FORBIDDEN;
-            *res.body_mut() = Body::from("Forbidden");
+            status_forbid(res);
             return None;
         }
 

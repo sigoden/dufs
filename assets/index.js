@@ -216,7 +216,11 @@ Uploader.runQueue = async () => {
   if (!uploader) return;
   if (!Uploader.auth) {
     Uploader.auth = true;
-    await login();
+    try {
+      await login();
+    } catch {
+      Uploader.auth = false;
+    }
   }
   uploader.ajax();
 }
@@ -643,6 +647,7 @@ async function saveChange() {
       method: "PUT",
       body: $editor.value,
     });
+    location.reload();
   } catch (err) {
     alert(`Failed to save file, ${err.message}`);
   }
