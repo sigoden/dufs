@@ -778,7 +778,11 @@ function formatSize(size) {
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   if (size == 0) return [0, "B"];
   const i = parseInt(Math.floor(Math.log(size) / Math.log(1024)));
-  return [Math.round(size / Math.pow(1024, i), 2), sizes[i]];
+  ratio = 1
+  if (i >= 3) {
+    ratio = 100
+  }
+  return [Math.round(size * ratio / Math.pow(1024, i), 2) / ratio, sizes[i]];
 }
 
 function formatDuration(seconds) {
