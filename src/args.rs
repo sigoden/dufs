@@ -25,10 +25,9 @@ pub fn build_cli() -> Command {
             env!("CARGO_PKG_REPOSITORY")
         ))
         .arg(
-            Arg::new("root_dir")
-                .env("DUFS_ROOT_DIR")
+            Arg::new("serve_path")
+                .env("DUFS_SERVE_PATH")
 				.hide_env(true)
-				.value_name("ROOT_DIR")
                 .default_value(".")
                 .value_parser(value_parser!(PathBuf))
                 .help("Specific path to serve"),
@@ -265,7 +264,7 @@ impl Args {
             .map(|bind| bind.map(|v| v.as_str()).collect())
             .unwrap_or_else(|| vec!["0.0.0.0", "::"]);
         let addrs: Vec<BindAddr> = Args::parse_addrs(&addrs)?;
-        let path = Args::parse_path(matches.get_one::<PathBuf>("root_dir").unwrap())?;
+        let path = Args::parse_path(matches.get_one::<PathBuf>("serve_path").unwrap())?;
         let path_is_file = path.metadata()?.is_file();
         let path_prefix = matches
             .get_one::<String>("path-prefix")
