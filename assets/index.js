@@ -103,7 +103,7 @@ function ready() {
     setupIndexPage();
 
   } else if (DATA.kind == "Edit") {
-    document.title = `Edit of ${DATA.href} - Dufs`;
+    document.title = `Edit ${DATA.href} - Dufs`;
     document.querySelector(".editor-page").classList.remove("hidden");;
 
     setupEditPage();
@@ -266,7 +266,7 @@ function setupIndexPage() {
   if (DATA.allow_archive) {
     const $download = document.querySelector(".download");
     $download.href = baseUrl() + "?zip";
-    $download.title = "Download folder as div .zip file";
+    $download.title = "Download folder as a .zip file";
     $download.classList.remove("hidden");
   }
 
@@ -526,7 +526,7 @@ async function setupEditPage() {
       $notEditable.insertAdjacentHTML("afterend", `<iframe src="${url}" sandbox width="100%" height="${window.innerHeight - 100}px"></iframe>`)
     } else {
       $notEditable.classList.remove("hidden");
-      $notEditable.textContent = "Cannot edit because it is too large or binary.";
+      $notEditable.textContent = "Cannot edit because file is too large or binary.";
     }
     return;
   }
@@ -620,7 +620,7 @@ async function doMovePath(fileUrl) {
       method: "HEAD",
     });
     if (res1.status === 200) {
-      if (!confirm("Override exsis file?")) {
+      if (!confirm("Override existing file?")) {
         return;
       }
     }
