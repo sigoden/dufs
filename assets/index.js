@@ -379,9 +379,8 @@ function addPath(file, index) {
   }
   if (DATA.allow_delete) {
     if (DATA.allow_upload) {
-      if (isDir) {
-        actionMove = `<div onclick="movePath(${index})" class="action-btn" id="moveBtn${index}" title="Move to new path">${ICONS.move}</div>`;
-      } else {
+      actionMove = `<div onclick="movePath(${index})" class="action-btn" id="moveBtn${index}" title="Move to new path">${ICONS.move}</div>`;
+      if (!isDir) {
         actionEdit = `<a class="action-btn" title="Edit file" target="_blank" href="${url}?edit">${ICONS.edit}</a>`;
       }
     }
@@ -392,8 +391,8 @@ function addPath(file, index) {
   <td class="cell-actions">
     ${actionDownload}
     ${actionMove}
-    ${actionEdit}
     ${actionDelete}
+    ${actionEdit}
   </td>`
 
   $pathsTableBody.insertAdjacentHTML("beforeend", `
