@@ -76,7 +76,7 @@ pub fn build_cli() -> Command {
 				.hide_env(true)
                 .short('a')
                 .long("auth")
-                .help("Add auth for path")
+                .help("Add auth role")
                 .action(ArgAction::Append)
                 .value_delimiter('|')
                 .value_name("rules"),
