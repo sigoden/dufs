@@ -218,7 +218,7 @@ Uploader.runQueue = async () => {
   let uploader = Uploader.queues.shift();
   if (!Uploader.auth) {
     Uploader.auth = true;
-    const success = await login(true);
+    const success = await checkAuth(true);
     Uploader.auth = !!success;
   }
   uploader.ajax();
@@ -439,7 +439,7 @@ function setupAuth() {
   } else {
     const $loginBtn = document.querySelector(".login-btn");
     $loginBtn.classList.remove("hidden");
-    $loginBtn.addEventListener("click", () => login(true));
+    $loginBtn.addEventListener("click", () => checkAuth(true));
   }
 }
 
@@ -573,7 +573,7 @@ async function deletePath(index) {
 async function doDeletePath(name, url, cb) {
   if (!confirm(`Delete \`${name}\`?`)) return;
   try {
-    await login();
+    await checkAuth();
     const res = await fetch(url, {
       method: "DELETE",
     });
@@ -613,7 +613,7 @@ async function doMovePath(fileUrl) {
   const newFileUrl = fileUrlObj.origin + prefix + newPath.split("/").map(encodeURIComponent).join("/");
 
   try {
-    await login();
+    await checkAuth();
     const res1 = await fetch(newFileUrl, {
       method: "HEAD",
     });
@@ -651,7 +651,7 @@ async function saveChange() {
   }
 }
 
-async function login(alert = false) {
+async function checkAuth(alert = false) {
   if (!DATA.auth) return;
   try {
     const res = await fetch(baseUrl(), {
@@ -663,7 +663,7 @@ async function login(alert = false) {
     $userBtn.title = "";
     return true;
   } catch (err) {
-    let message = `Cannot login, ${err.message}`;
+    let message = `Check auth, ${err.message}`;
     if (alert) {
       alert(message);
     } else {
@@ -679,7 +679,7 @@ async function login(alert = false) {
 async function createFolder(name) {
   const url = newUrl(name);
   try {
-    await login();
+    await checkAuth();
     const res = await fetch(url, {
       method: "MKCOL",
     });
@@ -693,7 +693,7 @@ async function createFolder(name) {
 async function createFile(name) {
   const url = newUrl(name);
   try {
-    await login();
+    await checkAuth();
     const res = await fetch(url, {
       method: "PUT",
       body: "",
