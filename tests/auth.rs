@@ -3,10 +3,11 @@ mod utils;
 
 use diqwest::blocking::WithDigestAuth;
 use fixtures::{server, Error, TestServer};
+use indexmap::IndexSet;
 use rstest::rstest;
 
 #[rstest]
-fn no_auth(#[with(&["--auth", "/@user:pass", "-A"])] server: TestServer) -> Result<(), Error> {
+fn no_auth(#[with(&["--auth", "user:pass@/:rw", "-A"])] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(server.url())?;
     assert_eq!(resp.status(), 401);
     assert!(resp.headers().contains_key("www-authenticate"));
@@ -17,7 +18,7 @@ fn no_auth(#[with(&["--auth", "/@user:pass", "-A"])] server: TestServer) -> Resu
 }
 
 #[rstest]
-fn auth(#[with(&["--auth", "/@user:pass", "-A"])] server: TestServer) -> Result<(), Error> {
+fn auth(#[with(&["--auth", "user:pass@/:rw", "-A"])] server: TestServer) -> Result<(), Error> {
     let url = format!("{}file1", server.url());
     let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
     assert_eq!(resp.status(), 401);
@@ -29,7 +30,7 @@ fn auth(#[with(&["--auth", "/@user:pass", "-A"])] server: TestServer) -> Result<
 }
 
 #[rstest]
-fn auth_skip(#[with(&["--auth", "/@user:pass@*"])] server: TestServer) -> Result<(), Error> {
+fn auth_skip(#[with(&["--auth", "@/"])] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(server.url())?;
     assert_eq!(resp.status(), 200);
     Ok(())
@@ -37,7 +38,7 @@ fn auth_skip(#[with(&["--auth", "/@user:pass@*"])] server: TestServer) -> Result
 
 #[rstest]
 fn auth_skip_on_options_method(
-    #[with(&["--auth", "/@user:pass"])] server: TestServer,
+    #[with(&["--auth", "user:pass@/:rw"])] server: TestServer,
 ) -> Result<(), Error> {
     let url = format!("{}index.html", server.url());
     let resp = fetch!(b"OPTIONS", &url).send()?;
@@ -47,13 +48,13 @@ fn auth_skip_on_options_method(
 
 #[rstest]
 fn auth_check(
-    #[with(&["--auth", "/@user:pass@user2:pass2", "-A"])] server: TestServer,
+    #[with(&["--auth", "user:pass@/:rw|user2:pass2@/", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
     let url = format!("{}index.html", server.url());
     let resp = fetch!(b"WRITEABLE", &url).send()?;
     assert_eq!(resp.status(), 401);
     let resp = fetch!(b"WRITEABLE", &url).send_with_digest_auth("user2", "pass2")?;
-    assert_eq!(resp.status(), 401);
+    assert_eq!(resp.status(), 403);
     let resp = fetch!(b"WRITEABLE", &url).send_with_digest_auth("user", "pass")?;
     assert_eq!(resp.status(), 200);
     Ok(())
@@ -61,7 +62,7 @@ fn auth_check(
 
 #[rstest]
 fn auth_readonly(
-    #[with(&["--auth", "/@user:pass@user2:pass2", "-A"])] server: TestServer,
+    #[with(&["--auth", "user:pass@/:rw|user2:pass2@/", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
     let url = format!("{}index.html", server.url());
     let resp = fetch!(b"GET", &url).send()?;
@@ -72,13 +73,13 @@ fn auth_readonly(
     let resp = fetch!(b"PUT", &url)
         .body(b"abc".to_vec())
         .send_with_digest_auth("user2", "pass2")?;
-    assert_eq!(resp.status(), 401);
+    assert_eq!(resp.status(), 403);
     Ok(())
 }
 
 #[rstest]
 fn auth_nest(
-    #[with(&["--auth", "/@user:pass@user2:pass2", "--auth", "/dir1@user3:pass3", "-A"])]
+    #[with(&["--auth", "user:pass@/:rw|user2:pass2@/", "--auth", "user3:pass3@/dir1:rw", "-A"])]
     server: TestServer,
 ) -> Result<(), Error> {
     let url = format!("{}dir1/file1", server.url());
@@ -97,7 +98,8 @@ fn auth_nest(
 
 #[rstest]
 fn auth_nest_share(
-    #[with(&["--auth", "/@user:pass@*", "--auth", "/dir1@user3:pass3", "-A"])] server: TestServer,
+    #[with(&["--auth", "@/", "--auth", "user:pass@/:rw", "--auth", "user3:pass3@/dir1:rw", "-A"])]
+    server: TestServer,
 ) -> Result<(), Error> {
     let url = format!("{}index.html", server.url());
     let resp = fetch!(b"GET", &url).send()?;
@@ -106,8 +108,8 @@ fn auth_nest_share(
 }
 
 #[rstest]
-#[case(server(&["--auth", "/@user:pass", "--auth-method", "basic", "-A"]), "user", "pass")]
-#[case(server(&["--auth", "/@u1:p1", "--auth-method", "basic", "-A"]), "u1", "p1")]
+#[case(server(&["--auth", "user:pass@/:rw", "--auth-method", "basic", "-A"]), "user", "pass")]
+#[case(server(&["--auth", "u1:p1@/:rw", "--auth-method", "basic", "-A"]), "u1", "p1")]
 fn auth_basic(
     #[case] server: TestServer,
     #[case] user: &str,
@@ -126,7 +128,8 @@ fn auth_basic(
 
 #[rstest]
 fn auth_webdav_move(
-    #[with(&["--auth", "/@user:pass@*", "--auth", "/dir1@user3:pass3", "-A"])] server: TestServer,
+    #[with(&["--auth", "user:pass@/:rw", "--auth", "user3:pass3@/dir1:rw", "-A"])]
+    server: TestServer,
 ) -> Result<(), Error> {
     let origin_url = format!("{}dir1/test.html", server.url());
     let new_url = format!("{}test2.html", server.url());
@@ -139,7 +142,8 @@ fn auth_webdav_move(
 
 #[rstest]
 fn auth_webdav_copy(
-    #[with(&["--auth", "/@user:pass@*", "--auth", "/dir1@user3:pass3", "-A"])] server: TestServer,
+    #[with(&["--auth", "user:pass@/:rw", "--auth", "user3:pass3@/dir1:rw", "-A"])]
+    server: TestServer,
 ) -> Result<(), Error> {
     let origin_url = format!("{}dir1/test.html", server.url());
     let new_url = format!("{}test2.html", server.url());
@@ -152,12 +156,31 @@ fn auth_webdav_copy(
 
 #[rstest]
 fn auth_path_prefix(
-    #[with(&["--auth", "/@user:pass", "--path-prefix", "xyz", "-A"])] server: TestServer,
+    #[with(&["--auth", "user:pass@/:rw", "--path-prefix", "xyz", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
     let url = format!("{}xyz/index.html", server.url());
     let resp = fetch!(b"GET", &url).send()?;
     assert_eq!(resp.status(), 401);
     let resp = fetch!(b"GET", &url).send_with_digest_auth("user", "pass")?;
     assert_eq!(resp.status(), 200);
+    Ok(())
+}
+
+#[rstest]
+fn auth_partial_index(
+    #[with(&["--auth", "user:pass@/dir1:rw,/dir2:rw", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    let resp = fetch!(b"GET", server.url()).send_with_digest_auth("user", "pass")?;
+    assert_eq!(resp.status(), 200);
+    let paths = utils::retrieve_index_paths(&resp.text()?);
+    assert_eq!(paths, IndexSet::from(["dir1/".into(), "dir2/".into()]));
+    let resp = fetch!(b"GET", format!("{}?q={}", server.url(), "test.html"))
+        .send_with_digest_auth("user", "pass")?;
+    assert_eq!(resp.status(), 200);
+    let paths = utils::retrieve_index_paths(&resp.text()?);
+    assert_eq!(
+        paths,
+        IndexSet::from(["dir1/test.html".into(), "dir2/test.html".into()])
+    );
     Ok(())
 }

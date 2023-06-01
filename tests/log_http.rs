@@ -11,8 +11,8 @@ use std::io::Read;
 use std::process::{Command, Stdio};
 
 #[rstest]
-#[case(&["-a", "/@user:pass", "--log-format", "$remote_user"], false)]
-#[case(&["-a", "/@user:pass", "--log-format", "$remote_user", "--auth-method", "basic"], true)]
+#[case(&["-a", "user:pass@/:rw", "--log-format", "$remote_user"], false)]
+#[case(&["-a", "user:pass@/:rw", "--log-format", "$remote_user", "--auth-method", "basic"], true)]
 fn log_remote_user(
     tmpdir: TempDir,
     port: u16,

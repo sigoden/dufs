@@ -44,6 +44,7 @@ content_inspector = "0.2"
 anyhow = "1.0"
 chardetng = "0.1"
 glob = "0.3.1"
+indexmap = "1.9"
 
 [features]
 default = ["tls"]
@@ -59,7 +60,6 @@ regex = "1"
 url = "2"
 diqwest = { version = "1", features = ["blocking"] }
 predicates = "3"
-indexmap = "1.9"
 
 [profile.release]
 lto = true

@@ -78,7 +78,7 @@ pub fn build_cli() -> Command {
                 .long("auth")
                 .help("Add auth for path")
                 .action(ArgAction::Append)
-                .value_delimiter(',')
+                .value_delimiter('|')
                 .value_name("rules"),
         )
         .arg(
@@ -288,7 +288,7 @@ impl Args {
             "basic" => AuthMethod::Basic,
             _ => AuthMethod::Digest,
         };
-        let auth = AccessControl::new(&auth, &uri_prefix)?;
+        let auth = AccessControl::new(&auth)?;
         let allow_upload = matches.get_flag("allow-all") || matches.get_flag("allow-upload");
         let allow_delete = matches.get_flag("allow-all") || matches.get_flag("allow-delete");
         let allow_search = matches.get_flag("allow-all") || matches.get_flag("allow-search");

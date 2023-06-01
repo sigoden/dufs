@@ -1,3 +1,6 @@
+#![allow(clippy::too_many_arguments)]
+
+use crate::auth::AccessPaths;
 use crate::streamer::Streamer;
 use crate::utils::{
     decode_uri, encode_uri, get_file_mtime_and_mode, get_file_name, glob, try_get_file_name,
@@ -136,16 +139,32 @@ impl Server {
         }
 
         let authorization = headers.get(AUTHORIZATION);
-        let guard_type = self.args.auth.guard(
-            req_path,
+        let relative_path = match self.resolve_path(req_path) {
+            Some(v) => v,
+            None => {
+                status_forbid(&mut res);
+                return Ok(res);
+            }
+        };
+
+        let guard = self.args.auth.guard(
+            &relative_path,
             &method,
             authorization,
             self.args.auth_method.clone(),
         );
-        if guard_type.is_reject() {
-            self.auth_reject(&mut res)?;
-            return Ok(res);
-        }
+
+        let (user, access_paths) = match guard {
+            (None, None) => {
+                self.auth_reject(&mut res)?;
+                return Ok(res);
+            }
+            (Some(_), None) => {
+                status_forbid(&mut res);
+                return Ok(res);
+            }
+            (x, Some(y)) => (x, y),
+        };
 
         let query = req.uri().query().unwrap_or_default();
         let query_params: HashMap<String, String> = form_urlencoded::parse(query.as_bytes())
@@ -171,8 +190,7 @@ impl Server {
             }
             return Ok(res);
         }
-
-        let path = match self.extract_path(req_path) {
+        let path = match self.join_path(&relative_path) {
             Some(v) => v,
             None => {
                 status_forbid(&mut res);
@@ -209,31 +227,38 @@ impl Server {
                                 status_not_found(&mut res);
                                 return Ok(res);
                             }
-                            self.handle_zip_dir(path, head_only, &mut res).await?;
-                        } else if allow_search && query_params.contains_key("q") {
-                            let user = self.retrieve_user(authorization);
-                            self.handle_search_dir(path, &query_params, head_only, user, &mut res)
+                            self.handle_zip_dir(path, head_only, access_paths, &mut res)
                                 .await?;
+                        } else if allow_search && query_params.contains_key("q") {
+                            self.handle_search_dir(
+                                path,
+                                &query_params,
+                                head_only,
+                                user,
+                                access_paths,
+                                &mut res,
+                            )
+                            .await?;
                         } else {
-                            let user = self.retrieve_user(authorization);
                             self.handle_render_index(
                                 path,
                                 &query_params,
                                 headers,
                                 head_only,
                                 user,
+                                access_paths,
                                 &mut res,
                             )
                             .await?;
                         }
                     } else if render_index || render_spa {
-                        let user = self.retrieve_user(authorization);
                         self.handle_render_index(
                             path,
                             &query_params,
                             headers,
                             head_only,
                             user,
+                            access_paths,
                             &mut res,
                         )
                         .await?;
@@ -242,19 +267,32 @@ impl Server {
                             status_not_found(&mut res);
                             return Ok(res);
                         }
-                        self.handle_zip_dir(path, head_only, &mut res).await?;
+                        self.handle_zip_dir(path, head_only, access_paths, &mut res)
+                            .await?;
                     } else if allow_search && query_params.contains_key("q") {
-                        let user = self.retrieve_user(authorization);
-                        self.handle_search_dir(path, &query_params, head_only, user, &mut res)
-                            .await?;
+                        self.handle_search_dir(
+                            path,
+                            &query_params,
+                            head_only,
+                            user,
+                            access_paths,
+                            &mut res,
+                        )
+                        .await?;
                     } else {
-                        let user = self.retrieve_user(authorization);
-                        self.handle_ls_dir(path, true, &query_params, head_only, user, &mut res)
-                            .await?;
+                        self.handle_ls_dir(
+                            path,
+                            true,
+                            &query_params,
+                            head_only,
+                            user,
+                            access_paths,
+                            &mut res,
+                        )
+                        .await?;
                     }
                 } else if is_file {
                     if query_params.contains_key("edit") {
-                        let user = self.retrieve_user(authorization);
                         self.handle_edit_file(path, head_only, user, &mut res)
                             .await?;
                     } else {
@@ -265,9 +303,16 @@ impl Server {
                     self.handle_render_spa(path, headers, head_only, &mut res)
                         .await?;
                 } else if allow_upload && req_path.ends_with('/') {
-                    let user = self.retrieve_user(authorization);
-                    self.handle_ls_dir(path, false, &query_params, head_only, user, &mut res)
-                        .await?;
+                    self.handle_ls_dir(
+                        path,
+                        false,
+                        &query_params,
+                        head_only,
+                        user,
+                        access_paths,
+                        &mut res,
+                    )
+                    .await?;
                 } else {
                     status_not_found(&mut res);
                 }
@@ -294,7 +339,8 @@ impl Server {
             method => match method.as_str() {
                 "PROPFIND" => {
                     if is_dir {
-                        self.handle_propfind_dir(path, headers, &mut res).await?;
+                        self.handle_propfind_dir(path, headers, access_paths, &mut res)
+                            .await?;
                     } else if is_file {
                         self.handle_propfind_file(path, &mut res).await?;
                     } else {
@@ -401,11 +447,12 @@ impl Server {
         query_params: &HashMap<String, String>,
         head_only: bool,
         user: Option<String>,
+        access_paths: AccessPaths,
         res: &mut Response,
     ) -> Result<()> {
         let mut paths = vec![];
         if exist {
-            paths = match self.list_dir(path, path).await {
+            paths = match self.list_dir(path, path, access_paths).await {
                 Ok(paths) => paths,
                 Err(_) => {
                     status_forbid(res);
@@ -422,6 +469,7 @@ impl Server {
         query_params: &HashMap<String, String>,
         head_only: bool,
         user: Option<String>,
+        access_paths: AccessPaths,
         res: &mut Response,
     ) -> Result<()> {
         let mut paths: Vec<PathItem> = vec![];
@@ -435,36 +483,38 @@ impl Server {
             let hidden = hidden.clone();
             let running = self.running.clone();
             let search_paths = tokio::task::spawn_blocking(move || {
-                let mut it = WalkDir::new(&path_buf).into_iter();
                 let mut paths: Vec<PathBuf> = vec![];
-                while let Some(Ok(entry)) = it.next() {
-                    if !running.load(Ordering::SeqCst) {
-                        break;
-                    }
-                    let entry_path = entry.path();
-                    let base_name = get_file_name(entry_path);
-                    let file_type = entry.file_type();
-                    let mut is_dir_type: bool = file_type.is_dir();
-                    if file_type.is_symlink() {
-                        match std::fs::symlink_metadata(entry_path) {
-                            Ok(meta) => {
-                                is_dir_type = meta.is_dir();
-                            }
-                            Err(_) => {
-                                continue;
+                for dir in access_paths.leaf_paths(&path_buf) {
+                    let mut it = WalkDir::new(&dir).into_iter();
+                    while let Some(Ok(entry)) = it.next() {
+                        if !running.load(Ordering::SeqCst) {
+                            break;
+                        }
+                        let entry_path = entry.path();
+                        let base_name = get_file_name(entry_path);
+                        let file_type = entry.file_type();
+                        let mut is_dir_type: bool = file_type.is_dir();
+                        if file_type.is_symlink() {
+                            match std::fs::symlink_metadata(entry_path) {
+                                Ok(meta) => {
+                                    is_dir_type = meta.is_dir();
+                                }
+                                Err(_) => {
+                                    continue;
+                                }
                             }
                         }
-                    }
-                    if is_hidden(&hidden, base_name, is_dir_type) {
-                        if file_type.is_dir() {
-                            it.skip_current_dir();
+                        if is_hidden(&hidden, base_name, is_dir_type) {
+                            if file_type.is_dir() {
+                                it.skip_current_dir();
+                            }
+                            continue;
                         }
-                        continue;
+                        if !base_name.to_lowercase().contains(&search) {
+                            continue;
+                        }
+                        paths.push(entry_path.to_path_buf());
                     }
-                    if !base_name.to_lowercase().contains(&search) {
-                        continue;
-                    }
-                    paths.push(entry_path.to_path_buf());
                 }
                 paths
             })
@@ -478,7 +528,13 @@ impl Server {
         self.send_index(path, paths, true, query_params, head_only, user, res)
     }
 
-    async fn handle_zip_dir(&self, path: &Path, head_only: bool, res: &mut Response) -> Result<()> {
+    async fn handle_zip_dir(
+        &self,
+        path: &Path,
+        head_only: bool,
+        access_paths: AccessPaths,
+        res: &mut Response,
+    ) -> Result<()> {
         let (mut writer, reader) = tokio::io::duplex(BUF_SIZE);
         let filename = try_get_file_name(path)?;
         set_content_diposition(res, false, &format!("{}.zip", filename))?;
@@ -491,7 +547,7 @@ impl Server {
         let hidden = self.args.hidden.clone();
         let running = self.running.clone();
         tokio::spawn(async move {
-            if let Err(e) = zip_dir(&mut writer, &path, &hidden, running).await {
+            if let Err(e) = zip_dir(&mut writer, &path, access_paths, &hidden, running).await {
                 error!("Failed to zip {}, {}", path.display(), e);
             }
         });
@@ -507,6 +563,7 @@ impl Server {
         headers: &HeaderMap<HeaderValue>,
         head_only: bool,
         user: Option<String>,
+        access_paths: AccessPaths,
         res: &mut Response,
     ) -> Result<()> {
         let index_path = path.join(INDEX_NAME);
@@ -519,7 +576,7 @@ impl Server {
             self.handle_send_file(&index_path, headers, head_only, res)
                 .await?;
         } else if self.args.render_try_index {
-            self.handle_ls_dir(path, true, query_params, head_only, user, res)
+            self.handle_ls_dir(path, true, query_params, head_only, user, access_paths, res)
                 .await?;
         } else {
             status_not_found(res)
@@ -724,6 +781,7 @@ impl Server {
         &self,
         path: &Path,
         headers: &HeaderMap<HeaderValue>,
+        access_paths: AccessPaths,
         res: &mut Response,
     ) -> Result<()> {
         let depth: u32 = match headers.get("depth") {
@@ -741,7 +799,7 @@ impl Server {
             None => vec![],
         };
         if depth != 0 {
-            match self.list_dir(path, &self.args.path).await {
+            match self.list_dir(path, &self.args.path, access_paths).await {
                 Ok(child) => paths.extend(child),
                 Err(_) => {
                     status_forbid(res);
@@ -965,19 +1023,32 @@ impl Server {
                 return None;
             }
         };
+
+        let relative_path = match self.resolve_path(&dest_path) {
+            Some(v) => v,
+            None => {
+                *res.status_mut() = StatusCode::BAD_REQUEST;
+                return None;
+            }
+        };
+
         let authorization = headers.get(AUTHORIZATION);
-        let guard_type = self.args.auth.guard(
-            &dest_path,
+        let guard = self.args.auth.guard(
+            &relative_path,
             req.method(),
             authorization,
             self.args.auth_method.clone(),
         );
-        if guard_type.is_reject() {
-            status_forbid(res);
-            return None;
-        }
 
-        let dest = match self.extract_path(&dest_path) {
+        match guard {
+            (_, Some(_)) => {}
+            _ => {
+                status_forbid(res);
+                return None;
+            }
+        };
+
+        let dest = match self.join_path(&relative_path) {
             Some(dest) => dest,
             None => {
                 *res.status_mut() = StatusCode::BAD_REQUEST;
@@ -994,47 +1065,59 @@ impl Server {
         Some(uri.path().to_string())
     }
 
-    fn extract_path(&self, path: &str) -> Option<PathBuf> {
-        let mut slash_stripped_path = path;
-        while let Some(p) = slash_stripped_path.strip_prefix('/') {
-            slash_stripped_path = p
+    fn resolve_path(&self, path: &str) -> Option<String> {
+        let path = path.trim_matches('/');
+        let path = decode_uri(path)?;
+        let prefix = self.args.path_prefix.as_str();
+        if prefix == "/" {
+            return Some(path.to_string());
         }
-        let decoded_path = decode_uri(slash_stripped_path)?;
-        let slashes_switched = if cfg!(windows) {
-            decoded_path.replace('/', "\\")
-        } else {
-            decoded_path.into_owned()
-        };
-        let stripped_path = match self.strip_path_prefix(&slashes_switched) {
-            Some(path) => path,
-            None => return None,
-        };
-        Some(self.args.path.join(stripped_path))
+        path.strip_prefix(prefix.trim_start_matches('/'))
+            .map(|v| v.trim_matches('/').to_string())
     }
 
-    fn strip_path_prefix<'a, P: AsRef<Path>>(&self, path: &'a P) -> Option<&'a Path> {
-        let path = path.as_ref();
-        if self.args.path_prefix.is_empty() {
-            Some(path)
-        } else {
-            path.strip_prefix(&self.args.path_prefix).ok()
+    fn join_path(&self, path: &str) -> Option<PathBuf> {
+        if path.is_empty() {
+            return Some(self.args.path.clone());
         }
+        let path = if cfg!(windows) {
+            path.replace('/', "\\")
+        } else {
+            path.to_string()
+        };
+        Some(self.args.path.join(path))
     }
 
-    async fn list_dir(&self, entry_path: &Path, base_path: &Path) -> Result<Vec<PathItem>> {
+    async fn list_dir(
+        &self,
+        entry_path: &Path,
+        base_path: &Path,
+        access_paths: AccessPaths,
+    ) -> Result<Vec<PathItem>> {
         let mut paths: Vec<PathItem> = vec![];
-        let mut rd = fs::read_dir(entry_path).await?;
-        while let Ok(Some(entry)) = rd.next_entry().await {
-            let entry_path = entry.path();
-            let base_name = get_file_name(&entry_path);
-            if let Ok(Some(item)) = self.to_pathitem(entry_path.as_path(), base_path).await {
-                if is_hidden(&self.args.hidden, base_name, item.is_dir()) {
-                    continue;
-                }
-                paths.push(item);
+        if access_paths.perm().indexonly() {
+            for name in access_paths.child_paths() {
+                let entry_path = entry_path.join(name);
+                self.add_pathitem(&mut paths, base_path, &entry_path).await;
+            }
+        } else {
+            let mut rd = fs::read_dir(entry_path).await?;
+            while let Ok(Some(entry)) = rd.next_entry().await {
+                let entry_path = entry.path();
+                self.add_pathitem(&mut paths, base_path, &entry_path).await;
             }
         }
         Ok(paths)
+    }
+
+    async fn add_pathitem(&self, paths: &mut Vec<PathItem>, base_path: &Path, entry_path: &Path) {
+        let base_name = get_file_name(entry_path);
+        if let Ok(Some(item)) = self.to_pathitem(entry_path, base_path).await {
+            if is_hidden(&self.args.hidden, base_name, item.is_dir()) {
+                return;
+            }
+            paths.push(item);
+        }
     }
 
     async fn to_pathitem<P: AsRef<Path>>(&self, path: P, base_path: P) -> Result<Option<PathItem>> {
@@ -1065,10 +1148,6 @@ impl Server {
             mtime,
             size,
         }))
-    }
-
-    fn retrieve_user(&self, authorization: Option<&HeaderValue>) -> Option<String> {
-        self.args.auth_method.get_user(authorization?)
     }
 }
 
@@ -1237,47 +1316,50 @@ fn res_multistatus(res: &mut Response, content: &str) {
 async fn zip_dir<W: AsyncWrite + Unpin>(
     writer: &mut W,
     dir: &Path,
+    access_paths: AccessPaths,
     hidden: &[String],
     running: Arc<AtomicBool>,
 ) -> Result<()> {
     let mut writer = ZipFileWriter::new(writer);
     let hidden = Arc::new(hidden.to_vec());
     let hidden = hidden.clone();
-    let dir_path_buf = dir.to_path_buf();
+    let dir_clone = dir.to_path_buf();
     let zip_paths = tokio::task::spawn_blocking(move || {
-        let mut it = WalkDir::new(&dir_path_buf).into_iter();
         let mut paths: Vec<PathBuf> = vec![];
-        while let Some(Ok(entry)) = it.next() {
-            if !running.load(Ordering::SeqCst) {
-                break;
-            }
-            let entry_path = entry.path();
-            let base_name = get_file_name(entry_path);
-            let file_type = entry.file_type();
-            let mut is_dir_type: bool = file_type.is_dir();
-            if file_type.is_symlink() {
-                match std::fs::symlink_metadata(entry_path) {
-                    Ok(meta) => {
-                        is_dir_type = meta.is_dir();
-                    }
-                    Err(_) => {
-                        continue;
+        for dir in access_paths.leaf_paths(&dir_clone) {
+            let mut it = WalkDir::new(&dir).into_iter();
+            while let Some(Ok(entry)) = it.next() {
+                if !running.load(Ordering::SeqCst) {
+                    break;
+                }
+                let entry_path = entry.path();
+                let base_name = get_file_name(entry_path);
+                let file_type = entry.file_type();
+                let mut is_dir_type: bool = file_type.is_dir();
+                if file_type.is_symlink() {
+                    match std::fs::symlink_metadata(entry_path) {
+                        Ok(meta) => {
+                            is_dir_type = meta.is_dir();
+                        }
+                        Err(_) => {
+                            continue;
+                        }
                     }
                 }
-            }
-            if is_hidden(&hidden, base_name, is_dir_type) {
-                if file_type.is_dir() {
-                    it.skip_current_dir();
+                if is_hidden(&hidden, base_name, is_dir_type) {
+                    if file_type.is_dir() {
+                        it.skip_current_dir();
+                    }
+                    continue;
                 }
-                continue;
+                if entry.path().symlink_metadata().is_err() {
+                    continue;
+                }
+                if !file_type.is_file() {
+                    continue;
+                }
+                paths.push(entry_path.to_path_buf());
             }
-            if entry.path().symlink_metadata().is_err() {
-                continue;
-            }
-            if !file_type.is_file() {
-                continue;
-            }
-            paths.push(entry_path.to_path_buf());
         }
         paths
     })
