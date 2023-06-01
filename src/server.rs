@@ -10,7 +10,7 @@ use anyhow::{anyhow, Result};
 use walkdir::WalkDir;
 use xml::escape::escape_str_pcdata;
 
-use async_zip::write::ZipFileWriter;
+use async_zip::tokio::write::ZipFileWriter;
 use async_zip::{Compression, ZipDateTime, ZipEntryBuilder};
 use chrono::{LocalResult, TimeZone, Utc};
 use futures::TryStreamExt;
@@ -37,6 +37,7 @@ use std::time::SystemTime;
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWrite};
 use tokio::{fs, io};
+use tokio_util::compat::FuturesAsyncWriteCompatExt;
 use tokio_util::io::StreamReader;
 use uuid::Uuid;
 
@@ -1320,7 +1321,7 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
     hidden: &[String],
     running: Arc<AtomicBool>,
 ) -> Result<()> {
-    let mut writer = ZipFileWriter::new(writer);
+    let mut writer = ZipFileWriter::with_tokio(writer);
     let hidden = Arc::new(hidden.to_vec());
     let hidden = hidden.clone();
     let dir_clone = dir.to_path_buf();
@@ -1374,9 +1375,9 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
             .unix_permissions(mode)
             .last_modification_date(ZipDateTime::from_chrono(&datetime));
         let mut file = File::open(&zip_path).await?;
-        let mut file_writer = writer.write_entry_stream(builder).await?;
+        let mut file_writer = writer.write_entry_stream(builder).await?.compat_write();
         io::copy(&mut file, &mut file_writer).await?;
-        file_writer.close().await?;
+        file_writer.into_inner().close().await?;
     }
     writer.close().await?;
     Ok(())

@@ -15,20 +15,20 @@ clap = { version = "4", features = ["wrap_help", "env"] }
 clap_complete = "4"
 chrono = "0.4"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util", "signal"]}
-tokio-util = { version = "0.7",  features = ["io-util"] }
+tokio-util = { version = "0.7",  features = ["io-util", "compat"] }
 hyper = { version = "0.14", features = ["http1", "server", "tcp", "stream"] }
 percent-encoding = "2.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 futures = "0.3"
 base64 = "0.21"
-async_zip = { version = "0.0.12", default-features = false, features = ["deflate", "chrono"] }
+async_zip = { version = "0.0.15", default-features = false, features = ["deflate", "chrono", "tokio"] }
 headers = "0.3"
 mime_guess = "2.0"
 if-addrs = "0.10.1"
-rustls = { version = "0.20", default-features = false, features = ["tls12"], optional = true }
+rustls = { version = "0.21", default-features = false, features = ["tls12"], optional = true }
 rustls-pemfile = { version = "1", optional = true }
-tokio-rustls = { version = "0.23", optional = true }
+tokio-rustls = { version = "0.24", optional = true }
 md5 = "0.7"
 lazy_static = "1.4"
 uuid = { version = "1.1", features = ["v4", "fast-rng"] }
@@ -55,7 +55,7 @@ assert_cmd = "2"
 reqwest = { version = "0.11", features = ["blocking", "multipart", "rustls-tls"], default-features = false }
 assert_fs = "1"
 port_check = "0.1"
-rstest = "0.16"
+rstest = "0.17"
 regex = "1"
 url = "2"
 diqwest = { version = "1", features = ["blocking"] }
