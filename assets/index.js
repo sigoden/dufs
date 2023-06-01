@@ -22,6 +22,8 @@
  * @property {string} editable
  */
 
+var DUFS_MAX_UPLOADINGS = 1;
+
 /**
  * @type {DATA} DATA
  */
@@ -152,7 +154,6 @@ class Uploader {
   }
 
   ajax() {
-    Uploader.runnings += 1;
     const url = newUrl(this.name);
     this.lastUptime = Date.now();
     const ajax = new XMLHttpRequest();
@@ -187,13 +188,13 @@ class Uploader {
 
   complete() {
     this.$uploadStatus.innerHTML = `✓`;
-    Uploader.runnings -= 1;
+    Uploader.runnings--;
     Uploader.runQueue();
   }
 
   fail() {
     this.$uploadStatus.innerHTML = `✗`;
-    Uploader.runnings -= 1;
+    Uploader.runnings--;
     Uploader.runQueue();
   }
 }
@@ -211,16 +212,14 @@ Uploader.queues = [];
 
 
 Uploader.runQueue = async () => {
-  if (Uploader.runnings > 2) return;
+  if (Uploader.runnings >= DUFS_MAX_UPLOADINGS) return;
+  if (Uploader.queues.length == 0) return;
+  Uploader.runnings++;
   let uploader = Uploader.queues.shift();
-  if (!uploader) return;
   if (!Uploader.auth) {
     Uploader.auth = true;
-    try {
-      await login();
-    } catch {
-      Uploader.auth = false;
-    }
+    const success = await login(true);
+    Uploader.auth = !!success;
   }
   uploader.ajax();
 }
@@ -662,6 +661,7 @@ async function login(alert = false) {
     document.querySelector(".login-btn").classList.add("hidden");
     $userBtn.classList.remove("hidden");
     $userBtn.title = "";
+    return true;
   } catch (err) {
     let message = `Cannot login, ${err.message}`;
     if (alert) {
