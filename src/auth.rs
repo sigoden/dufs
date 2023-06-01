@@ -2,12 +2,16 @@ use anyhow::{anyhow, bail, Result};
 use base64::{engine::general_purpose, Engine as _};
 use headers::HeaderValue;
 use hyper::Method;
+use indexmap::IndexMap;
 use lazy_static::lazy_static;
 use md5::Context;
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 use uuid::Uuid;
 
-use crate::utils::{encode_uri, unix_now};
+use crate::utils::unix_now;
 
 const REALM: &str = "DUFS";
 const DIGEST_AUTH_TIMEOUT: u32 = 86400;
@@ -21,57 +25,63 @@ lazy_static! {
     };
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct AccessControl {
-    rules: HashMap<String, PathControl>,
-}
-
-#[derive(Debug)]
-pub struct PathControl {
-    readwrite: Account,
-    readonly: Option<Account>,
-    share: bool,
+    users: IndexMap<String, (String, AccessPaths)>,
+    anony: Option<AccessPaths>,
 }
 
 impl AccessControl {
-    pub fn new(raw_rules: &[&str], uri_prefix: &str) -> Result<Self> {
-        let mut rules = HashMap::default();
+    pub fn new(raw_rules: &[&str]) -> Result<Self> {
         if raw_rules.is_empty() {
-            return Ok(Self { rules });
+            return Ok(AccessControl {
+                anony: Some(AccessPaths::new(AccessPerm::ReadWrite)),
+                users: IndexMap::new(),
+            });
         }
+
+        let create_err = |v: &str| anyhow!("Invalid auth `{v}`");
+        let mut anony = None;
+        let mut anony_paths = vec![];
+        let mut users = IndexMap::new();
         for rule in raw_rules {
-            let parts: Vec<&str> = rule.split('@').collect();
-            let create_err = || anyhow!("Invalid auth `{rule}`");
-            match parts.as_slice() {
-                [path, readwrite] => {
-                    let control = PathControl {
-                        readwrite: Account::new(readwrite).ok_or_else(create_err)?,
-                        readonly: None,
-                        share: false,
-                    };
-                    rules.insert(sanitize_path(path, uri_prefix), control);
+            let (user, list) = rule.split_once('@').ok_or_else(|| create_err(rule))?;
+            if user.is_empty() && anony.is_some() {
+                bail!("Invalid auth, duplicate anonymous rules");
+            }
+            let mut paths = AccessPaths::default();
+            for value in list.trim_matches(',').split(',') {
+                let (path, perm) = match value.split_once(':') {
+                    None => (value, AccessPerm::ReadOnly),
+                    Some((path, "rw")) => (path, AccessPerm::ReadWrite),
+                    _ => return Err(create_err(rule)),
+                };
+                if user.is_empty() {
+                    anony_paths.push((path, perm));
                 }
-                [path, readwrite, readonly] => {
-                    let (readonly, share) = if *readonly == "*" {
-                        (None, true)
-                    } else {
-                        (Some(Account::new(readonly).ok_or_else(create_err)?), false)
-                    };
-                    let control = PathControl {
-                        readwrite: Account::new(readwrite).ok_or_else(create_err)?,
-                        readonly,
-                        share,
-                    };
-                    rules.insert(sanitize_path(path, uri_prefix), control);
+                paths.add(path, perm);
+            }
+            if user.is_empty() {
+                anony = Some(paths);
+            } else if let Some((user, pass)) = user.split_once(':') {
+                if user.is_empty() || pass.is_empty() {
+                    return Err(create_err(rule));
                 }
-                _ => return Err(create_err()),
+                users.insert(user.to_string(), (pass.to_string(), paths));
+            } else {
+                return Err(create_err(rule));
             }
         }
-        Ok(Self { rules })
+        for (path, perm) in anony_paths {
+            for (_, (_, paths)) in users.iter_mut() {
+                paths.add(path, perm)
+            }
+        }
+        Ok(Self { users, anony })
     }
 
     pub fn valid(&self) -> bool {
-        !self.rules.is_empty()
+        !self.users.is_empty() || self.anony.is_some()
     }
 
     pub fn guard(
@@ -80,81 +90,157 @@ impl AccessControl {
         method: &Method,
         authorization: Option<&HeaderValue>,
         auth_method: AuthMethod,
-    ) -> GuardType {
-        if self.rules.is_empty() {
-            return GuardType::ReadWrite;
+    ) -> (Option<String>, Option<AccessPaths>) {
+        if let Some(authorization) = authorization {
+            if let Some(user) = auth_method.get_user(authorization) {
+                if let Some((pass, paths)) = self.users.get(&user) {
+                    if method == Method::OPTIONS {
+                        return (Some(user), Some(AccessPaths::new(AccessPerm::ReadOnly)));
+                    }
+                    if auth_method
+                        .check(authorization, method.as_str(), &user, pass)
+                        .is_some()
+                    {
+                        return (Some(user), paths.find(path, !is_readonly_method(method)));
+                    } else {
+                        return (None, None);
+                    }
+                }
+            }
         }
 
         if method == Method::OPTIONS {
-            return GuardType::ReadOnly;
+            return (None, Some(AccessPaths::new(AccessPerm::ReadOnly)));
         }
 
-        let mut controls = vec![];
-        for path in walk_path(path) {
-            if let Some(control) = self.rules.get(path) {
-                controls.push(control);
-                if let Some(authorization) = authorization {
-                    let Account { user, pass } = &control.readwrite;
-                    if auth_method
-                        .validate(authorization, method.as_str(), user, pass)
-                        .is_some()
-                    {
-                        return GuardType::ReadWrite;
-                    }
-                }
-            }
+        if let Some(paths) = self.anony.as_ref() {
+            return (None, paths.find(path, !is_readonly_method(method)));
         }
-        if is_readonly_method(method) {
-            for control in controls.into_iter() {
-                if control.share {
-                    return GuardType::ReadOnly;
-                }
-                if let Some(authorization) = authorization {
-                    if let Some(Account { user, pass }) = &control.readonly {
-                        if auth_method
-                            .validate(authorization, method.as_str(), user, pass)
-                            .is_some()
-                        {
-                            return GuardType::ReadOnly;
-                        }
-                    }
-                }
-            }
-        }
-        GuardType::Reject
+
+        (None, None)
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum GuardType {
-    Reject,
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct AccessPaths {
+    perm: AccessPerm,
+    children: IndexMap<String, AccessPaths>,
+}
+
+impl AccessPaths {
+    pub fn new(perm: AccessPerm) -> Self {
+        Self {
+            perm,
+            ..Default::default()
+        }
+    }
+
+    pub fn perm(&self) -> AccessPerm {
+        self.perm
+    }
+
+    fn set_perm(&mut self, perm: AccessPerm) {
+        if self.perm < perm {
+            self.perm = perm
+        }
+    }
+
+    pub fn add(&mut self, path: &str, perm: AccessPerm) {
+        let path = path.trim_matches('/');
+        if path.is_empty() {
+            self.set_perm(perm);
+        } else {
+            let parts: Vec<&str> = path.split('/').collect();
+            self.add_impl(&parts, perm);
+        }
+    }
+
+    fn add_impl(&mut self, parts: &[&str], perm: AccessPerm) {
+        let parts_len = parts.len();
+        if parts_len == 0 {
+            self.set_perm(perm);
+            return;
+        }
+        let child = self.children.entry(parts[0].to_string()).or_default();
+        child.add_impl(&parts[1..], perm)
+    }
+
+    pub fn find(&self, path: &str, writable: bool) -> Option<AccessPaths> {
+        let parts: Vec<&str> = path
+            .trim_matches('/')
+            .split('/')
+            .filter(|v| !v.is_empty())
+            .collect();
+        let target = self.find_impl(&parts, self.perm)?;
+        if writable && !target.perm().readwrite() {
+            return None;
+        }
+        Some(target)
+    }
+
+    fn find_impl(&self, parts: &[&str], perm: AccessPerm) -> Option<AccessPaths> {
+        let perm = self.perm.max(perm);
+        if parts.is_empty() {
+            if perm.indexonly() {
+                return Some(self.clone());
+            } else {
+                return Some(AccessPaths::new(perm));
+            }
+        }
+        let child = match self.children.get(parts[0]) {
+            Some(v) => v,
+            None => {
+                if perm.indexonly() {
+                    return None;
+                } else {
+                    return Some(AccessPaths::new(perm));
+                }
+            }
+        };
+        child.find_impl(&parts[1..], perm)
+    }
+
+    pub fn child_paths(&self) -> Vec<&String> {
+        self.children.keys().collect()
+    }
+
+    pub fn leaf_paths(&self, base: &Path) -> Vec<PathBuf> {
+        if !self.perm().indexonly() {
+            return vec![base.to_path_buf()];
+        }
+        let mut output = vec![];
+        self.leaf_paths_impl(&mut output, base);
+        output
+    }
+
+    fn leaf_paths_impl(&self, output: &mut Vec<PathBuf>, base: &Path) {
+        for (name, child) in self.children.iter() {
+            let base = base.join(name);
+            if child.perm().indexonly() {
+                child.leaf_paths_impl(output, &base);
+            } else {
+                output.push(base)
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub enum AccessPerm {
+    #[default]
+    IndexOnly,
     ReadWrite,
     ReadOnly,
 }
 
-impl GuardType {
-    pub fn is_reject(&self) -> bool {
-        *self == GuardType::Reject
+impl AccessPerm {
+    pub fn readwrite(&self) -> bool {
+        self == &AccessPerm::ReadWrite
     }
-}
 
-fn sanitize_path(path: &str, uri_prefix: &str) -> String {
-    let new_path = match (uri_prefix, path) {
-        ("/", "/") => "/".into(),
-        (_, "/") => uri_prefix.trim_end_matches('/').into(),
-        _ => format!("{}{}", uri_prefix, path.trim_matches('/')),
-    };
-    encode_uri(&new_path)
-}
-
-fn walk_path(path: &str) -> impl Iterator<Item = &str> {
-    let mut idx = 0;
-    path.split('/').enumerate().map(move |(i, part)| {
-        let end = if i == 0 { 1 } else { idx + part.len() + i };
-        let value = &path[..end];
-        idx += part.len();
-        value
-    })
+    pub fn indexonly(&self) -> bool {
+        self == &AccessPerm::IndexOnly
+    }
 }
 
 fn is_readonly_method(method: &Method) -> bool {
@@ -162,29 +248,6 @@ fn is_readonly_method(method: &Method) -> bool {
         || method == Method::OPTIONS
         || method == Method::HEAD
         || method.as_str() == "PROPFIND"
-}
-
-#[derive(Debug, Clone)]
-struct Account {
-    user: String,
-    pass: String,
-}
-
-impl Account {
-    fn new(data: &str) -> Option<Self> {
-        let p: Vec<&str> = data.trim().split(':').collect();
-        if p.len() != 2 {
-            return None;
-        }
-        let user = p[0];
-        let pass = p[1];
-        let mut h = Context::new();
-        h.consume(format!("{user}:{REALM}:{pass}").as_bytes());
-        Some(Account {
-            user: user.to_owned(),
-            pass: format!("{:x}", h.compute()),
-        })
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -208,6 +271,7 @@ impl AuthMethod {
             }
         }
     }
+
     pub fn get_user(&self, authorization: &HeaderValue) -> Option<String> {
         match self {
             AuthMethod::Basic => {
@@ -227,7 +291,8 @@ impl AuthMethod {
             }
         }
     }
-    pub fn validate(
+
+    fn check(
         &self,
         authorization: &HeaderValue,
         method: &str,
@@ -245,12 +310,7 @@ impl AuthMethod {
                     return None;
                 }
 
-                let mut h = Context::new();
-                h.consume(format!("{}:{}:{}", parts[0], REALM, parts[1]).as_bytes());
-
-                let http_pass = format!("{:x}", h.compute());
-
-                if http_pass == auth_pass {
+                if parts[1] == auth_pass {
                     return Some(());
                 }
 
@@ -273,6 +333,11 @@ impl AuthMethod {
                     if auth_user != username {
                         return None;
                     }
+
+                    let mut h = Context::new();
+                    h.consume(format!("{}:{}:{}", auth_user, REALM, auth_pass).as_bytes());
+                    let auth_pass = format!("{:x}", h.compute());
+
                     let mut ha = Context::new();
                     ha.consume(method);
                     ha.consume(b":");
@@ -285,7 +350,7 @@ impl AuthMethod {
                         if qop == &b"auth".as_ref() || qop == &b"auth-int".as_ref() {
                             correct_response = Some({
                                 let mut c = Context::new();
-                                c.consume(auth_pass);
+                                c.consume(&auth_pass);
                                 c.consume(b":");
                                 c.consume(nonce);
                                 c.consume(b":");
@@ -308,7 +373,7 @@ impl AuthMethod {
                         Some(r) => r,
                         None => {
                             let mut c = Context::new();
-                            c.consume(auth_pass);
+                            c.consume(&auth_pass);
                             c.consume(b":");
                             c.consume(nonce);
                             c.consume(b":");
@@ -317,7 +382,6 @@ impl AuthMethod {
                         }
                     };
                     if correct_response.as_bytes() == *user_response {
-                        // grant access
                         return Some(());
                     }
                 }
@@ -416,4 +480,43 @@ fn create_nonce() -> Result<String> {
 
     let n = format!("{:08x}{:032x}", secs, h.compute());
     Ok(n[..34].to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_access_paths() {
+        let mut paths = AccessPaths::default();
+        paths.add("/dir1", AccessPerm::ReadWrite);
+        paths.add("/dir2/dir1", AccessPerm::ReadWrite);
+        paths.add("/dir2/dir2", AccessPerm::ReadOnly);
+        paths.add("/dir2/dir3/dir1", AccessPerm::ReadWrite);
+        assert_eq!(
+            paths.leaf_paths(Path::new("/tmp")),
+            [
+                "/tmp/dir1",
+                "/tmp/dir2/dir1",
+                "/tmp/dir2/dir2",
+                "/tmp/dir2/dir3/dir1"
+            ]
+            .iter()
+            .map(PathBuf::from)
+            .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            paths
+                .find("dir2", false)
+                .map(|v| v.leaf_paths(Path::new("/tmp/dir2"))),
+            Some(
+                ["/tmp/dir2/dir1", "/tmp/dir2/dir2", "/tmp/dir2/dir3/dir1"]
+                    .iter()
+                    .map(PathBuf::from)
+                    .collect::<Vec<_>>()
+            )
+        );
+        assert_eq!(paths.find("dir2", true), None);
+        assert!(paths.find("dir1/file", true).is_some());
+    }
 }
