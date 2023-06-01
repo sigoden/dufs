@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.34.0] - 2023-06-01
+
+### Bug Fixes
+
+- URL-encoded filename when downloading in safari ([#203](https://github.com/sigoden/dufs/issues/203))
+- Ui path table show move action ([#219](https://github.com/sigoden/dufs/issues/219))
+- Ui set default max uploading to 1 ([#220](https://github.com/sigoden/dufs/issues/220))
+
+### Features
+
+- Webui editing support multiple encodings ([#197](https://github.com/sigoden/dufs/issues/197))
+- Add timestamp metadata to generated zip file ([#204](https://github.com/sigoden/dufs/issues/204))
+- Show precise file size with decimal ([#210](https://github.com/sigoden/dufs/issues/210))
+- [**breaking**] New auth ([#218](https://github.com/sigoden/dufs/issues/218))
+
+### Refactor
+
+- Cli positional rename root => SERVE_PATH([#215](https://github.com/sigoden/dufs/issues/215))
+
 ## [0.33.0] - 2023-03-17
 
 ### Bug Fixes

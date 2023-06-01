@@ -14,7 +14,7 @@ Dufs is a distinctive utility file server that supports static serving, uploadin
 - Upload files and folders (Drag & Drop)
 - Create/Edit/Search files
 - Partial responses (Parallel/Resume download)
-- Path level access control
+- Access control
 - Support https
 - Support webdav
 - Easy to use with curl
@@ -48,17 +48,17 @@ Download from [Github Releases](https://github.com/sigoden/dufs/releases), unzip
 ```
 Dufs is a distinctive utility file server - https://github.com/sigoden/dufs
 
-Usage: dufs [OPTIONS] [root]
+Usage: dufs [OPTIONS] [serve_path]
 
 Arguments:
-  [root]  Specific path to serve [default: .]
+  [serve_path]  Specific path to serve [default: .]
 
 Options:
   -b, --bind <addrs>         Specify bind address or unix socket
   -p, --port <port>          Specify port to listen on [default: 5000]
       --path-prefix <path>   Specify a path prefix
       --hidden <value>       Hide paths from directory listings, separated by `,`
-  -a, --auth <rules>         Add auth for path
+  -a, --auth <rules>         Add auth role
       --auth-method <value>  Select auth method [default: digest] [possible values: basic, digest]
   -A, --allow-all            Allow all operations
       --allow-upload         Allow upload files/folders
@@ -75,8 +75,8 @@ Options:
       --tls-key <path>       Path to the SSL/TLS certificate's private key
       --log-format <format>  Customize http log format
       --completions <shell>  Print shell completion script for <shell> [possible values: bash, elvish, fish, powershell, zsh]
-  -h, --help                 Print help information
-  -V, --version              Print version information
+  -h, --help                 Print help
+  -V, --version              Print version
 ```
 
 ## Examples
@@ -203,41 +203,45 @@ curl --user user:pass http://192.168.8.10:5000/file           # basic auth
 
 ### Access Control
 
-Dufs supports path level access control. You can control who can do what on which path with `--auth`/`-a`.
+Dufs supports account based access control. You can control who can do what on which path with `--auth`/`-a`.
 
 ```
-dufs -a <path>@<readwrite>
-dufs -a <path>@<readwrite>@<readonly>
-dufs -a <path>@<readwrite>@*
+dufs -a [user:pass]@path[:rw][,path[:rw]...][|...]
 ```
-
-- `<path>`: Protected url path
-- `<readwrite>`: Account with readwrite permissions. If dufs is run with `dufs --allow-all`, the permissions are upload/delete/search/view/download. If dufs is run with `dufs --allow-upload`, the permissions are upload/view/download.
-- `<readonly>`: Account with readonly permissions. The permissions are search/view/download if dufs allow search, otherwise view/download..
+1: Multiple rules are separated by "|"
+2: User and pass are the account name and password, if omitted, it is an anonymous user
+3: One rule can set multiple paths, separated by ","
+4: Add `:rw` after the path to indicate that the path has read and write permissions, otherwise the path has readonly permissions.
 
 ```
-dufs -A -a /@admin:admin
+dufs -A -a admin:admin@/:rw
 ```
 `admin` has all permissions for all paths.
 
 ```
-dufs -A -a /@admin:admin@guest:guest
+dufs -A -a admin:admin@/:rw -a guest:guest@/
 ```
 `guest` has readonly permissions for all paths.
 
 ```
-dufs -A -a /@admin:admin@*
+dufs -A -a admin:admin@/:rw -a @/
 ```
 All paths is public, everyone can view/download it.
 
 ```
-dufs -A -a /@admin:admin -a /user1@user1:pass1 -a /user2@pass2:user2
+dufs -A -a admin:admin@/:rw -a user1:pass1@/user1:rw -a user2:pass2@/user2
+dufs -A -a "admin:admin@/:rw|user1:pass1@/user1:rw|user2:pass2@/user2"
 ```
-`user1` has all permissions for `/user1*` path.
-`user2` has all permissions for `/user2*` path.
+`user1` has all permissions for `/user1/*` path.
+`user2` has all permissions for `/user2/*` path.
 
 ```
-dufs -a /@admin:admin
+dufs -A -a user:pass@/dir1:rw,/dir2:rw,dir3
+```
+`user` has all permissions for `/dir1/*` and `/dir2/*`, has readonly permissions for `/dir3/`.
+
+```
+dufs -a admin:admin@/
 ```
 Since dufs only allows viewing/downloading, `admin` can only view/download files.
 
@@ -302,7 +306,29 @@ dufs --log-format '$remote_addr $remote_user "$request" $status' -a /@admin:admi
 
 All options can be set using environment variables prefixed with `DUFS_`.
 
-`dufs --port 8080 --allow-all`  is equal to `DUFS_PORT=8080 DUFS_ALLOW_ALL=true dufs`.
+```
+  [ROOT_DIR]                  DUFS_ROOT_DIR=/dir
+  -b, --bind <addrs>          DUFS_BIND=0.0.0.0
+  -p, --port <port>           DUFS_PORT=5000
+      --path-prefix <path>    DUFS_PATH_RREFIX=/path
+      --hidden <value>        DUFS_HIDDEN=*.log
+  -a, --auth <rules>          DUFS_AUTH="admin:admin@/:rw|@/" 
+      --auth-method <value>   DUFS_AUTH_METHOD=basic
+  -A, --allow-all             DUFS_ALLOW_ALL=true
+      --allow-upload          DUFS_ALLOW_UPLOAD=true
+      --allow-delete          DUFS_ALLOW_DELETE=true
+      --allow-search          DUFS_ALLOW_SEARCH=true
+      --allow-symlink         DUFS_ALLOW_SYMLINK=true
+      --allow-archive         DUFS_ALLOW_ARCHIVE=true
+      --enable-cors           DUFS_ENABLE_CORS=true
+      --render-index          DUFS_RENDER_INDEX=true
+      --render-try-index      DUFS_RENDER_TRY_INDEX=true
+      --render-spa            DUFS_RENDER_SPA=true
+      --assets <path>         DUFS_ASSETS=/assets
+      --tls-cert <path>       DUFS_TLS_CERT=cert.pem
+      --tls-key <path>        DUFS_TLS_KEY=key.pem
+      --log-format <format>   DUFS_LOG_FORMAT=""
+```
 
 ### Customize UI
 
