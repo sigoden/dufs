@@ -229,8 +229,8 @@ impl AccessPaths {
 pub enum AccessPerm {
     #[default]
     IndexOnly,
-    ReadWrite,
     ReadOnly,
+    ReadWrite,
 }
 
 impl AccessPerm {
@@ -518,5 +518,17 @@ mod tests {
         );
         assert_eq!(paths.find("dir2", true), None);
         assert!(paths.find("dir1/file", true).is_some());
+    }
+
+    #[test]
+    fn test_access_paths_perm() {
+        let mut paths = AccessPaths::default();
+        assert_eq!(paths.perm(), AccessPerm::IndexOnly);
+        paths.set_perm(AccessPerm::ReadOnly);
+        assert_eq!(paths.perm(), AccessPerm::ReadOnly);
+        paths.set_perm(AccessPerm::ReadWrite);
+        assert_eq!(paths.perm(), AccessPerm::ReadWrite);
+        paths.set_perm(AccessPerm::ReadOnly);
+        assert_eq!(paths.perm(), AccessPerm::ReadWrite);
     }
 }
