@@ -218,8 +218,11 @@ Uploader.runQueue = async () => {
   let uploader = Uploader.queues.shift();
   if (!Uploader.auth) {
     Uploader.auth = true;
-    const success = await checkAuth(true);
-    Uploader.auth = !!success;
+    try {
+      await checkAuth()
+    } catch {
+      Uploader.auth = false;
+    }
   }
   uploader.ajax();
 }
@@ -439,7 +442,13 @@ function setupAuth() {
   } else {
     const $loginBtn = document.querySelector(".login-btn");
     $loginBtn.classList.remove("hidden");
-    $loginBtn.addEventListener("click", () => checkAuth(true));
+    $loginBtn.addEventListener("click", async () => {
+      try {
+        await checkAuth()
+      } catch (err) {
+        alert(err.message);
+      }
+    });
   }
 }
 
@@ -651,25 +660,15 @@ async function saveChange() {
   }
 }
 
-async function checkAuth(alert = false) {
+async function checkAuth() {
   if (!DATA.auth) return;
-  try {
-    const res = await fetch(baseUrl(), {
-      method: "WRITEABLE",
-    });
-    await assertResOK(res);
-    document.querySelector(".login-btn").classList.add("hidden");
-    $userBtn.classList.remove("hidden");
-    $userBtn.title = "";
-    return true;
-  } catch (err) {
-    let message = `Check auth, ${err.message}`;
-    if (alert) {
-      alert(message);
-    } else {
-      throw new Error(message);
-    }
-  }
+  const res = await fetch(baseUrl(), {
+    method: "WRITEABLE",
+  });
+  await assertResOK(res);
+  document.querySelector(".login-btn").classList.add("hidden");
+  $userBtn.classList.remove("hidden");
+  $userBtn.title = "";
 }
 
 /**
@@ -808,7 +807,7 @@ function encodedStr(rawStr) {
 
 async function assertResOK(res) {
   if (!(res.status >= 200 && res.status < 300)) {
-    throw new Error(await res.text())
+    throw new Error(await res.text() || `Invalid status ${res.status}`);
   }
 }
 
