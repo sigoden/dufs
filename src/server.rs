@@ -1290,13 +1290,11 @@ fn add_cors(res: &mut Response) {
     );
     res.headers_mut().insert(
         "Access-Control-Allow-Headers",
-        HeaderValue::from_static("Authorization,Destination,Range,Content-Type"),
+        HeaderValue::from_static("Authorization,*"),
     );
     res.headers_mut().insert(
         "Access-Control-Expose-Headers",
-        HeaderValue::from_static(
-            "WWW-Authenticate,Content-Range,Accept-Ranges,Content-Disposition",
-        ),
+        HeaderValue::from_static("Authorization,*"),
     );
 }
 
