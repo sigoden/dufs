@@ -19,15 +19,15 @@ fn cors(#[with(&["--enable-cors"])] server: TestServer) -> Result<(), Error> {
     );
     assert_eq!(
         resp.headers().get("access-control-allow-methods").unwrap(),
-        "GET,HEAD,PUT,OPTIONS,DELETE,PROPFIND,COPY,MOVE"
+        "*"
     );
     assert_eq!(
         resp.headers().get("access-control-allow-headers").unwrap(),
-        "Authorization,Destination,Range,Content-Type"
+        "Authorization,*"
     );
     assert_eq!(
         resp.headers().get("access-control-expose-headers").unwrap(),
-        "WWW-Authenticate,Content-Range,Accept-Ranges,Content-Disposition"
+        "Authorization,*"
     );
     Ok(())
 }
