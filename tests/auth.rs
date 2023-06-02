@@ -30,6 +30,23 @@ fn auth(#[with(&["--auth", "user:pass@/:rw", "-A"])] server: TestServer) -> Resu
 }
 
 #[rstest]
+fn auth_and_public(
+    #[with(&["--auth", "user:pass@/:rw|@/", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    let url = format!("{}file1", server.url());
+    let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
+    assert_eq!(resp.status(), 401);
+    let resp = fetch!(b"PUT", &url)
+        .body(b"abc".to_vec())
+        .send_with_digest_auth("user", "pass")?;
+    assert_eq!(resp.status(), 201);
+    let resp = fetch!(b"GET", &url).send()?;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.text()?, "abc");
+    Ok(())
+}
+
+#[rstest]
 fn auth_skip(#[with(&["--auth", "@/"])] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(server.url())?;
     assert_eq!(resp.status(), 200);
