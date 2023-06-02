@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.34.1] - 2023-06-02
+
+### Bug Fixes
+
+- Auth logic ([#224](https://github.com/sigoden/dufs/issues/224))
+- Allow all cors headers and methods ([#225](https://github.com/sigoden/dufs/issues/225))
+
+### Refactor
+
+- Ui checkAuth ([#226](https://github.com/sigoden/dufs/issues/226))
+
 ## [0.34.0] - 2023-06-01
 
 ### Bug Fixes
