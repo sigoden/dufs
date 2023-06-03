@@ -445,6 +445,7 @@ function setupAuth() {
     $loginBtn.addEventListener("click", async () => {
       try {
         await checkAuth()
+        location.reload();
       } catch (err) {
         alert(err.message);
       }
