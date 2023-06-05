@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.34.2] - 2023-06-05
+
+### Bug Fixes
+
+- Ui refresh page after login ([#230](https://github.com/sigoden/dufs/issues/230))
+- Webdav only see public folder even logging in ([#231](https://github.com/sigoden/dufs/issues/231))
+
 ## [0.34.1] - 2023-06-02
 
 ### Bug Fixes
