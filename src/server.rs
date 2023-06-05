@@ -1,6 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 
-use crate::auth::AccessPaths;
+use crate::auth::{AccessPaths, AccessPerm};
 use crate::streamer::Streamer;
 use crate::utils::{
     decode_uri, encode_uri, get_file_mtime_and_mode, get_file_name, glob, try_get_file_name,
@@ -340,6 +340,12 @@ impl Server {
             method => match method.as_str() {
                 "PROPFIND" => {
                     if is_dir {
+                        let access_paths = if access_paths.perm().indexonly() {
+                            // see https://github.com/sigoden/dufs/issues/229
+                            AccessPaths::new(AccessPerm::ReadOnly)
+                        } else {
+                            access_paths
+                        };
                         self.handle_propfind_dir(path, headers, access_paths, &mut res)
                             .await?;
                     } else if is_file {
@@ -759,7 +765,7 @@ impl Server {
             uri_prefix: self.args.uri_prefix.clone(),
             allow_upload: self.args.allow_upload,
             allow_delete: self.args.allow_delete,
-            auth: self.args.auth.valid(),
+            auth: self.args.auth.exist(),
             user,
             editable,
         };
@@ -974,7 +980,7 @@ impl Server {
             allow_search: self.args.allow_search,
             allow_archive: self.args.allow_archive,
             dir_exists: exist,
-            auth: self.args.auth.valid(),
+            auth: self.args.auth.exist(),
             user,
             paths,
         };
@@ -999,7 +1005,7 @@ impl Server {
     }
 
     fn auth_reject(&self, res: &mut Response) -> Result<()> {
-        let value = self.args.auth_method.www_auth(false)?;
+        let value = self.args.auth_method.www_auth()?;
         set_webdav_headers(res);
         res.headers_mut().insert(WWW_AUTHENTICATE, value.parse()?);
         // set 401 to make the browser pop up the login box

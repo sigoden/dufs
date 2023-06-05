@@ -201,3 +201,15 @@ fn auth_partial_index(
     );
     Ok(())
 }
+
+#[rstest]
+fn no_auth_propfind_dir(
+    #[with(&["--auth", "user:pass@/:rw", "--auth", "@/dir-assets", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    let resp = fetch!(b"PROPFIND", server.url()).send()?;
+    assert_eq!(resp.status(), 207);
+    let body = resp.text()?;
+    assert!(body.contains("<D:href>/dir-assets/</D:href>"));
+    assert!(body.contains("<D:href>/dir1/</D:href>"));
+    Ok(())
+}

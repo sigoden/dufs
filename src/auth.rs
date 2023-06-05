@@ -80,8 +80,8 @@ impl AccessControl {
         Ok(Self { users, anony })
     }
 
-    pub fn valid(&self) -> bool {
-        !self.users.is_empty() || self.anony.is_some()
+    pub fn exist(&self) -> bool {
+        !self.users.is_empty()
     }
 
     pub fn guard(
@@ -257,18 +257,14 @@ pub enum AuthMethod {
 }
 
 impl AuthMethod {
-    pub fn www_auth(&self, stale: bool) -> Result<String> {
+    pub fn www_auth(&self) -> Result<String> {
         match self {
             AuthMethod::Basic => Ok(format!("Basic realm=\"{REALM}\"")),
-            AuthMethod::Digest => {
-                let str_stale = if stale { "stale=true," } else { "" };
-                Ok(format!(
-                    "Digest realm=\"{}\",nonce=\"{}\",{}qop=\"auth\"",
-                    REALM,
-                    create_nonce()?,
-                    str_stale
-                ))
-            }
+            AuthMethod::Digest => Ok(format!(
+                "Digest realm=\"{}\",nonce=\"{}\",qop=\"auth\"",
+                REALM,
+                create_nonce()?,
+            )),
         }
     }
 
