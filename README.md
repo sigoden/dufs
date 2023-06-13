@@ -126,7 +126,7 @@ dufs --render-index
 Require username/password
 
 ```
-dufs -a /@admin:123
+dufs -a admin:123@/:rw
 ```
 
 Listen on specific host:ip 
