@@ -493,6 +493,7 @@ impl Server {
                 let mut paths: Vec<PathBuf> = vec![];
                 for dir in access_paths.leaf_paths(&path_buf) {
                     let mut it = WalkDir::new(&dir).into_iter();
+                    it.next();
                     while let Some(Ok(entry)) = it.next() {
                         if !running.load(Ordering::SeqCst) {
                             break;
@@ -1333,6 +1334,7 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
         let mut paths: Vec<PathBuf> = vec![];
         for dir in access_paths.leaf_paths(&dir_clone) {
             let mut it = WalkDir::new(&dir).into_iter();
+            it.next();
             while let Some(Ok(entry)) = it.next() {
                 if !running.load(Ordering::SeqCst) {
                     break;
