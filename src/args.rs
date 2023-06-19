@@ -8,7 +8,7 @@ use std::env;
 use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 
-use crate::auth::AccessControl;
+use crate::auth::{AccessControl, PassFormat};
 use crate::auth::AuthMethod;
 use crate::log_http::{LogHttp, DEFAULT_LOG_FORMAT};
 #[cfg(feature = "tls")]
@@ -89,6 +89,16 @@ pub fn build_cli() -> Command {
                 .help("Select auth method")
                 .value_parser(PossibleValuesParser::new(["basic", "digest"]))
                 .default_value("digest")
+                .value_name("value"),
+        )
+        .arg(
+            Arg::new("pass-format")
+                .env("DUFS_PASS_FORMAT")
+				.hide_env(true)
+                .long("pass-format")
+                .help("Select password format ('htpasswd' only in 'basic' auth-method)")
+                .value_parser(PossibleValuesParser::new(["clear", "htpasswd"]))
+                .default_value("clear")
                 .value_name("value"),
         )
         .arg(
@@ -285,7 +295,12 @@ impl Args {
             .map(|auth| auth.map(|v| v.as_str()).collect())
             .unwrap_or_default();
         let auth_method = match matches.get_one::<String>("auth-method").unwrap().as_str() {
-            "basic" => AuthMethod::Basic,
+            "basic" => AuthMethod::Basic(
+                match matches.get_one::<String>("pass-format").unwrap().as_str() {
+                    "htpasswd" => PassFormat::Htpasswd,
+                    _ => PassFormat::Clear,
+                }
+            ),
             _ => AuthMethod::Digest,
         };
         let auth = AccessControl::new(&auth)?;

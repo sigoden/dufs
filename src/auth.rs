@@ -251,15 +251,21 @@ fn is_readonly_method(method: &Method) -> bool {
 }
 
 #[derive(Debug, Clone)]
+pub enum PassFormat {
+    Clear,
+    Htpasswd,
+}
+
+#[derive(Debug, Clone)]
 pub enum AuthMethod {
-    Basic,
+    Basic(PassFormat),
     Digest,
 }
 
 impl AuthMethod {
     pub fn www_auth(&self) -> Result<String> {
         match self {
-            AuthMethod::Basic => Ok(format!("Basic realm=\"{REALM}\"")),
+            AuthMethod::Basic(_) => Ok(format!("Basic realm=\"{REALM}\"")),
             AuthMethod::Digest => Ok(format!(
                 "Digest realm=\"{}\",nonce=\"{}\",qop=\"auth\"",
                 REALM,
@@ -270,7 +276,7 @@ impl AuthMethod {
 
     pub fn get_user(&self, authorization: &HeaderValue) -> Option<String> {
         match self {
-            AuthMethod::Basic => {
+            AuthMethod::Basic(_) => {
                 let value: Vec<u8> = general_purpose::STANDARD
                     .decode(strip_prefix(authorization.as_bytes(), b"Basic ")?)
                     .ok()?;
@@ -296,7 +302,7 @@ impl AuthMethod {
         auth_pass: &str,
     ) -> Option<()> {
         match self {
-            AuthMethod::Basic => {
+            AuthMethod::Basic(pass_format) => {
                 let basic_value: Vec<u8> = general_purpose::STANDARD
                     .decode(strip_prefix(authorization.as_bytes(), b"Basic ")?)
                     .ok()?;
@@ -306,8 +312,19 @@ impl AuthMethod {
                     return None;
                 }
 
-                if parts[1] == auth_pass {
-                    return Some(());
+                match pass_format {
+                    PassFormat::Clear => {
+                        if parts[1] == auth_pass {
+                            return Some(());
+                        }
+                    }
+                    PassFormat::Htpasswd => {
+                        let htpasswd_line = auth_user.to_owned() + ":" + auth_pass;
+                        let htpasswd = htpasswd_verify::Htpasswd::new_borrowed(&htpasswd_line);
+                        if htpasswd.check(&parts[0], &parts[1]) {
+                            return Some(());
+                        }
+                    }
                 }
 
                 None

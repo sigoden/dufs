@@ -60,6 +60,7 @@ Options:
       --hidden <value>       Hide paths from directory listings, separated by `,`
   -a, --auth <rules>         Add auth role
       --auth-method <value>  Select auth method [default: digest] [possible values: basic, digest]
+      --pass-format <value>  Select password format ('htpasswd' only in 'basic' auth-method) [default: clear] [possible values: clear, htpasswd]
   -A, --allow-all            Allow all operations
       --allow-upload         Allow upload files/folders
       --allow-delete         Allow delete files/folders
@@ -314,6 +315,7 @@ All options can be set using environment variables prefixed with `DUFS_`.
       --hidden <value>        DUFS_HIDDEN=*.log
   -a, --auth <rules>          DUFS_AUTH="admin:admin@/:rw|@/" 
       --auth-method <value>   DUFS_AUTH_METHOD=basic
+      --pass-format <value>   DUFS_PASS_FORMAT=clear 
   -A, --allow-all             DUFS_ALLOW_ALL=true
       --allow-upload          DUFS_ALLOW_UPLOAD=true
       --allow-delete          DUFS_ALLOW_DELETE=true
