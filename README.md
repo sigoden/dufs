@@ -209,10 +209,11 @@ Dufs supports account based access control. You can control who can do what on w
 ```
 dufs -a [user:pass]@path[:rw][,path[:rw]...][|...]
 ```
-1: Multiple rules are separated by "|"
-2: User and pass are the account name and password, if omitted, it is an anonymous user
-3: One rule can set multiple paths, separated by ","
-4: Add `:rw` after the path to indicate that the path has read and write permissions, otherwise the path has readonly permissions.
+
+1. Multiple rules are separated by "|"
+2. User and pass are the account name and password, if omitted, it is an anonymous user
+3. One rule can set multiple paths, separated by ","
+4. Add `:rw` after the path to indicate that the path has read and write permissions, otherwise the path has readonly permissions.
 
 ```
 dufs -A -a admin:admin@/:rw
