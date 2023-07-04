@@ -71,31 +71,41 @@ jobs:
           use-cross: true
           cargo-flags: "--no-default-features"
     runs-on: ${{matrix.os}}
+    env:
+      BUILD_CMD: cargo
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Check Tag
       id: check-tag
       shell: bash
       run: |
-        tag=${GITHUB_REF##*/}
-        echo "::set-output name=version::$tag"
-        if [[ "$tag" =~ [0-9]+.[0-9]+.[0-9]+$ ]]; then
-          echo "::set-output name=rc::false"
+        ver=${GITHUB_REF##*/}
+        echo "version=$ver" >> $GITHUB_OUTPUT
+        if [[ "$ver" =~ [0-9]+.[0-9]+.[0-9]+$ ]]; then
+          echo "rc=false" >> $GITHUB_OUTPUT
         else
-          echo "::set-output name=rc::true"
+          echo "rc=true" >> $GITHUB_OUTPUT
         fi
 
 
     - name: Install Rust Toolchain Components
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@stable
       with:
-        override: true
-        target: ${{ matrix.target }}
-        toolchain: stable
-        profile: minimal # minimal component installation (ie, no documentation)
+        targets: ${{ matrix.target }}
+
+    - name: Install cross
+      if: matrix.use-cross
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cross
   
+    - name: Overwrite build command env variable
+      if: matrix.use-cross
+      shell: bash
+      run: echo "BUILD_CMD=cross" >> $GITHUB_ENV
+
     - name: Show Version Information (Rust, cargo, GCC)
       shell: bash
       run: |
@@ -107,11 +117,8 @@ jobs:
         rustc -V
       
     - name: Build
-      uses: actions-rs/cargo@v1
-      with:
-        use-cross: ${{ matrix.use-cross }}
-        command: build
-        args: --locked --release --target=${{ matrix.target }} ${{ matrix.cargo-flags }}
+      shell: bash
+      run: $BUILD_CMD build --locked --release --target=${{ matrix.target }} ${{ matrix.cargo-flags }}
 
     - name: Build Archive
       shell: bash
@@ -139,15 +146,15 @@ jobs:
         if [[ "$RUNNER_OS" == "Windows" ]]; then
             archive=$dist/$name.zip
             7z a $archive *
-            echo "::set-output name=archive::`pwd -W`/$name.zip"
+            echo "archive=$archive" >> $GITHUB_OUTPUT
         else
             archive=$dist/$name.tar.gz
             tar czf $archive *
-            echo "::set-output name=archive::$archive"
+            echo "archive=$archive" >> $GITHUB_OUTPUT
         fi
 
     - name: Publish Archive
-      uses: softprops/action-gh-release@v0.1.5
+      uses: softprops/action-gh-release@v1
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
       with:
         draft: false
@@ -163,16 +170,16 @@ jobs:
     needs: release
     steps:
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@v2
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v2
       - name: Login to DockerHub
-        uses: docker/login-action@v1
+        uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Build and push
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v4
         with:
           build-args: |
             REPO=${{ github.repository }}
@@ -184,20 +191,18 @@ jobs:
             linux/arm/v7
           push: ${{ needs.release.outputs.rc == 'false' }}
           tags: ${{ github.repository }}:latest, ${{ github.repository }}:${{ github.ref_name }}
-          
+
   publish-crate:
     name: Publish to crates.io
     if: ${{ needs.release.outputs.rc == 'false' }}
     runs-on: ubuntu-latest
     needs: release
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-      - name: Publish
+      - uses: actions/checkout@v3
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
         run: cargo publish
