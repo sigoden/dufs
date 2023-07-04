@@ -26,12 +26,13 @@ use hyper::header::{
 use hyper::{Body, Method, StatusCode, Uri};
 use serde::Serialize;
 use std::borrow::Cow;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fs::Metadata;
 use std::io::SeekFrom;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{self, AtomicBool};
 use std::sync::Arc;
 use std::time::SystemTime;
 use tokio::fs::File;
@@ -495,7 +496,7 @@ impl Server {
                     let mut it = WalkDir::new(&dir).into_iter();
                     it.next();
                     while let Some(Ok(entry)) = it.next() {
-                        if !running.load(Ordering::SeqCst) {
+                        if !running.load(atomic::Ordering::SeqCst) {
                             break;
                         }
                         let entry_path = entry.path();
@@ -931,13 +932,28 @@ impl Server {
     ) -> Result<()> {
         if let Some(sort) = query_params.get("sort") {
             if sort == "name" {
-                paths.sort_by(|v1, v2| {
-                    alphanumeric_sort::compare_str(v1.name.to_lowercase(), v2.name.to_lowercase())
+                paths.sort_by(|v1, v2| match v1.path_type.cmp(&v2.path_type) {
+                    Ordering::Equal => {
+                        alphanumeric_sort::compare_str(v1.name.clone(), v2.name.clone())
+                    }
+                    v => v,
                 })
             } else if sort == "mtime" {
-                paths.sort_by(|v1, v2| v1.mtime.cmp(&v2.mtime))
+                paths.sort_by(|v1, v2| match v1.path_type.cmp(&v2.path_type) {
+                    Ordering::Equal => v1.mtime.cmp(&v2.mtime),
+                    v => v,
+                })
             } else if sort == "size" {
-                paths.sort_by(|v1, v2| v1.size.unwrap_or(0).cmp(&v2.size.unwrap_or(0)))
+                paths.sort_by(|v1, v2| match v1.path_type.cmp(&v2.path_type) {
+                    Ordering::Equal => {
+                        if v1.is_dir() {
+                            alphanumeric_sort::compare_str(v1.name.clone(), v2.name.clone())
+                        } else {
+                            v1.size.unwrap_or(0).cmp(&v2.size.unwrap_or(0))
+                        }
+                    }
+                    v => v,
+                })
             }
             if query_params
                 .get("order")
@@ -1254,12 +1270,30 @@ impl PathItem {
     }
 }
 
-#[derive(Debug, Serialize, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Serialize, Eq, PartialEq)]
 enum PathType {
     Dir,
     SymlinkDir,
     File,
     SymlinkFile,
+}
+
+impl Ord for PathType {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let to_value = |t: &Self| -> u8 {
+            if matches!(t, Self::Dir | Self::SymlinkDir) {
+                0
+            } else {
+                1
+            }
+        };
+        to_value(self).cmp(&to_value(other))
+    }
+}
+impl PartialOrd for PathType {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 fn to_timestamp(time: &SystemTime) -> u64 {
@@ -1336,7 +1370,7 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
             let mut it = WalkDir::new(&dir).into_iter();
             it.next();
             while let Some(Ok(entry)) = it.next() {
-                if !running.load(Ordering::SeqCst) {
+                if !running.load(atomic::Ordering::SeqCst) {
                     break;
                 }
                 let entry_path = entry.path();
