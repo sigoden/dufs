@@ -130,8 +130,7 @@ jobs:
         set -euxo pipefail
 
         bin=${GITHUB_REPOSITORY##*/}
-        src=`pwd`
-        dist=$src/dist
+        dist_dir=`pwd`/dist
         name=$bin-$version-$target
         executable=target/$target/release/$bin
 
@@ -139,18 +138,18 @@ jobs:
           executable=$executable.exe
         fi
 
-        mkdir $dist
-        cp $executable $dist
-        cd $dist
+        mkdir $dist_dir
+        cp $executable $dist_dir
+        cd $dist_dir
 
         if [[ "$RUNNER_OS" == "Windows" ]]; then
-            archive=$dist/$name.zip
+            archive=$dist_dir/$name.zip
             7z a $archive *
-            echo "archive=$archive" >> $GITHUB_OUTPUT
+            echo "archive=dist/$name.zip" >> $GITHUB_OUTPUT
         else
-            archive=$dist/$name.tar.gz
-            tar czf $archive *
-            echo "archive=$archive" >> $GITHUB_OUTPUT
+            archive=$dist_dir/$name.tar.gz
+            tar -czf $archive *
+            echo "archive=dist/$name.tar.gz" >> $GITHUB_OUTPUT
         fi
 
     - name: Publish Archive
