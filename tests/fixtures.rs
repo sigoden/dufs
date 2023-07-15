@@ -46,7 +46,7 @@ pub fn tmpdir() -> TempDir {
     let tmpdir = assert_fs::TempDir::new().expect("Couldn't create a temp dir for tests");
     for file in FILES {
         if *file == BIN_FILE {
-            tmpdir.child(file).write_binary(b"bin\0\0123").unwrap();
+            tmpdir.child(file).write_binary(b"bin\0\x00123").unwrap();
         } else {
             tmpdir
                 .child(file)
@@ -68,7 +68,7 @@ pub fn tmpdir() -> TempDir {
                 if *file == BIN_FILE {
                     tmpdir
                         .child(format!("{directory}{file}"))
-                        .write_binary(b"bin\0\0123")
+                        .write_binary(b"bin\0\x00123")
                         .unwrap();
                 } else {
                     tmpdir
