@@ -308,10 +308,10 @@ dufs --log-format '$remote_addr $remote_user "$request" $status' -a /@admin:admi
 All options can be set using environment variables prefixed with `DUFS_`.
 
 ```
-  [ROOT_DIR]                  DUFS_ROOT_DIR=/dir
+  [SERVE_PATH]                DUFS_SERVE_PATH=/dir
   -b, --bind <addrs>          DUFS_BIND=0.0.0.0
   -p, --port <port>           DUFS_PORT=5000
-      --path-prefix <path>    DUFS_PATH_RREFIX=/path
+      --path-prefix <path>    DUFS_PATH_PREFIX=/path
       --hidden <value>        DUFS_HIDDEN=*.log
   -a, --auth <rules>          DUFS_AUTH="admin:admin@/:rw|@/" 
       --auth-method <value>   DUFS_AUTH_METHOD=basic
