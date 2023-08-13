@@ -344,7 +344,7 @@ Your assets folder must contains a `index.html` file.
 `index.html` can use the following placeholder variables to retrieve internal data.
 
 - `__INDEX_DATA__`: directory listing data
-- `__ASSERTS_PREFIX__`: assets url prefix
+- `__ASSETS_PREFIX__`: assets url prefix
 
 </details>
 
