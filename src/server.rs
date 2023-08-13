@@ -775,7 +775,7 @@ impl Server {
             .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
         let output = self
             .html
-            .replace("__ASSERTS_PREFIX__", &self.assets_prefix)
+            .replace("__ASSETS_PREFIX__", &self.assets_prefix)
             .replace("__INDEX_DATA__", &serde_json::to_string(&data)?);
         res.headers_mut()
             .typed_insert(ContentLength(output.as_bytes().len() as u64));
@@ -1009,7 +1009,7 @@ impl Server {
             res.headers_mut()
                 .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
             self.html
-                .replace("__ASSERTS_PREFIX__", &self.assets_prefix)
+                .replace("__ASSETS_PREFIX__", &self.assets_prefix)
                 .replace("__INDEX_DATA__", &serde_json::to_string(&data)?)
         };
         res.headers_mut()

@@ -58,7 +58,7 @@ pub fn tmpdir() -> TempDir {
         if *directory == DIR_ASSETS {
             tmpdir
                 .child(format!("{}{}", directory, "index.html"))
-                .write_str("__ASSERTS_PREFIX__index.js;DATA = __INDEX_DATA__")
+                .write_str("__ASSETS_PREFIX__index.js;DATA = __INDEX_DATA__")
                 .unwrap();
         } else {
             for file in FILES {
