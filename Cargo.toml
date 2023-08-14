@@ -1,6 +1,6 @@
 [package]
 name = "dufs"
-version = "0.34.2"
+version = "0.35.0"
 edition = "2021"
 authors = ["sigoden <sigoden@gmail.com>"]
 description = "Dufs is a distinctive utility file server"
@@ -44,7 +44,7 @@ content_inspector = "0.2"
 anyhow = "1.0"
 chardetng = "0.1"
 glob = "0.3.1"
-indexmap = "1.9"
+indexmap = "2.0"
 
 [features]
 default = ["tls"]
@@ -55,13 +55,15 @@ assert_cmd = "2"
 reqwest = { version = "0.11", features = ["blocking", "multipart", "rustls-tls"], default-features = false }
 assert_fs = "1"
 port_check = "0.1"
-rstest = "0.17"
+rstest = "0.18"
 regex = "1"
 url = "2"
 diqwest = { version = "1", features = ["blocking"] }
 predicates = "3"
 
 [profile.release]
+opt-level = 3
 lto = true
-strip = true
-opt-level = "z"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
