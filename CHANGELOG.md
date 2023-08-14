@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.35.0] - 2023-08-14
+
+### Bug Fixes
+
+- Search should ignore entry path ([#235](https://github.com/sigoden/dufs/issues/235))
+- Typo __ASSERTS_PREFIX__ ([#252](https://github.com/sigoden/dufs/issues/252))
+
+### Features
+
+- Sort by type first, then sort by name/mtime/size ([#241](https://github.com/sigoden/dufs/issues/241))
+
 ## [0.34.2] - 2023-06-05
 
 ### Bug Fixes
