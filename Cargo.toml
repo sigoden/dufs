@@ -17,7 +17,7 @@ chrono = "0.4"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util", "signal"]}
 tokio-util = { version = "0.7",  features = ["io-util", "compat"] }
 hyper = { version = "0.14", features = ["http1", "server", "tcp", "stream"] }
-percent-encoding = "2.1"
+percent-encoding = "2.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 futures = "0.3"
@@ -31,14 +31,14 @@ rustls-pemfile = { version = "1", optional = true }
 tokio-rustls = { version = "0.24", optional = true }
 md5 = "0.7"
 lazy_static = "1.4"
-uuid = { version = "1.1", features = ["v4", "fast-rng"] }
+uuid = { version = "1.4", features = ["v4", "fast-rng"] }
 urlencoding = "2.1"
 xml-rs = "0.8"
 log = "0.4"
 socket2 = "0.5"
 async-stream = "0.3"
 walkdir = "2.3"
-form_urlencoded = "1.0"
+form_urlencoded = "1.2"
 alphanumeric-sort = "1.4"
 content_inspector = "0.2"
 anyhow = "1.0"
