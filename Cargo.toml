@@ -58,7 +58,7 @@ port_check = "0.1"
 rstest = "0.18"
 regex = "1"
 url = "2"
-diqwest = { version = "1", features = ["blocking"] }
+diqwest = { version = "1", features = ["blocking", "rustls-tls"], default-features = false }
 predicates = "3"
 
 [profile.release]
