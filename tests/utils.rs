@@ -59,7 +59,8 @@ pub fn encode_uri(v: &str) -> String {
     parts.join("/")
 }
 
-fn retrive_json(content: &str) -> Option<Value> {
+#[allow(dead_code)]
+pub fn retrive_json(content: &str) -> Option<Value> {
     let lines: Vec<&str> = content.lines().collect();
     let line = lines.iter().find(|v| v.contains("DATA ="))?;
     let line_col = line.find("DATA =").unwrap() + 6;

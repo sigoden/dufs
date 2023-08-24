@@ -460,7 +460,7 @@ impl Server {
     ) -> Result<()> {
         let mut paths = vec![];
         if exist {
-            paths = match self.list_dir(path, path, access_paths).await {
+            paths = match self.list_dir(path, path, access_paths.clone()).await {
                 Ok(paths) => paths,
                 Err(_) => {
                     status_forbid(res);
@@ -468,7 +468,16 @@ impl Server {
                 }
             }
         };
-        self.send_index(path, paths, exist, query_params, head_only, user, res)
+        self.send_index(
+            path,
+            paths,
+            exist,
+            query_params,
+            head_only,
+            user,
+            access_paths,
+            res,
+        )
     }
 
     async fn handle_search_dir(
@@ -490,6 +499,7 @@ impl Server {
             let hidden = Arc::new(self.args.hidden.to_vec());
             let hidden = hidden.clone();
             let running = self.running.clone();
+            let access_paths = access_paths.clone();
             let search_paths = tokio::task::spawn_blocking(move || {
                 let mut paths: Vec<PathBuf> = vec![];
                 for dir in access_paths.leaf_paths(&path_buf) {
@@ -534,7 +544,16 @@ impl Server {
                 }
             }
         }
-        self.send_index(path, paths, true, query_params, head_only, user, res)
+        self.send_index(
+            path,
+            paths,
+            true,
+            query_params,
+            head_only,
+            user,
+            access_paths,
+            res,
+        )
     }
 
     async fn handle_zip_dir(
@@ -928,6 +947,7 @@ impl Server {
         query_params: &HashMap<String, String>,
         head_only: bool,
         user: Option<String>,
+        access_paths: AccessPaths,
         res: &mut Response,
     ) -> Result<()> {
         if let Some(sort) = query_params.get("sort") {
@@ -988,12 +1008,13 @@ impl Server {
             return Ok(());
         }
         let href = format!("/{}", normalize_path(path.strip_prefix(&self.args.path)?));
+        let readwrite = access_paths.perm().readwrite();
         let data = IndexData {
             kind: DataKind::Index,
             href,
             uri_prefix: self.args.uri_prefix.clone(),
-            allow_upload: self.args.allow_upload,
-            allow_delete: self.args.allow_delete,
+            allow_upload: self.args.allow_upload && readwrite,
+            allow_delete: self.args.allow_delete && readwrite,
             allow_search: self.args.allow_search,
             allow_archive: self.args.allow_archive,
             dir_exists: exist,
