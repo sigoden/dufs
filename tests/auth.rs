@@ -213,3 +213,22 @@ fn no_auth_propfind_dir(
     assert!(body.contains("<D:href>/dir1/</D:href>"));
     Ok(())
 }
+
+#[rstest]
+fn auth_data(
+    #[with(&["--auth", "user:pass@/:rw|@/", "-A", "--auth-method", "basic"])] server: TestServer,
+) -> Result<(), Error> {
+    let resp = reqwest::blocking::get(server.url())?;
+    let content = resp.text()?;
+    let json = utils::retrive_json(&content).unwrap();
+    assert_eq!(json["allow_delete"], serde_json::Value::Bool(false));
+    assert_eq!(json["allow_upload"], serde_json::Value::Bool(false));
+    let resp = fetch!(b"GET", server.url())
+        .basic_auth("user", Some("pass"))
+        .send()?;
+    let content = resp.text()?;
+    let json = utils::retrive_json(&content).unwrap();
+    assert_eq!(json["allow_delete"], serde_json::Value::Bool(true));
+    assert_eq!(json["allow_upload"], serde_json::Value::Bool(true));
+    Ok(())
+}
