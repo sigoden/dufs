@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.36.0] - 2023-08-24
+
+### Bug Fixes
+
+- Ui readonly if no write perm ([#258](https://github.com/sigoden/dufs/issues/258))
+
+### Testing
+
+- Remove dependency on native tls ([#255](https://github.com/sigoden/dufs/issues/255))
+
 ## [0.35.0] - 2023-08-14
 
 ### Bug Fixes
