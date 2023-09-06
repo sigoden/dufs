@@ -952,28 +952,11 @@ impl Server {
     ) -> Result<()> {
         if let Some(sort) = query_params.get("sort") {
             if sort == "name" {
-                paths.sort_by(|v1, v2| match v1.path_type.cmp(&v2.path_type) {
-                    Ordering::Equal => {
-                        alphanumeric_sort::compare_str(v1.name.clone(), v2.name.clone())
-                    }
-                    v => v,
-                })
+                paths.sort_by(|v1, v2| v1.sort_by_name(v2))
             } else if sort == "mtime" {
-                paths.sort_by(|v1, v2| match v1.path_type.cmp(&v2.path_type) {
-                    Ordering::Equal => v1.mtime.cmp(&v2.mtime),
-                    v => v,
-                })
+                paths.sort_by(|v1, v2| v1.sort_by_mtime(v2))
             } else if sort == "size" {
-                paths.sort_by(|v1, v2| match v1.path_type.cmp(&v2.path_type) {
-                    Ordering::Equal => {
-                        if v1.is_dir() {
-                            alphanumeric_sort::compare_str(v1.name.clone(), v2.name.clone())
-                        } else {
-                            v1.size.unwrap_or(0).cmp(&v2.size.unwrap_or(0))
-                        }
-                    }
-                    v => v,
-                })
+                paths.sort_by(|v1, v2| v1.sort_by_size(v2))
             }
             if query_params
                 .get("order")
@@ -983,7 +966,7 @@ impl Server {
                 paths.reverse()
             }
         } else {
-            paths.sort_unstable();
+            paths.sort_by(|v1, v2| v1.sort_by_name(v2))
         }
         if query_params.contains_key("simple") {
             let output = paths
@@ -1286,8 +1269,41 @@ impl PathItem {
             ),
         }
     }
+
     pub fn base_name(&self) -> &str {
         self.name.split('/').last().unwrap_or_default()
+    }
+
+    pub fn sort_by_name(&self, other: &Self) -> Ordering {
+        match self.path_type.cmp(&other.path_type) {
+            Ordering::Equal => {
+                alphanumeric_sort::compare_str(self.name.to_lowercase(), other.name.to_lowercase())
+            }
+            v => v,
+        }
+    }
+
+    pub fn sort_by_mtime(&self, other: &Self) -> Ordering {
+        match self.path_type.cmp(&other.path_type) {
+            Ordering::Equal => self.mtime.cmp(&other.mtime),
+            v => v,
+        }
+    }
+
+    pub fn sort_by_size(&self, other: &Self) -> Ordering {
+        match self.path_type.cmp(&other.path_type) {
+            Ordering::Equal => {
+                if self.is_dir() {
+                    alphanumeric_sort::compare_str(
+                        self.name.to_lowercase(),
+                        other.name.to_lowercase(),
+                    )
+                } else {
+                    self.size.unwrap_or(0).cmp(&other.size.unwrap_or(0))
+                }
+            }
+            v => v,
+        }
     }
 }
 
