@@ -96,7 +96,7 @@ impl Server {
         addr: Option<SocketAddr>,
     ) -> Result<Response, hyper::Error> {
         let uri = req.uri().clone();
-        let assets_prefix = self.assets_prefix.clone();
+        let assets_prefix = &self.assets_prefix;
         let enable_cors = self.args.enable_cors;
         let mut http_log_data = self.args.log_http.data(&req, &self.args);
         if let Some(addr) = addr {
@@ -106,7 +106,7 @@ impl Server {
         let mut res = match self.clone().handle(req).await {
             Ok(res) => {
                 http_log_data.insert("status".to_string(), res.status().as_u16().to_string());
-                if !uri.path().starts_with(&assets_prefix) {
+                if !uri.path().starts_with(assets_prefix) {
                     self.args.log_http.log(&http_log_data, None);
                 }
                 res
