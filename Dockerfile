@@ -16,4 +16,5 @@ RUN if [ "$TARGETPLATFORM" = "linux/amd64" ]; then \
 FROM scratch
 COPY --from=builder /bin/dufs /bin/dufs
 STOPSIGNAL SIGINT
+EXPOSE 5000
 ENTRYPOINT ["/bin/dufs"]
