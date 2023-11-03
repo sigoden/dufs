@@ -86,6 +86,10 @@ let $editor;
  * @type Element
  */
 let $userBtn;
+/**
+ * @type Element
+ */
+let $userName;
 
 function ready() {
   $pathsTable = document.querySelector(".paths-table")
@@ -95,6 +99,7 @@ function ready() {
   $emptyFolder = document.querySelector(".empty-folder");
   $editor = document.querySelector(".editor");
   $userBtn = document.querySelector(".user-btn");
+  $userName = document.querySelector(".user-name");
 
   addBreadcrumb(DATA.href, DATA.uri_prefix);
 
@@ -438,7 +443,7 @@ function setupDropzone() {
 function setupAuth() {
   if (DATA.user) {
     $userBtn.classList.remove("hidden");
-    $userBtn.title = DATA.user;
+    $userName.textContent = DATA.user;
   } else {
     const $loginBtn = document.querySelector(".login-btn");
     $loginBtn.classList.remove("hidden");
@@ -669,7 +674,7 @@ async function checkAuth() {
   await assertResOK(res);
   document.querySelector(".login-btn").classList.add("hidden");
   $userBtn.classList.remove("hidden");
-  $userBtn.title = "";
+  $userName.textContent = "";
 }
 
 /**

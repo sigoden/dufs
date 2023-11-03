@@ -210,7 +210,7 @@ body {
   outline: none;
 }
 
-.toolbox2 {
+.toolbox-right {
   margin-left: auto;
   margin-right: 2em;
 }
@@ -218,6 +218,15 @@ body {
 .save-btn {
   cursor: pointer;
   user-select: none;
+}
+
+.user-btn {
+    display: flex;
+    align-items: center;
+}
+
+.user-name {
+  padding-left: 3px;
 }
 
 .not-editable {
