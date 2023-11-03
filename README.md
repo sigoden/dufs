@@ -58,7 +58,7 @@ Options:
   -p, --port <port>          Specify port to listen on [default: 5000]
       --path-prefix <path>   Specify a path prefix
       --hidden <value>       Hide paths from directory listings, separated by `,`
-  -a, --auth <rules>         Add auth role
+  -a, --auth <rules>         Add auth roles, e.g. user:pass@/dir1:rw,/dir2
   -A, --allow-all            Allow all operations
       --allow-upload         Allow upload files/folders
       --allow-delete         Allow delete files/folders
@@ -205,7 +205,8 @@ curl http://192.168.8.10:5000/file --user user:pass --digest        # digest aut
 Dufs supports account based access control. You can control who can do what on which path with `--auth`/`-a`.
 
 ```
-dufs -a [user:pass]@path[:rw][,path[:rw]...][|...]
+dufs -a user:pass@path1:rw,path2|user2:pass2@path1
+dufs -a user:pass@path1:rw,path2 -a user2:pass2@path1
 ```
 
 1. Multiple rules are separated by "|"
