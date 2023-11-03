@@ -239,17 +239,13 @@ impl AccessPerm {
     }
 }
 
-pub fn www_authenticate() -> Result<(HeaderValue, HeaderValue)> {
+pub fn www_authenticate() -> Result<HeaderValue> {
     let nonce = create_nonce()?;
-    let digest_value = format!(
-        "Digest realm=\"{}\", nonce=\"{}\", qop=\"auth\"",
-        REALM, nonce
+    let value = format!(
+        "Digest realm=\"{}\", nonce=\"{}\", qop=\"auth\", Basic realm=\"{}\"",
+        REALM, nonce, REALM
     );
-    let basic_value = format!("Basic realm=\"{}\"", REALM);
-    Ok((
-        HeaderValue::from_str(&digest_value)?,
-        HeaderValue::from_str(&basic_value)?,
-    ))
+    Ok(HeaderValue::from_str(&value)?)
 }
 
 pub fn get_auth_user(authorization: &HeaderValue) -> Option<String> {

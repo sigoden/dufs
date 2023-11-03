@@ -1022,9 +1022,8 @@ impl Server {
 
     fn auth_reject(&self, res: &mut Response) -> Result<()> {
         set_webdav_headers(res);
-        let (v1, v2) = www_authenticate()?;
-        res.headers_mut().insert(WWW_AUTHENTICATE, v1);
-        res.headers_mut().append(WWW_AUTHENTICATE, v2);
+        res.headers_mut()
+            .append(WWW_AUTHENTICATE, www_authenticate()?);
         // set 401 to make the browser pop up the login box
         *res.status_mut() = StatusCode::UNAUTHORIZED;
         Ok(())
