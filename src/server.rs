@@ -427,7 +427,12 @@ impl Server {
 
         futures::pin_mut!(body_reader);
 
-        io::copy(&mut body_reader, &mut file).await?;
+        let ret = io::copy(&mut body_reader, &mut file).await;
+        if ret.is_err() {
+            tokio::fs::remove_file(&path).await?;
+
+            ret?;
+        }
 
         *res.status_mut() = StatusCode::CREATED;
         Ok(())
