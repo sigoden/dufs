@@ -125,8 +125,8 @@ fn auth_nest_share(
 }
 
 #[rstest]
-#[case(server(&["--auth", "user:pass@/:rw", "--auth-method", "basic", "-A"]), "user", "pass")]
-#[case(server(&["--auth", "u1:p1@/:rw", "--auth-method", "basic", "-A"]), "u1", "p1")]
+#[case(server(&["--auth", "user:pass@/:rw", "-A"]), "user", "pass")]
+#[case(server(&["--auth", "u1:p1@/:rw", "-A"]), "u1", "p1")]
 fn auth_basic(
     #[case] server: TestServer,
     #[case] user: &str,
@@ -216,7 +216,7 @@ fn no_auth_propfind_dir(
 
 #[rstest]
 fn auth_data(
-    #[with(&["--auth", "user:pass@/:rw|@/", "-A", "--auth-method", "basic"])] server: TestServer,
+    #[with(&["--auth", "user:pass@/:rw|@/", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
     let resp = reqwest::blocking::get(server.url())?;
     let content = resp.text()?;
