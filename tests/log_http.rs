@@ -41,7 +41,7 @@ fn log_remote_user(
 
     assert_eq!(resp.status(), 200);
 
-    let mut buf = [0; 1000];
+    let mut buf = [0; 2000];
     let buf_len = stdout.read(&mut buf)?;
     let output = std::str::from_utf8(&buf[0..buf_len])?;
 

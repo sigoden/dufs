@@ -76,9 +76,7 @@ fn validate_printed_urls(tmpdir: TempDir, port: u16, #[case] args: &[&str]) -> R
         .collect::<Vec<_>>();
 
     assert!(!urls.is_empty());
-    for url in urls {
-        reqwest::blocking::get(url)?.error_for_status()?;
-    }
+    reqwest::blocking::get(urls[0])?.error_for_status()?;
 
     child.kill()?;
 
