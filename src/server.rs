@@ -1,6 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 
-use crate::auth::{AccessPaths, AccessPerm};
+use crate::auth::{www_authenticate, AccessPaths, AccessPerm};
 use crate::streamer::Streamer;
 use crate::utils::{
     decode_uri, encode_uri, get_file_mtime_and_mode, get_file_name, glob, try_get_file_name,
@@ -98,7 +98,7 @@ impl Server {
         let uri = req.uri().clone();
         let assets_prefix = &self.assets_prefix;
         let enable_cors = self.args.enable_cors;
-        let mut http_log_data = self.args.log_http.data(&req, &self.args);
+        let mut http_log_data = self.args.log_http.data(&req);
         if let Some(addr) = addr {
             http_log_data.insert("remote_addr".to_string(), addr.ip().to_string());
         }
@@ -149,12 +149,7 @@ impl Server {
             }
         };
 
-        let guard = self.args.auth.guard(
-            &relative_path,
-            &method,
-            authorization,
-            self.args.auth_method.clone(),
-        );
+        let guard = self.args.auth.guard(&relative_path, &method, authorization);
 
         let (user, access_paths) = match guard {
             (None, None) => {
@@ -1026,9 +1021,9 @@ impl Server {
     }
 
     fn auth_reject(&self, res: &mut Response) -> Result<()> {
-        let value = self.args.auth_method.www_auth()?;
         set_webdav_headers(res);
-        res.headers_mut().insert(WWW_AUTHENTICATE, value.parse()?);
+        res.headers_mut()
+            .append(WWW_AUTHENTICATE, www_authenticate()?);
         // set 401 to make the browser pop up the login box
         *res.status_mut() = StatusCode::UNAUTHORIZED;
         Ok(())
@@ -1061,12 +1056,10 @@ impl Server {
         };
 
         let authorization = headers.get(AUTHORIZATION);
-        let guard = self.args.auth.guard(
-            &relative_path,
-            req.method(),
-            authorization,
-            self.args.auth_method.clone(),
-        );
+        let guard = self
+            .args
+            .auth
+            .guard(&relative_path, req.method(), authorization);
 
         match guard {
             (_, Some(_)) => {}

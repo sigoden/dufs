@@ -9,7 +9,6 @@ use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 
 use crate::auth::AccessControl;
-use crate::auth::AuthMethod;
 use crate::log_http::{LogHttp, DEFAULT_LOG_FORMAT};
 #[cfg(feature = "tls")]
 use crate::tls::{load_certs, load_private_key};
@@ -83,6 +82,7 @@ pub fn build_cli() -> Command {
         )
         .arg(
             Arg::new("auth-method")
+                .hide(true)
                 .env("DUFS_AUTH_METHOD")
 				.hide_env(true)
                 .long("auth-method")
@@ -233,7 +233,6 @@ pub struct Args {
     pub path_prefix: String,
     pub uri_prefix: String,
     pub hidden: Vec<String>,
-    pub auth_method: AuthMethod,
     pub auth: AccessControl,
     pub allow_upload: bool,
     pub allow_delete: bool,
@@ -284,10 +283,6 @@ impl Args {
             .get_many::<String>("auth")
             .map(|auth| auth.map(|v| v.as_str()).collect())
             .unwrap_or_default();
-        let auth_method = match matches.get_one::<String>("auth-method").unwrap().as_str() {
-            "basic" => AuthMethod::Basic,
-            _ => AuthMethod::Digest,
-        };
         let auth = AccessControl::new(&auth)?;
         let allow_upload = matches.get_flag("allow-all") || matches.get_flag("allow-upload");
         let allow_delete = matches.get_flag("allow-all") || matches.get_flag("allow-delete");
@@ -329,7 +324,6 @@ impl Args {
             path_prefix,
             uri_prefix,
             hidden,
-            auth_method,
             auth,
             enable_cors,
             allow_delete,

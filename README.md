@@ -59,7 +59,6 @@ Options:
       --path-prefix <path>   Specify a path prefix
       --hidden <value>       Hide paths from directory listings, separated by `,`
   -a, --auth <rules>         Add auth role
-      --auth-method <value>  Select auth method [default: digest] [possible values: basic, digest]
   -A, --allow-all            Allow all operations
       --allow-upload         Allow upload files/folders
       --allow-delete         Allow delete files/folders
@@ -194,8 +193,8 @@ curl http://127.0.0.1:5000?q=Dockerfile&simple    # search for files, just like 
 With authorization
 
 ```
-curl --user user:pass --digest http://192.168.8.10:5000/file  # digest auth
-curl --user user:pass http://192.168.8.10:5000/file           # basic auth
+curl http://192.168.8.10:5000/file --user user:pass                 # basic auth
+curl http://192.168.8.10:5000/file --user user:pass --digest        # digest auth
 ```
 
 <details>
@@ -314,7 +313,6 @@ All options can be set using environment variables prefixed with `DUFS_`.
       --path-prefix <path>    DUFS_PATH_PREFIX=/path
       --hidden <value>        DUFS_HIDDEN=*.log
   -a, --auth <rules>          DUFS_AUTH="admin:admin@/:rw|@/" 
-      --auth-method <value>   DUFS_AUTH_METHOD=basic
   -A, --allow-all             DUFS_ALLOW_ALL=true
       --allow-upload          DUFS_ALLOW_UPLOAD=true
       --allow-delete          DUFS_ALLOW_DELETE=true
