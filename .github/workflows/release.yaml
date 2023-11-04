@@ -27,7 +27,7 @@ jobs:
         - target: aarch64-pc-windows-msvc
           os: windows-latest
           use-cross: true
-          cargo-flags: "--no-default-features"
+          cargo-flags: ""
         - target: x86_64-apple-darwin
           os: macos-latest
           cargo-flags: ""
@@ -94,6 +94,8 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
       with:
         targets: ${{ matrix.target }}
+        #  Since rust 1.72, mips platforms are tier 3
+        toolchain: 1.71
 
     - name: Install cross
       if: matrix.use-cross
