@@ -7,6 +7,8 @@ use predicates::str::contains;
 use reqwest::blocking::ClientBuilder;
 use rstest::rstest;
 
+use crate::fixtures::port;
+
 /// Can start the server with TLS and receive encrypted responses.
 #[rstest]
 #[case(server(&[
@@ -33,8 +35,16 @@ fn tls_works(#[case] server: TestServer) -> Result<(), Error> {
 /// Wrong path for cert throws error.
 #[rstest]
 fn wrong_path_cert() -> Result<(), Error> {
+    let port = port().to_string();
     Command::cargo_bin("dufs")?
-        .args(["--tls-cert", "wrong", "--tls-key", "tests/data/key.pem"])
+        .args([
+            "--tls-cert",
+            "wrong",
+            "--tls-key",
+            "tests/data/key.pem",
+            "--port",
+            &port,
+        ])
         .assert()
         .failure()
         .stderr(contains("Failed to access `wrong`"));
@@ -45,8 +55,16 @@ fn wrong_path_cert() -> Result<(), Error> {
 /// Wrong paths for key throws errors.
 #[rstest]
 fn wrong_path_key() -> Result<(), Error> {
+    let port = port().to_string();
     Command::cargo_bin("dufs")?
-        .args(["--tls-cert", "tests/data/cert.pem", "--tls-key", "wrong"])
+        .args([
+            "--tls-cert",
+            "tests/data/cert.pem",
+            "--tls-key",
+            "wrong",
+            "--port",
+            &port,
+        ])
         .assert()
         .failure()
         .stderr(contains("Failed to access `wrong`"));

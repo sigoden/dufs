@@ -16,7 +16,7 @@ extern crate log;
 use crate::args::{build_cli, print_completions, Args};
 use crate::server::{Request, Server};
 #[cfg(feature = "tls")]
-use crate::tls::{TlsAcceptor, TlsStream};
+use crate::tls::{load_certs, load_private_key, TlsAcceptor, TlsStream};
 
 use anyhow::{anyhow, Context, Result};
 use std::net::{IpAddr, SocketAddr, TcpListener as StdTcpListener};
@@ -88,9 +88,12 @@ fn serve(
             BindAddr::Address(ip) => {
                 let incoming = create_addr_incoming(SocketAddr::new(*ip, port))
                     .with_context(|| format!("Failed to bind `{ip}:{port}`"))?;
-                match args.tls.as_ref() {
+
+                match (&args.tls_cert, &args.tls_key) {
                     #[cfg(feature = "tls")]
-                    Some((certs, key)) => {
+                    (Some(cert_file), Some(key_file)) => {
+                        let certs = load_certs(cert_file)?;
+                        let key = load_private_key(key_file)?;
                         let config = ServerConfig::builder()
                             .with_safe_defaults()
                             .with_no_client_auth()
@@ -105,11 +108,7 @@ fn serve(
                             tokio::spawn(hyper::Server::builder(accepter).serve(new_service));
                         handles.push(server);
                     }
-                    #[cfg(not(feature = "tls"))]
-                    Some(_) => {
-                        unreachable!()
-                    }
-                    None => {
+                    (None, None) => {
                         let new_service = make_service_fn(move |socket: &AddrStream| {
                             let remote_addr = socket.remote_addr();
                             serve_func(Some(remote_addr))
@@ -117,6 +116,9 @@ fn serve(
                         let server =
                             tokio::spawn(hyper::Server::builder(incoming).serve(new_service));
                         handles.push(server);
+                    }
+                    _ => {
+                        unreachable!()
                     }
                 };
             }
@@ -195,7 +197,11 @@ fn print_listening(args: Arc<Args>) -> Result<()> {
                     IpAddr::V4(_) => format!("{}:{}", addr, args.port),
                     IpAddr::V6(_) => format!("[{}]:{}", addr, args.port),
                 };
-                let protocol = if args.tls.is_some() { "https" } else { "http" };
+                let protocol = if args.tls_cert.is_some() {
+                    "https"
+                } else {
+                    "http"
+                };
                 format!("{}://{}{}", protocol, addr, args.uri_prefix)
             }
             BindAddr::Path(path) => path.display().to_string(),

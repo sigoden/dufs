@@ -71,13 +71,13 @@ impl Server {
                 encode_uri(&format!(
                     "{}{}",
                     &args.uri_prefix,
-                    get_file_name(&args.path)
+                    get_file_name(&args.serve_path)
                 )),
             ]
         } else {
             vec![]
         };
-        let html = match args.assets_path.as_ref() {
+        let html = match args.assets.as_ref() {
             Some(path) => Cow::Owned(std::fs::read_to_string(path.join("index.html"))?),
             None => Cow::Borrowed(INDEX_HTML),
         };
@@ -180,7 +180,7 @@ impl Server {
                 .iter()
                 .any(|v| v.as_str() == req_path)
             {
-                self.handle_send_file(&self.args.path, headers, head_only, &mut res)
+                self.handle_send_file(&self.args.serve_path, headers, head_only, &mut res)
                     .await?;
             } else {
                 status_not_found(&mut res);
@@ -620,7 +620,7 @@ impl Server {
         res: &mut Response,
     ) -> Result<()> {
         if path.extension().is_none() {
-            let path = self.args.path.join(INDEX_NAME);
+            let path = self.args.serve_path.join(INDEX_NAME);
             self.handle_send_file(&path, headers, head_only, res)
                 .await?;
         } else {
@@ -636,7 +636,7 @@ impl Server {
         res: &mut Response,
     ) -> Result<bool> {
         if let Some(name) = req_path.strip_prefix(&self.assets_prefix) {
-            match self.args.assets_path.as_ref() {
+            match self.args.assets.as_ref() {
                 Some(assets_path) => {
                     let path = assets_path.join(name);
                     self.handle_send_file(&path, headers, false, res).await?;
@@ -776,7 +776,10 @@ impl Server {
     ) -> Result<()> {
         let (file, meta) = tokio::join!(fs::File::open(path), fs::metadata(path),);
         let (file, meta) = (file?, meta?);
-        let href = format!("/{}", normalize_path(path.strip_prefix(&self.args.path)?));
+        let href = format!(
+            "/{}",
+            normalize_path(path.strip_prefix(&self.args.serve_path)?)
+        );
         let mut buffer: Vec<u8> = vec![];
         file.take(1024).read_to_end(&mut buffer).await?;
         let editable = meta.len() <= TEXT_MAX_SIZE && content_inspector::inspect(&buffer).is_text();
@@ -822,12 +825,15 @@ impl Server {
             },
             None => 1,
         };
-        let mut paths = match self.to_pathitem(path, &self.args.path).await? {
+        let mut paths = match self.to_pathitem(path, &self.args.serve_path).await? {
             Some(v) => vec![v],
             None => vec![],
         };
         if depth != 0 {
-            match self.list_dir(path, &self.args.path, access_paths).await {
+            match self
+                .list_dir(path, &self.args.serve_path, access_paths)
+                .await
+            {
                 Ok(child) => paths.extend(child),
                 Err(_) => {
                     status_forbid(res);
@@ -847,7 +853,7 @@ impl Server {
     }
 
     async fn handle_propfind_file(&self, path: &Path, res: &mut Response) -> Result<()> {
-        if let Some(pathitem) = self.to_pathitem(path, &self.args.path).await? {
+        if let Some(pathitem) = self.to_pathitem(path, &self.args.serve_path).await? {
             res_multistatus(res, &pathitem.to_dav_xml(self.args.uri_prefix.as_str()));
         } else {
             status_not_found(res);
@@ -990,7 +996,10 @@ impl Server {
             }
             return Ok(());
         }
-        let href = format!("/{}", normalize_path(path.strip_prefix(&self.args.path)?));
+        let href = format!(
+            "/{}",
+            normalize_path(path.strip_prefix(&self.args.serve_path)?)
+        );
         let readwrite = access_paths.perm().readwrite();
         let data = IndexData {
             kind: DataKind::Index,
@@ -1038,7 +1047,7 @@ impl Server {
         fs::canonicalize(path)
             .await
             .ok()
-            .map(|v| v.starts_with(&self.args.path))
+            .map(|v| v.starts_with(&self.args.serve_path))
             .unwrap_or_default()
     }
 
@@ -1104,14 +1113,14 @@ impl Server {
 
     fn join_path(&self, path: &str) -> Option<PathBuf> {
         if path.is_empty() {
-            return Some(self.args.path.clone());
+            return Some(self.args.serve_path.clone());
         }
         let path = if cfg!(windows) {
             path.replace('/', "\\")
         } else {
             path.to_string()
         };
-        Some(self.args.path.join(path))
+        Some(self.args.serve_path.join(path))
     }
 
     async fn list_dir(

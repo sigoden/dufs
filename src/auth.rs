@@ -25,21 +25,26 @@ lazy_static! {
     };
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct AccessControl {
     users: IndexMap<String, (String, AccessPaths)>,
     anony: Option<AccessPaths>,
 }
 
+impl Default for AccessControl {
+    fn default() -> Self {
+        AccessControl {
+            anony: Some(AccessPaths::new(AccessPerm::ReadWrite)),
+            users: IndexMap::new(),
+        }
+    }
+}
+
 impl AccessControl {
     pub fn new(raw_rules: &[&str]) -> Result<Self> {
         if raw_rules.is_empty() {
-            return Ok(AccessControl {
-                anony: Some(AccessPaths::new(AccessPerm::ReadWrite)),
-                users: IndexMap::new(),
-            });
+            return Ok(Default::default());
         }
-
         let create_err = |v: &str| anyhow!("Invalid auth `{v}`");
         let mut anony = None;
         let mut anony_paths = vec![];

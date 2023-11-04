@@ -1,0 +1,9 @@
+bind:
+  - 0.0.0.0
+path-prefix: dufs
+hidden:
+  - dir3
+  - test.txt
+auth: 
+  - user:pass@/:rw
+allow-upload: true
