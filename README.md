@@ -247,7 +247,7 @@ dufs -A -a admin:admin@/
 ```
 Since dufs only allows viewing/downloading, `admin` can only view/download files.
 
-### Hashed Password
+#### Hashed Password
 
 DUFS supports the use of sha-512 hashed password.
 
