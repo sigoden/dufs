@@ -41,7 +41,7 @@ fn log_remote_user(
 
     assert_eq!(resp.status(), 200);
 
-    let mut buf = [0; 4096];
+    let mut buf = [0; 2048];
     let buf_len = stdout.read(&mut buf)?;
     let output = std::str::from_utf8(&buf[0..buf_len])?;
 
@@ -69,7 +69,7 @@ fn no_log(tmpdir: TempDir, port: u16, #[case] args: &[&str]) -> Result<(), Error
     let resp = fetch!(b"GET", &format!("http://localhost:{port}")).send()?;
     assert_eq!(resp.status(), 200);
 
-    let mut buf = [0; 4096];
+    let mut buf = [0; 2048];
     let buf_len = stdout.read(&mut buf)?;
     let output = std::str::from_utf8(&buf[0..buf_len])?;
 

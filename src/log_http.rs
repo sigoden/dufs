@@ -9,6 +9,12 @@ pub struct LogHttp {
     elements: Vec<LogElement>,
 }
 
+impl Default for LogHttp {
+    fn default() -> Self {
+        DEFAULT_LOG_FORMAT.parse().unwrap()
+    }
+}
+
 #[derive(Debug)]
 enum LogElement {
     Variable(String),

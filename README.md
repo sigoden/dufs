@@ -48,16 +48,17 @@ Download from [Github Releases](https://github.com/sigoden/dufs/releases), unzip
 ```
 Dufs is a distinctive utility file server - https://github.com/sigoden/dufs
 
-Usage: dufs [OPTIONS] [serve_path]
+Usage: dufs [OPTIONS] [serve-path]
 
 Arguments:
-  [serve_path]  Specific path to serve [default: .]
+  [serve-path]  Specific path to serve [default: .]
 
 Options:
+  -c, --config <config>      Specify configuration file
   -b, --bind <addrs>         Specify bind address or unix socket
   -p, --port <port>          Specify port to listen on [default: 5000]
       --path-prefix <path>   Specify a path prefix
-      --hidden <value>       Hide paths from directory listings, separated by `,`
+      --hidden <value>       Hide paths from directory listings, e.g. tmp,*.log,*.lock
   -a, --auth <rules>         Add auth roles, e.g. user:pass@/dir1:rw,/dir2
   -A, --allow-all            Allow all operations
       --allow-upload         Allow upload files/folders
@@ -69,11 +70,11 @@ Options:
       --render-index         Serve index.html when requesting a directory, returns 404 if not found index.html
       --render-try-index     Serve index.html when requesting a directory, returns directory listing if not found index.html
       --render-spa           Serve SPA(Single Page Application)
-      --assets <path>        Use custom assets to override builtin assets
-      --tls-cert <path>      Path to an SSL/TLS certificate to serve with HTTPS
-      --tls-key <path>       Path to the SSL/TLS certificate's private key
+      --assets <path>        Set the path to the assets directory for overriding the built-in assets
       --log-format <format>  Customize http log format
       --completions <shell>  Print shell completion script for <shell> [possible values: bash, elvish, fish, powershell, zsh]
+      --tls-cert <path>      Path to an SSL/TLS certificate to serve with HTTPS
+      --tls-key <path>       Path to the SSL/TLS certificate's private key
   -h, --help                 Print help
   -V, --version              Print version
 ```
@@ -308,7 +309,7 @@ dufs --log-format '$remote_addr $remote_user "$request" $status' -a /@admin:admi
 All options can be set using environment variables prefixed with `DUFS_`.
 
 ```
-  [SERVE_PATH]                DUFS_SERVE_PATH=/dir
+  [serve-path]                DUFS_SERVE_PATH=/dir
   -b, --bind <addrs>          DUFS_BIND=0.0.0.0
   -p, --port <port>           DUFS_PORT=5000
       --path-prefix <path>    DUFS_PATH_PREFIX=/path
@@ -325,9 +326,44 @@ All options can be set using environment variables prefixed with `DUFS_`.
       --render-try-index      DUFS_RENDER_TRY_INDEX=true
       --render-spa            DUFS_RENDER_SPA=true
       --assets <path>         DUFS_ASSETS=/assets
+      --log-format <format>   DUFS_LOG_FORMAT=""
       --tls-cert <path>       DUFS_TLS_CERT=cert.pem
       --tls-key <path>        DUFS_TLS_KEY=key.pem
-      --log-format <format>   DUFS_LOG_FORMAT=""
+```
+
+## Configuration File
+
+You can specify and use the configuration file by selecting the option `--config <path-to-config.yaml>`.
+
+The following are the configuration items:
+
+```yaml
+server-path: '.'
+bind:
+  - 192.168.8.10
+port: 5000
+path-prefix: /dufs
+hidden:
+  - tmp
+  - '*.log'
+  - '*.lock'
+auth:
+  - admin:admin@/:rw
+  - user:pass@/src:rw,/share
+allow-all: false
+allow-upload: true
+allow-delete: true
+allow-search: true
+allow-symlink: true
+allow-archive: true
+enable-cors: true
+render-index: true
+render-try-index: true
+render-spa: true
+assets: ./assets/
+log-format: '$remote_addr "$request" $status $http_user_agent'
+tls-cert: tests/data/cert.pem
+tls-key: tests/data/key_pkcs1.pem
 ```
 
 ### Customize UI
