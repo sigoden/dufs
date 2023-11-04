@@ -98,7 +98,7 @@ impl Server {
         let uri = req.uri().clone();
         let assets_prefix = &self.assets_prefix;
         let enable_cors = self.args.enable_cors;
-        let mut http_log_data = self.args.log_http.data(&req);
+        let mut http_log_data = self.args.http_logger.data(&req);
         if let Some(addr) = addr {
             http_log_data.insert("remote_addr".to_string(), addr.ip().to_string());
         }
@@ -107,7 +107,7 @@ impl Server {
             Ok(res) => {
                 http_log_data.insert("status".to_string(), res.status().as_u16().to_string());
                 if !uri.path().starts_with(assets_prefix) {
-                    self.args.log_http.log(&http_log_data, None);
+                    self.args.http_logger.log(&http_log_data, None);
                 }
                 res
             }
@@ -117,7 +117,7 @@ impl Server {
                 *res.status_mut() = status;
                 http_log_data.insert("status".to_string(), status.as_u16().to_string());
                 self.args
-                    .log_http
+                    .http_logger
                     .log(&http_log_data, Some(err.to_string()));
                 res
             }

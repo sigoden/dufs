@@ -8,7 +8,7 @@ use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 
 use crate::auth::AccessControl;
-use crate::log_http::LogHttp;
+use crate::http_logger::HttpLogger;
 use crate::utils::encode_uri;
 
 pub fn build_cli() -> Command {
@@ -260,7 +260,7 @@ pub struct Args {
     pub assets: Option<PathBuf>,
     #[serde(deserialize_with = "deserialize_log_http")]
     #[serde(rename = "log-format")]
-    pub log_http: LogHttp,
+    pub http_logger: HttpLogger,
     pub tls_cert: Option<PathBuf>,
     pub tls_key: Option<PathBuf>,
 }
@@ -361,7 +361,7 @@ impl Args {
         }
 
         if let Some(log_format) = matches.get_one::<String>("log-format") {
-            args.log_http = log_format.parse()?;
+            args.http_logger = log_format.parse()?;
         }
 
         if let Some(assets_path) = matches.get_one::<PathBuf>("assets") {
@@ -468,7 +468,7 @@ where
     AccessControl::new(&rules).map_err(serde::de::Error::custom)
 }
 
-fn deserialize_log_http<'de, D>(deserializer: D) -> Result<LogHttp, D::Error>
+fn deserialize_log_http<'de, D>(deserializer: D) -> Result<HttpLogger, D::Error>
 where
     D: Deserializer<'de>,
 {

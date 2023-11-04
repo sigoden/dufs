@@ -1,6 +1,6 @@
 mod args;
 mod auth;
-mod log_http;
+mod http_logger;
 mod logger;
 mod server;
 mod streamer;
