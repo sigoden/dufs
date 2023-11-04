@@ -5,11 +5,11 @@ use crate::{auth::get_auth_user, server::Request};
 pub const DEFAULT_LOG_FORMAT: &str = r#"$remote_addr "$request" $status"#;
 
 #[derive(Debug)]
-pub struct LogHttp {
+pub struct HttpLogger {
     elements: Vec<LogElement>,
 }
 
-impl Default for LogHttp {
+impl Default for HttpLogger {
     fn default() -> Self {
         DEFAULT_LOG_FORMAT.parse().unwrap()
     }
@@ -22,7 +22,7 @@ enum LogElement {
     Literal(String),
 }
 
-impl LogHttp {
+impl HttpLogger {
     pub fn data(&self, req: &Request) -> HashMap<String, String> {
         let mut data = HashMap::default();
         for element in self.elements.iter() {
@@ -70,7 +70,7 @@ impl LogHttp {
     }
 }
 
-impl FromStr for LogHttp {
+impl FromStr for HttpLogger {
     type Err = anyhow::Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut elements = vec![];
