@@ -11,7 +11,7 @@ use std::{
 };
 use uuid::Uuid;
 
-use crate::utils::unix_now;
+use crate::{args::Args, utils::unix_now};
 
 const REALM: &str = "DUFS";
 const DIGEST_AUTH_TIMEOUT: u32 = 604800; // 7 days
@@ -27,6 +27,7 @@ lazy_static! {
 
 #[derive(Debug)]
 pub struct AccessControl {
+    use_hashed_password: bool,
     users: IndexMap<String, (String, AccessPaths)>,
     anony: Option<AccessPaths>,
 }
@@ -34,6 +35,7 @@ pub struct AccessControl {
 impl Default for AccessControl {
     fn default() -> Self {
         AccessControl {
+            use_hashed_password: false,
             anony: Some(AccessPaths::new(AccessPerm::ReadWrite)),
             users: IndexMap::new(),
         }
@@ -45,6 +47,7 @@ impl AccessControl {
         if raw_rules.is_empty() {
             return Ok(Default::default());
         }
+        let mut use_hashed_password = false;
         let create_err = |v: &str| anyhow!("Invalid auth `{v}`");
         let mut anony = None;
         let mut anony_paths = vec![];
@@ -72,6 +75,9 @@ impl AccessControl {
                 if user.is_empty() || pass.is_empty() {
                     return Err(create_err(rule));
                 }
+                if pass.starts_with("$6$") {
+                    use_hashed_password = true;
+                }
                 users.insert(user.to_string(), (pass.to_string(), paths));
             } else {
                 return Err(create_err(rule));
@@ -82,7 +88,11 @@ impl AccessControl {
                 paths.add(path, perm)
             }
         }
-        Ok(Self { users, anony })
+        Ok(Self {
+            use_hashed_password,
+            users,
+            anony,
+        })
     }
 
     pub fn exist(&self) -> bool {
@@ -244,12 +254,16 @@ impl AccessPerm {
     }
 }
 
-pub fn www_authenticate() -> Result<HeaderValue> {
-    let nonce = create_nonce()?;
-    let value = format!(
-        "Digest realm=\"{}\", nonce=\"{}\", qop=\"auth\", Basic realm=\"{}\"",
-        REALM, nonce, REALM
-    );
+pub fn www_authenticate(args: &Args) -> Result<HeaderValue> {
+    let value = if args.auth.use_hashed_password {
+        format!("Basic realm=\"{}\"", REALM)
+    } else {
+        let nonce = create_nonce()?;
+        format!(
+            "Digest realm=\"{}\", nonce=\"{}\", qop=\"auth\", Basic realm=\"{}\"",
+            REALM, nonce, REALM
+        )
+    };
     Ok(HeaderValue::from_str(&value)?)
 }
 
@@ -274,14 +288,18 @@ pub fn check_auth(
     auth_pass: &str,
 ) -> Option<()> {
     if let Some(value) = strip_prefix(authorization.as_bytes(), b"Basic ") {
-        let basic_value: Vec<u8> = general_purpose::STANDARD.decode(value).ok()?;
-        let parts: Vec<&str> = std::str::from_utf8(&basic_value).ok()?.split(':').collect();
+        let value: Vec<u8> = general_purpose::STANDARD.decode(value).ok()?;
+        let parts: Vec<&str> = std::str::from_utf8(&value).ok()?.split(':').collect();
 
         if parts[0] != auth_user {
             return None;
         }
 
-        if parts[1] == auth_pass {
+        if auth_pass.starts_with("$6$") {
+            if let Ok(()) = sha_crypt::sha512_check(parts[1], auth_pass) {
+                return Some(());
+            }
+        } else if parts[1] == auth_pass {
             return Some(());
         }
 

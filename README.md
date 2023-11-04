@@ -243,9 +243,32 @@ dufs -A -a user:pass@/dir1:rw,/dir2:rw,dir3
 `user` has all permissions for `/dir1/*` and `/dir2/*`, has readonly permissions for `/dir3/`.
 
 ```
-dufs -a admin:admin@/
+dufs -A -a admin:admin@/
 ```
 Since dufs only allows viewing/downloading, `admin` can only view/download files.
+
+### Hashed Password
+
+DUFS supports the use of sha-512 hashed password.
+
+Create hashed password
+
+```
+$ mkpasswd  -m sha-512 -s
+Password: 123456 
+$6$qCAVUG7yn7t/hH4d$BWm8r5MoDywNmDP/J3V2S2a6flmKHC1IpblfoqZfuK.LtLBZ0KFXP9QIfJP8RqL8MCw4isdheoAMTuwOz.pAO/
+```
+
+Use hashed password
+```
+dufs -A -a 'admin:$6$qCAVUG7yn7t/hH4d$BWm8r5MoDywNmDP/J3V2S2a6flmKHC1IpblfoqZfuK.LtLBZ0KFXP9QIfJP8RqL8MCw4isdheoAMTuwOz.pAO/@/:rw'
+```
+
+Two important things for hashed passwords:
+
+1. Dufs only supports SHA-512 hashed passwords, so ensure that the password string always starts with `$6$`.
+2. Digest auth does not work with hashed passwords.
+
 
 ### Hide Paths
 

@@ -29,6 +29,32 @@ fn auth(#[with(&["--auth", "user:pass@/:rw", "-A"])] server: TestServer) -> Resu
     Ok(())
 }
 
+const HASHED_PASSWORD_AUTH: &str =  "user:$6$gQxZwKyWn/ZmWEA2$4uV7KKMnSUnET2BtWTj/9T5.Jq3h/MdkOlnIl5hdlTxDZ4MZKmJ.kl6C.NL9xnNPqC4lVHC1vuI0E5cLpTJX81@/:rw"; // user:pass
+
+#[rstest]
+fn auth_hashed_password(
+    #[with(&["--auth", HASHED_PASSWORD_AUTH, "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    let url = format!("{}file1", server.url());
+    let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
+    assert_eq!(resp.status(), 401);
+    if let Err(err) = fetch!(b"PUT", &url)
+        .body(b"abc".to_vec())
+        .send_with_digest_auth("user", "pass")
+    {
+        assert_eq!(
+            format!("{err:?}"),
+            r#"DigestAuth(MissingRequired("realm", "Basic realm=\"DUFS\""))"#
+        );
+    }
+    let resp = fetch!(b"PUT", &url)
+        .body(b"abc".to_vec())
+        .basic_auth("user", Some("pass"))
+        .send()?;
+    assert_eq!(resp.status(), 201);
+    Ok(())
+}
+
 #[rstest]
 fn auth_and_public(
     #[with(&["--auth", "user:pass@/:rw|@/", "-A"])] server: TestServer,
