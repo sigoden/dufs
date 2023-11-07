@@ -361,7 +361,7 @@ You can specify and use the configuration file by selecting the option `--config
 The following are the configuration items:
 
 ```yaml
-server-path: '.'
+serve-path: '.'
 bind:
   - 192.168.8.10
 port: 5000
