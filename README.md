@@ -333,6 +333,7 @@ All options can be set using environment variables prefixed with `DUFS_`.
 
 ```
   [serve-path]                DUFS_SERVE_PATH=/dir
+      --config <path>         DUFS_CONFIG=config.yaml
   -b, --bind <addrs>          DUFS_BIND=0.0.0.0
   -p, --port <port>           DUFS_PORT=5000
       --path-prefix <path>    DUFS_PATH_PREFIX=/path

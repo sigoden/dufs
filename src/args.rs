@@ -29,7 +29,7 @@ pub fn build_cli() -> Command {
         )
         .arg(
             Arg::new("config")
-                .env("DUFS_SERVE_PATH")
+                .env("DUFS_CONFIG")
 				.hide_env(true)
                 .short('c')
                 .long("config")
