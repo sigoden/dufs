@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.37.1] - 2023-11-08
+
+### Bug Fixes
+
+- Use DUFS_CONFIG to specify the config file path ([#286](https://github.com/sigoden/dufs/issues/286)
+
 ## [0.37.0] - 2023-11-08
 
 ### Bug Fixes
