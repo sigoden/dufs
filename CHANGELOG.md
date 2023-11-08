@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.37.0] - 2023-11-08
+
+### Bug Fixes
+
+- Sort path ignore case ([#264](https://github.com/sigoden/dufs/issues/264))
+- Ui show user-name next to the user-icon ([#278](https://github.com/sigoden/dufs/issues/278))
+- Auto delete half-uploaded files ([#280](https://github.com/sigoden/dufs/issues/280))
+
+### Features
+
+- Deprecate `--auth-method`,  as both options are available ([#279](https://github.com/sigoden/dufs/issues/279))
+- Support config file with `--config` option ([#281](https://github.com/sigoden/dufs/issues/281))
+- Support hashed password ([#283](https://github.com/sigoden/dufs/issues/283))
+
+### Refactor
+
+- Remove one clone on `assets_prefix` ([#270](https://github.com/sigoden/dufs/issues/270))
+- Optimize tests
+- Improve code quanity ([#282](https://github.com/sigoden/dufs/issues/282))
+
 ## [0.36.0] - 2023-08-24
 
 ### Bug Fixes
