@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en-US">
 
 <head>
   <meta charset="utf-8" />
@@ -48,7 +48,7 @@
               d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z" />
           </svg>
         </label>
-        <input type="file" id="file" name="file" multiple>
+        <input type="file" id="file" title="Upload files" name="file" multiple>
       </div>
       <div class="control new-folder hidden" title="New folder">
         <svg width="16" height="16" viewBox="0 0 16 16">
@@ -74,7 +74,7 @@
             d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z" />
         </svg>
       </div>
-      <input id="search" name="q" type="text" maxlength="128" autocomplete="off" tabindex="1">
+      <input id="search" title="Searching for folders or files" name="q" type="text" maxlength="128" autocomplete="off" tabindex="1">
       <input type="submit" hidden />
     </form>
     <div class="toolbox-right">
@@ -122,7 +122,7 @@
     </div>
     <div class="editor-page hidden">
       <div class="not-editable hidden"></div>
-      <textarea class="editor hidden" cols="10"></textarea>
+      <textarea id="editor" class="editor hidden" title="Edit file" cols="10"></textarea>
     </div>
   </div>
   <script>

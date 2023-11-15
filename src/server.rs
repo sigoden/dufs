@@ -15,9 +15,9 @@ use async_zip::{Compression, ZipDateTime, ZipEntryBuilder};
 use chrono::{LocalResult, TimeZone, Utc};
 use futures::TryStreamExt;
 use headers::{
-    AcceptRanges, AccessControlAllowCredentials, AccessControlAllowOrigin, ContentLength,
-    ContentType, ETag, HeaderMap, HeaderMapExt, IfModifiedSince, IfNoneMatch, IfRange,
-    LastModified, Range,
+    AcceptRanges, AccessControlAllowCredentials, AccessControlAllowOrigin, CacheControl,
+    ContentLength, ContentType, ETag, HeaderMap, HeaderMapExt, IfModifiedSince, IfNoneMatch,
+    IfRange, LastModified, Range,
 };
 use hyper::header::{
     HeaderValue, AUTHORIZATION, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE,
@@ -646,13 +646,15 @@ impl Server {
                         *res.body_mut() = Body::from(INDEX_JS);
                         res.headers_mut().insert(
                             "content-type",
-                            HeaderValue::from_static("application/javascript"),
+                            HeaderValue::from_static("application/javascript; charset=UTF-8"),
                         );
                     }
                     "index.css" => {
                         *res.body_mut() = Body::from(INDEX_CSS);
-                        res.headers_mut()
-                            .insert("content-type", HeaderValue::from_static("text/css"));
+                        res.headers_mut().insert(
+                            "content-type",
+                            HeaderValue::from_static("text/css; charset=UTF-8"),
+                        );
                     }
                     "favicon.ico" => {
                         *res.body_mut() = Body::from(FAVICON_ICO);
@@ -666,7 +668,11 @@ impl Server {
             }
             res.headers_mut().insert(
                 "cache-control",
-                HeaderValue::from_static("max-age=2592000, public"),
+                HeaderValue::from_static("public, max-age=31536000, immutable"),
+            );
+            res.headers_mut().insert(
+                "x-content-type-options",
+                HeaderValue::from_static("nosniff"),
             );
             Ok(true)
         } else {
@@ -1027,6 +1033,12 @@ impl Server {
         };
         res.headers_mut()
             .typed_insert(ContentLength(output.as_bytes().len() as u64));
+        res.headers_mut()
+            .typed_insert(CacheControl::new().with_no_cache());
+        res.headers_mut().insert(
+            "x-content-type-options",
+            HeaderValue::from_static("nosniff"),
+        );
         if head_only {
             return Ok(());
         }

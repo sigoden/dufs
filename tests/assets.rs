@@ -32,7 +32,7 @@ fn asset_js(server: TestServer) -> Result<(), Error> {
     assert_eq!(resp.status(), 200);
     assert_eq!(
         resp.headers().get("content-type").unwrap(),
-        "application/javascript"
+        "application/javascript; charset=UTF-8"
     );
     Ok(())
 }
@@ -46,7 +46,10 @@ fn asset_css(server: TestServer) -> Result<(), Error> {
     );
     let resp = reqwest::blocking::get(url)?;
     assert_eq!(resp.status(), 200);
-    assert_eq!(resp.headers().get("content-type").unwrap(), "text/css");
+    assert_eq!(
+        resp.headers().get("content-type").unwrap(),
+        "text/css; charset=UTF-8"
+    );
     Ok(())
 }
 
@@ -90,7 +93,7 @@ fn asset_js_with_prefix(
     assert_eq!(resp.status(), 200);
     assert_eq!(
         resp.headers().get("content-type").unwrap(),
-        "application/javascript"
+        "application/javascript; charset=UTF-8"
     );
     Ok(())
 }
