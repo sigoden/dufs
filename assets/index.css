@@ -73,6 +73,10 @@ body {
   display: none;
 }
 
+.upload-file label {
+  cursor: pointer;
+}
+
 .searchbar {
   display: flex;
   flex-wrap: nowrap;
