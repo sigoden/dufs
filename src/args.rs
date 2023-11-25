@@ -237,7 +237,9 @@ pub struct Args {
     pub serve_path: PathBuf,
     #[serde(deserialize_with = "deserialize_bind_addrs")]
     #[serde(rename = "bind")]
+    #[serde(default = "default_addrs")]
     pub addrs: Vec<BindAddr>,
+    #[serde(default = "default_port")]
     pub port: u16,
     #[serde(skip)]
     pub path_is_file: bool,
@@ -273,8 +275,8 @@ impl Args {
     pub fn parse(matches: ArgMatches) -> Result<Args> {
         let mut args = Self {
             serve_path: default_serve_path(),
-            addrs: BindAddr::parse_addrs(&["0.0.0.0", "::"]).unwrap(),
-            port: 5000,
+            addrs: default_addrs(),
+            port: default_port(),
             ..Default::default()
         };
 
@@ -478,4 +480,12 @@ where
 
 fn default_serve_path() -> PathBuf {
     PathBuf::from(".")
+}
+
+fn default_addrs() -> Vec<BindAddr> {
+    BindAddr::parse_addrs(&["0.0.0.0", "::"]).unwrap()
+}
+
+fn default_port() -> u16 {
+    5000
 }
