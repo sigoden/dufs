@@ -332,27 +332,27 @@ dufs --log-format '$remote_addr $remote_user "$request" $status' -a /@admin:admi
 All options can be set using environment variables prefixed with `DUFS_`.
 
 ```
-  [serve-path]                DUFS_SERVE_PATH=/dir
-      --config <path>         DUFS_CONFIG=config.yaml
-  -b, --bind <addrs>          DUFS_BIND=0.0.0.0
-  -p, --port <port>           DUFS_PORT=5000
-      --path-prefix <path>    DUFS_PATH_PREFIX=/path
-      --hidden <value>        DUFS_HIDDEN=*.log
-  -a, --auth <rules>          DUFS_AUTH="admin:admin@/:rw|@/" 
-  -A, --allow-all             DUFS_ALLOW_ALL=true
-      --allow-upload          DUFS_ALLOW_UPLOAD=true
-      --allow-delete          DUFS_ALLOW_DELETE=true
-      --allow-search          DUFS_ALLOW_SEARCH=true
-      --allow-symlink         DUFS_ALLOW_SYMLINK=true
-      --allow-archive         DUFS_ALLOW_ARCHIVE=true
-      --enable-cors           DUFS_ENABLE_CORS=true
-      --render-index          DUFS_RENDER_INDEX=true
-      --render-try-index      DUFS_RENDER_TRY_INDEX=true
-      --render-spa            DUFS_RENDER_SPA=true
-      --assets <path>         DUFS_ASSETS=/assets
-      --log-format <format>   DUFS_LOG_FORMAT=""
-      --tls-cert <path>       DUFS_TLS_CERT=cert.pem
-      --tls-key <path>        DUFS_TLS_KEY=key.pem
+[serve-path]                DUFS_SERVE_PATH="."
+    --config <path>         DUFS_CONFIG=config.yaml
+-b, --bind <addrs>          DUFS_BIND=0.0.0.0
+-p, --port <port>           DUFS_PORT=5000
+    --path-prefix <path>    DUFS_PATH_PREFIX=/path
+    --hidden <value>        DUFS_HIDDEN=*.log
+-a, --auth <rules>          DUFS_AUTH="admin:admin@/:rw|@/" 
+-A, --allow-all             DUFS_ALLOW_ALL=true
+    --allow-upload          DUFS_ALLOW_UPLOAD=true
+    --allow-delete          DUFS_ALLOW_DELETE=true
+    --allow-search          DUFS_ALLOW_SEARCH=true
+    --allow-symlink         DUFS_ALLOW_SYMLINK=true
+    --allow-archive         DUFS_ALLOW_ARCHIVE=true
+    --enable-cors           DUFS_ENABLE_CORS=true
+    --render-index          DUFS_RENDER_INDEX=true
+    --render-try-index      DUFS_RENDER_TRY_INDEX=true
+    --render-spa            DUFS_RENDER_SPA=true
+    --assets <path>         DUFS_ASSETS=/assets
+    --log-format <format>   DUFS_LOG_FORMAT=""
+    --tls-cert <path>       DUFS_TLS_CERT=cert.pem
+    --tls-key <path>        DUFS_TLS_KEY=key.pem
 ```
 
 ## Configuration File
