@@ -563,18 +563,26 @@ mod tests {
         let cli = build_cli();
         let matches = cli.try_get_matches_from(vec![""]).unwrap();
         let args = Args::parse(matches).unwrap();
-        assert_eq!(args.serve_path, std::env::current_dir().unwrap());
+        let cwd = Args::sanitize_path(std::env::current_dir().unwrap()).unwrap();
+        assert_eq!(args.serve_path, cwd);
         assert_eq!(args.port, default_port());
         assert_eq!(args.addrs, default_addrs());
     }
 
     #[test]
     fn test_args_from_cli1() {
+        let tmpdir = assert_fs::TempDir::new().unwrap();
         let cli = build_cli();
         let matches = cli
-            .try_get_matches_from(vec!["", "--hidden", "tmp,*.log,*.lock"])
+            .try_get_matches_from(vec![
+                "",
+                "--hidden",
+                "tmp,*.log,*.lock",
+                &tmpdir.to_string_lossy(),
+            ])
             .unwrap();
         let args = Args::parse(matches).unwrap();
+        assert_eq!(args.serve_path, Args::sanitize_path(&tmpdir).unwrap());
         assert_eq!(args.hidden, ["tmp", "*.log", "*.lock"]);
     }
 
@@ -601,7 +609,8 @@ mod tests {
             .try_get_matches_from(vec!["", "-c", &config_file.to_string_lossy()])
             .unwrap();
         let args = Args::parse(matches).unwrap();
-        assert_eq!(args.serve_path, std::env::current_dir().unwrap());
+        let cwd = Args::sanitize_path(std::env::current_dir().unwrap()).unwrap();
+        assert_eq!(args.serve_path, cwd);
         assert_eq!(args.port, default_port());
         assert_eq!(args.addrs, default_addrs());
     }
@@ -610,19 +619,24 @@ mod tests {
     fn test_args_from_config_file1() {
         let tmpdir = assert_fs::TempDir::new().unwrap();
         let config_file = tmpdir.child("config.yaml");
-        let contents = r#"
+        let contents = format!(
+            r#"
+serve-path: {}
 bind: 0.0.0.0
 port: 3000
 allow-upload: true
 hidden: tmp,*.log,*.lock
-"#;
-        config_file.write_str(contents).unwrap();
+"#,
+            tmpdir.display()
+        );
+        config_file.write_str(&contents).unwrap();
 
         let cli = build_cli();
         let matches = cli
             .try_get_matches_from(vec!["", "-c", &config_file.to_string_lossy()])
             .unwrap();
         let args = Args::parse(matches).unwrap();
+        assert_eq!(args.serve_path, Args::sanitize_path(&tmpdir).unwrap());
         assert_eq!(
             args.addrs,
             vec![BindAddr::Address("0.0.0.0".parse().unwrap())]
