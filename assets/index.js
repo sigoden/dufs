@@ -183,10 +183,10 @@ class Uploader {
     const now = Date.now();
     const speed = (event.loaded - this.uploaded) / (now - this.lastUptime) * 1000;
     const [speedValue, speedUnit] = formatSize(speed);
-    const speedText = `${speedValue}${speedUnit.toLowerCase()}/s`;
+    const speedText = `${speedValue} ${speedUnit}/s`;
     const progress = formatPercent((event.loaded / event.total) * 100);
     const duration = formatDuration((event.total - event.loaded) / speed)
-    this.$uploadStatus.innerHTML = `<span>${speedText}</span><span>${progress}</span><span>${duration}</span>`;
+    this.$uploadStatus.innerHTML = `<span>${speedText}</span><span>${progress} ${duration}</span>`;
     this.uploaded = event.loaded;
     this.lastUptime = now;
   }
