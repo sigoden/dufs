@@ -81,7 +81,7 @@ Options:
 
 ## Examples
 
-Serve current working directory in readonly mode
+Serve current working directory in read-only mode
 
 ```
 dufs
@@ -215,8 +215,8 @@ dufs -a user:pass@/path1:rw,/path2 -a user2:pass2@/path3 -a @/path4
 4. Use `:rw` suffix to indicate that the account has read-write permission on the path.
 
 - `-a admin:amdin@/:rw`: `admin` has complete permissions for all paths.
-- `-a guest:guest@/`: `guest` has readonly permissions for all paths.
-- `-a user:pass@/dir1:rw,/dir2`: `user` has complete permissions for `/dir1/*`, has readonly permissions for `/dir2/`.
+- `-a guest:guest@/`: `guest` has read-only permissions for all paths.
+- `-a user:pass@/dir1:rw,/dir2`: `user` has complete permissions for `/dir1/*`, has read-only permissions for `/dir2/`.
 - `-a @/`: All paths is publicly accessible, everyone can view/download it.
 
 > There are no restrictions on using ':' and '@' characters in a password, `user:pa:ss@1@/:rw` is valid, and the password is `pa:ss@1`.
