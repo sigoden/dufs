@@ -47,6 +47,7 @@ indexmap = "2.0"
 serde_yaml = "0.9.27"
 sha-crypt = "0.5.0"
 base64 = "0.21.5"
+smart-default = "0.7.1"
 
 [features]
 default = ["tls"]

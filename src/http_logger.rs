@@ -4,7 +4,7 @@ use crate::{auth::get_auth_user, server::Request};
 
 pub const DEFAULT_LOG_FORMAT: &str = r#"$remote_addr "$request" $status"#;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct HttpLogger {
     elements: Vec<LogElement>,
 }
@@ -15,7 +15,7 @@ impl Default for HttpLogger {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 enum LogElement {
     Variable(String),
     Header(String),

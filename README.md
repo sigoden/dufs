@@ -235,8 +235,7 @@ $6$qCAVUG7yn7t/hH4d$BWm8r5MoDywNmDP/J3V2S2a6flmKHC1IpblfoqZfuK.LtLBZ0KFXP9QIfJP8
 
 Use hashed password
 ```
-dufs \
-  -a 'admin:$6$qCAVUG7yn7t/hH4d$BWm8r5MoDywNmDP/J3V2S2a6flmKHC1IpblfoqZfuK.LtLBZ0KFXP9QIfJP8RqL8MCw4isdheoAMTuwOz.pAO/@/:rw'
+dufs -a 'admin:$6$qCAVUG7yn7t/hH4d$BWm8r5MoDywNmDP/J3V2S2a6flmKHC1IpblfoqZfuK.LtLBZ0KFXP9QIfJP8RqL8MCw4isdheoAMTuwOz.pAO/@/:rw'
 ```
 
 Two important things for hashed passwords:
@@ -256,9 +255,10 @@ dufs --hidden .git,.DS_Store,tmp
 > The glob used in --hidden only matches file and directory names, not paths. So `--hidden dir1/file` is invalid.
 
 ```sh
-dufs --hidden '.*'            # hidden dotfiles
-dufs --hidden '*/'            # hidden all folders
-dufs --hidden '*.log,*.lock'  # hidden by exts
+dufs --hidden '.*'                          # hidden dotfiles
+dufs --hidden '*/'                          # hidden all folders
+dufs --hidden '*.log,*.lock'                # hidden by exts
+dufs --hidden '*.log' --hidden '*.lock'
 ```
 
 ### Log Format
@@ -311,8 +311,8 @@ All options can be set using environment variables prefixed with `DUFS_`.
     --config <path>         DUFS_CONFIG=config.yaml
 -b, --bind <addrs>          DUFS_BIND=0.0.0.0
 -p, --port <port>           DUFS_PORT=5000
-    --path-prefix <path>    DUFS_PATH_PREFIX=/path
-    --hidden <value>        DUFS_HIDDEN=*.log
+    --path-prefix <path>    DUFS_PATH_PREFIX=/static
+    --hidden <value>        DUFS_HIDDEN=tmp,*.log,*.lock
 -a, --auth <rules>          DUFS_AUTH="admin:admin@/:rw|@/" 
 -A, --allow-all             DUFS_ALLOW_ALL=true
     --allow-upload          DUFS_ALLOW_UPLOAD=true
@@ -338,8 +338,7 @@ The following are the configuration items:
 
 ```yaml
 serve-path: '.'
-bind:
-  - 192.168.8.10
+bind: 0.0.0.0
 port: 5000
 path-prefix: /dufs
 hidden:
