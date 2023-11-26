@@ -74,5 +74,7 @@ fn no_log(tmpdir: TempDir, port: u16, #[case] args: &[&str]) -> Result<(), Error
     let output = std::str::from_utf8(&buf[0..buf_len])?;
 
     assert_eq!(output.lines().last().unwrap(), "");
+
+    child.kill()?;
     Ok(())
 }

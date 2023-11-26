@@ -186,9 +186,9 @@ curl -X MOVE https://127.0.0.1:5000/path -H "Destination: https://127.0.0.1:5000
 List/search directory contents
 
 ```
-curl http://127.0.0.1:5000?simple                 # output names only, just like `ls -1`
+curl http://127.0.0.1:5000?q=Dockerfile           # search for files, similar to `find -name Dockerfile`
+curl http://127.0.0.1:5000?simple                 # output names only, similar to `ls -1`
 curl http://127.0.0.1:5000?json                   # output paths in json format
-curl http://127.0.0.1:5000?q=Dockerfile&simple    # search for files, just like `find -name Dockerfile`
 ```
 
 With authorization
