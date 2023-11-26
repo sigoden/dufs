@@ -81,7 +81,7 @@ Options:
 
 ## Examples
 
-Serve current working directory in readonly mode
+Serve current working directory in read-only mode
 
 ```
 dufs
@@ -206,46 +206,20 @@ curl http://192.168.8.10:5000/file --user user:pass --digest        # digest aut
 Dufs supports account based access control. You can control who can do what on which path with `--auth`/`-a`.
 
 ```
-dufs -a user:pass@path1:rw,path2|user2:pass2@path1
-dufs -a user:pass@path1:rw,path2 -a user2:pass2@path1
+dufs -a user:pass@/path1:rw,/path2 -a user2:pass2@/path3 -a @/path4
 ```
 
-1. Multiple rules are separated by "|"
-2. User and pass are the account name and password, if omitted, it is an anonymous user
-3. One rule can set multiple paths, separated by ","
-4. Add `:rw` after the path to indicate that the path has read and write permissions, otherwise the path has readonly permissions.
+1. Use `@` to separate the account and paths. No account means anonymous user.
+2. Use `:` to separate the username and password of the account.
+3. Use `,` to separate paths.
+4. Use `:rw` suffix to indicate that the account has read-write permission on the path.
 
-```
-dufs -A -a admin:admin@/:rw
-```
-`admin` has all permissions for all paths.
+- `-a admin:amdin@/:rw`: `admin` has complete permissions for all paths.
+- `-a guest:guest@/`: `guest` has read-only permissions for all paths.
+- `-a user:pass@/dir1:rw,/dir2`: `user` has complete permissions for `/dir1/*`, has read-only permissions for `/dir2/`.
+- `-a @/`: All paths is publicly accessible, everyone can view/download it.
 
-```
-dufs -A -a admin:admin@/:rw -a guest:guest@/
-```
-`guest` has readonly permissions for all paths.
-
-```
-dufs -A -a admin:admin@/:rw -a @/
-```
-All paths is public, everyone can view/download it.
-
-```
-dufs -A -a admin:admin@/:rw -a user1:pass1@/user1:rw -a user2:pass2@/user2
-dufs -A -a "admin:admin@/:rw|user1:pass1@/user1:rw|user2:pass2@/user2"
-```
-`user1` has all permissions for `/user1/*` path.
-`user2` has all permissions for `/user2/*` path.
-
-```
-dufs -A -a user:pass@/dir1:rw,/dir2:rw,dir3
-```
-`user` has all permissions for `/dir1/*` and `/dir2/*`, has readonly permissions for `/dir3/`.
-
-```
-dufs -A -a admin:admin@/
-```
-Since dufs only allows viewing/downloading, `admin` can only view/download files.
+> There are no restrictions on using ':' and '@' characters in a password, `user:pa:ss@1@/:rw` is valid, and the password is `pa:ss@1`.
 
 #### Hashed Password
 
@@ -261,13 +235,14 @@ $6$qCAVUG7yn7t/hH4d$BWm8r5MoDywNmDP/J3V2S2a6flmKHC1IpblfoqZfuK.LtLBZ0KFXP9QIfJP8
 
 Use hashed password
 ```
-dufs -A -a 'admin:$6$qCAVUG7yn7t/hH4d$BWm8r5MoDywNmDP/J3V2S2a6flmKHC1IpblfoqZfuK.LtLBZ0KFXP9QIfJP8RqL8MCw4isdheoAMTuwOz.pAO/@/:rw'
+dufs \
+  -a 'admin:$6$qCAVUG7yn7t/hH4d$BWm8r5MoDywNmDP/J3V2S2a6flmKHC1IpblfoqZfuK.LtLBZ0KFXP9QIfJP8RqL8MCw4isdheoAMTuwOz.pAO/@/:rw'
 ```
 
 Two important things for hashed passwords:
 
-1. Dufs only supports SHA-512 hashed passwords, so ensure that the password string always starts with `$6$`.
-2. Digest auth does not work with hashed passwords.
+1. Dufs only supports sha-512 hashed passwords, so ensure that the password string always starts with `$6$`.
+2. Digest authentication does not function properly with hashed passwords.
 
 
 ### Hide Paths

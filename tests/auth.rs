@@ -18,13 +18,15 @@ fn no_auth(#[with(&["--auth", "user:pass@/:rw", "-A"])] server: TestServer) -> R
 }
 
 #[rstest]
-fn auth(#[with(&["--auth", "user:pass@/:rw", "-A"])] server: TestServer) -> Result<(), Error> {
+#[case(server(&["--auth", "user:pass@/:rw", "-A"]), "user", "pass")]
+#[case(server(&["--auth", "user:pa:ss@1@/:rw", "-A"]), "user", "pa:ss@1")]
+fn auth(#[case] server: TestServer, #[case] user: &str, #[case] pass: &str) -> Result<(), Error> {
     let url = format!("{}file1", server.url());
     let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
     assert_eq!(resp.status(), 401);
     let resp = fetch!(b"PUT", &url)
         .body(b"abc".to_vec())
-        .send_with_digest_auth("user", "pass")?;
+        .send_with_digest_auth(user, pass)?;
     assert_eq!(resp.status(), 201);
     Ok(())
 }
@@ -57,7 +59,7 @@ fn auth_hashed_password(
 
 #[rstest]
 fn auth_and_public(
-    #[with(&["--auth", "user:pass@/:rw|@/", "-A"])] server: TestServer,
+    #[with(&["-a", "user:pass@/:rw", "-a", "@/", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
     let url = format!("{}file1", server.url());
     let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
@@ -91,7 +93,7 @@ fn auth_skip_on_options_method(
 
 #[rstest]
 fn auth_check(
-    #[with(&["--auth", "user:pass@/:rw|user2:pass2@/", "-A"])] server: TestServer,
+    #[with(&["--auth", "user:pass@/:rw", "--auth", "user2:pass2@/", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
     let url = format!("{}index.html", server.url());
     let resp = fetch!(b"WRITEABLE", &url).send()?;
@@ -105,7 +107,7 @@ fn auth_check(
 
 #[rstest]
 fn auth_readonly(
-    #[with(&["--auth", "user:pass@/:rw|user2:pass2@/", "-A"])] server: TestServer,
+    #[with(&["--auth", "user:pass@/:rw", "--auth", "user2:pass2@/", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
     let url = format!("{}index.html", server.url());
     let resp = fetch!(b"GET", &url).send()?;
@@ -122,7 +124,7 @@ fn auth_readonly(
 
 #[rstest]
 fn auth_nest(
-    #[with(&["--auth", "user:pass@/:rw|user2:pass2@/", "--auth", "user3:pass3@/dir1:rw", "-A"])]
+    #[with(&["--auth", "user:pass@/:rw", "--auth", "user2:pass2@/", "--auth", "user3:pass3@/dir1:rw", "-A"])]
     server: TestServer,
 ) -> Result<(), Error> {
     let url = format!("{}dir1/file1", server.url());
@@ -242,7 +244,7 @@ fn no_auth_propfind_dir(
 
 #[rstest]
 fn auth_data(
-    #[with(&["--auth", "user:pass@/:rw|@/", "-A"])] server: TestServer,
+    #[with(&["-a", "user:pass@/:rw", "-a", "@/", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
     let resp = reqwest::blocking::get(server.url())?;
     let content = resp.text()?;

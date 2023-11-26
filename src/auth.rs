@@ -53,7 +53,7 @@ impl AccessControl {
         let mut anony_paths = vec![];
         let mut users = IndexMap::new();
         for rule in raw_rules {
-            let (user, list) = rule.split_once('@').ok_or_else(|| create_err(rule))?;
+            let (user, list) = split_rule(rule).ok_or_else(|| create_err(rule))?;
             if user.is_empty() && anony.is_some() {
                 bail!("Invalid auth, duplicate anonymous rules");
             }
@@ -476,9 +476,24 @@ fn create_nonce() -> Result<String> {
     Ok(n[..34].to_string())
 }
 
+fn split_rule(s: &str) -> Option<(&str, &str)> {
+    let i = s.find("@/")?;
+    Some((&s[0..i], &s[i + 1..]))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_split_rule() {
+        assert_eq!(split_rule("user:pass@/:rw"), Some(("user:pass", "/:rw")));
+        assert_eq!(split_rule("user:pass@@/:rw"), Some(("user:pass@", "/:rw")));
+        assert_eq!(
+            split_rule("user:pass@1@/:rw"),
+            Some(("user:pass@1", "/:rw"))
+        );
+    }
 
     #[test]
     fn test_access_paths() {
