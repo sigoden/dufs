@@ -256,9 +256,10 @@ dufs --hidden .git,.DS_Store,tmp
 > The glob used in --hidden only matches file and directory names, not paths. So `--hidden dir1/file` is invalid.
 
 ```sh
-dufs --hidden '.*'            # hidden dotfiles
-dufs --hidden '*/'            # hidden all folders
-dufs --hidden '*.log,*.lock'  # hidden by exts
+dufs --hidden '.*'                          # hidden dotfiles
+dufs --hidden '*/'                          # hidden all folders
+dufs --hidden '*.log,*.lock'                # hidden by exts
+dufs --hidden '*.log' --hidden '*.lock'
 ```
 
 ### Log Format
@@ -311,8 +312,8 @@ All options can be set using environment variables prefixed with `DUFS_`.
     --config <path>         DUFS_CONFIG=config.yaml
 -b, --bind <addrs>          DUFS_BIND=0.0.0.0
 -p, --port <port>           DUFS_PORT=5000
-    --path-prefix <path>    DUFS_PATH_PREFIX=/path
-    --hidden <value>        DUFS_HIDDEN=*.log
+    --path-prefix <path>    DUFS_PATH_PREFIX=/static
+    --hidden <value>        DUFS_HIDDEN=tmp,*.log,*.lock
 -a, --auth <rules>          DUFS_AUTH="admin:admin@/:rw|@/" 
 -A, --allow-all             DUFS_ALLOW_ALL=true
     --allow-upload          DUFS_ALLOW_UPLOAD=true
