@@ -235,8 +235,7 @@ $6$qCAVUG7yn7t/hH4d$BWm8r5MoDywNmDP/J3V2S2a6flmKHC1IpblfoqZfuK.LtLBZ0KFXP9QIfJP8
 
 Use hashed password
 ```
-dufs \
-  -a 'admin:$6$qCAVUG7yn7t/hH4d$BWm8r5MoDywNmDP/J3V2S2a6flmKHC1IpblfoqZfuK.LtLBZ0KFXP9QIfJP8RqL8MCw4isdheoAMTuwOz.pAO/@/:rw'
+dufs -a 'admin:$6$qCAVUG7yn7t/hH4d$BWm8r5MoDywNmDP/J3V2S2a6flmKHC1IpblfoqZfuK.LtLBZ0KFXP9QIfJP8RqL8MCw4isdheoAMTuwOz.pAO/@/:rw'
 ```
 
 Two important things for hashed passwords:
@@ -339,8 +338,7 @@ The following are the configuration items:
 
 ```yaml
 serve-path: '.'
-bind:
-  - 192.168.8.10
+bind: 0.0.0.0
 port: 5000
 path-prefix: /dufs
 hidden:
