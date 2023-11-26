@@ -106,6 +106,20 @@ fn auth_check(
 }
 
 #[rstest]
+fn auth_compact_rules(
+    #[with(&["--auth", "user:pass@/:rw|user2:pass2@/", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    let url = format!("{}index.html", server.url());
+    let resp = fetch!(b"WRITEABLE", &url).send()?;
+    assert_eq!(resp.status(), 401);
+    let resp = fetch!(b"WRITEABLE", &url).send_with_digest_auth("user2", "pass2")?;
+    assert_eq!(resp.status(), 403);
+    let resp = fetch!(b"WRITEABLE", &url).send_with_digest_auth("user", "pass")?;
+    assert_eq!(resp.status(), 200);
+    Ok(())
+}
+
+#[rstest]
 fn auth_readonly(
     #[with(&["--auth", "user:pass@/:rw", "--auth", "user2:pass2@/", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
