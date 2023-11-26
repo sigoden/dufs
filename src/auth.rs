@@ -47,38 +47,42 @@ impl AccessControl {
         if raw_rules.is_empty() {
             return Ok(Default::default());
         }
+        let new_raw_rules = compact_split_rules(raw_rules);
+        if new_raw_rules.len() != raw_rules.len() {
+            eprintln!("Warning: deprecate the use of `|` to separate auth rules.")
+        }
         let mut use_hashed_password = false;
         let create_err = |v: &str| anyhow!("Invalid auth `{v}`");
         let mut anony = None;
         let mut anony_paths = vec![];
         let mut users = IndexMap::new();
-        for rule in raw_rules {
-            let (user, list) = split_rule(rule).ok_or_else(|| create_err(rule))?;
-            if user.is_empty() && anony.is_some() {
+        for rule in &new_raw_rules {
+            let (account, paths) = split_account_paths(rule).ok_or_else(|| create_err(rule))?;
+            if account.is_empty() && anony.is_some() {
                 bail!("Invalid auth, duplicate anonymous rules");
             }
-            let mut paths = AccessPaths::default();
-            for value in list.trim_matches(',').split(',') {
-                let (path, perm) = match value.split_once(':') {
-                    None => (value, AccessPerm::ReadOnly),
+            let mut access_paths = AccessPaths::default();
+            for item in paths.trim_matches(',').split(',') {
+                let (path, perm) = match item.split_once(':') {
+                    None => (item, AccessPerm::ReadOnly),
                     Some((path, "rw")) => (path, AccessPerm::ReadWrite),
                     _ => return Err(create_err(rule)),
                 };
-                if user.is_empty() {
+                if account.is_empty() {
                     anony_paths.push((path, perm));
                 }
-                paths.add(path, perm);
+                access_paths.add(path, perm);
             }
-            if user.is_empty() {
-                anony = Some(paths);
-            } else if let Some((user, pass)) = user.split_once(':') {
+            if account.is_empty() {
+                anony = Some(access_paths);
+            } else if let Some((user, pass)) = account.split_once(':') {
                 if user.is_empty() || pass.is_empty() {
                     return Err(create_err(rule));
                 }
                 if pass.starts_with("$6$") {
                     use_hashed_password = true;
                 }
-                users.insert(user.to_string(), (pass.to_string(), paths));
+                users.insert(user.to_string(), (pass.to_string(), access_paths));
             } else {
                 return Err(create_err(rule));
             }
@@ -476,9 +480,37 @@ fn create_nonce() -> Result<String> {
     Ok(n[..34].to_string())
 }
 
-fn split_rule(s: &str) -> Option<(&str, &str)> {
+fn split_account_paths(s: &str) -> Option<(&str, &str)> {
     let i = s.find("@/")?;
     Some((&s[0..i], &s[i + 1..]))
+}
+
+/// Compatible with deprecated usage of `|` for role separation
+fn compact_split_rules(rules: &[&str]) -> Vec<String> {
+    let mut output = vec![];
+    for rule in rules {
+        let parts: Vec<&str> = rule.split('|').collect();
+        let mut rules_list = vec![];
+        let mut concated_part = String::new();
+        for (i, part) in parts.iter().enumerate() {
+            if part.contains("@/") {
+                concated_part.push_str(part);
+                let mut concated_part_tmp = String::new();
+                std::mem::swap(&mut concated_part_tmp, &mut concated_part);
+                rules_list.push(concated_part_tmp);
+                continue;
+            }
+            concated_part.push_str(part);
+            if i < parts.len() - 1 {
+                concated_part.push('|');
+            }
+        }
+        if !concated_part.is_empty() {
+            rules_list.push(concated_part)
+        }
+        output.extend(rules_list);
+    }
+    output
 }
 
 #[cfg(test)]
@@ -486,12 +518,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_split_rule() {
-        assert_eq!(split_rule("user:pass@/:rw"), Some(("user:pass", "/:rw")));
-        assert_eq!(split_rule("user:pass@@/:rw"), Some(("user:pass@", "/:rw")));
+    fn test_split_account_paths() {
         assert_eq!(
-            split_rule("user:pass@1@/:rw"),
+            split_account_paths("user:pass@/:rw"),
+            Some(("user:pass", "/:rw"))
+        );
+        assert_eq!(
+            split_account_paths("user:pass@@/:rw"),
+            Some(("user:pass@", "/:rw"))
+        );
+        assert_eq!(
+            split_account_paths("user:pass@1@/:rw"),
             Some(("user:pass@1", "/:rw"))
+        );
+    }
+
+    #[test]
+    fn test_compact_split_rules() {
+        assert_eq!(
+            compact_split_rules(&["user1:pass1@/:rw|user2:pass2@/:rw"]),
+            ["user1:pass1@/:rw", "user2:pass2@/:rw"]
+        );
+        assert_eq!(
+            compact_split_rules(&["user1:pa|ss1@/:rw|user2:pa|ss2@/:rw"]),
+            ["user1:pa|ss1@/:rw", "user2:pa|ss2@/:rw"]
+        );
+        assert_eq!(
+            compact_split_rules(&["user1:pa|ss1@/:rw|@/"]),
+            ["user1:pa|ss1@/:rw", "@/"]
         );
     }
 
