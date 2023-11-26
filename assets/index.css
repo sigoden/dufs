@@ -107,11 +107,6 @@ body {
   cursor: pointer;
 }
 
-.upload-status span {
-  width: 70px;
-  display: inline-block;
-}
-
 .main {
   padding: 3.3em 1em 0;
 }
@@ -136,6 +131,11 @@ body {
 .uploaders-table .cell-status {
   width: 80px;
   padding-left: 0.6em;
+}
+
+.cell-status span {
+  width: 80px;
+  display: inline-block;
 }
 
 .paths-table thead a {
