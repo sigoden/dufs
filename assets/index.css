@@ -212,6 +212,7 @@ body {
   height: calc(100vh - 5rem);
   border: 1px solid #ced4da;
   outline: none;
+  padding: 5px;
 }
 
 .toolbox-right {

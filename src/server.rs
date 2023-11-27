@@ -290,7 +290,10 @@ impl Server {
                     }
                 } else if is_file {
                     if query_params.contains_key("edit") {
-                        self.handle_edit_file(path, head_only, user, &mut res)
+                        self.handle_deal_file(path, DataKind::Edit, head_only, user, &mut res)
+                            .await?;
+                    } else if query_params.contains_key("view") {
+                        self.handle_deal_file(path, DataKind::View, head_only, user, &mut res)
                             .await?;
                     } else {
                         self.handle_send_file(path, headers, head_only, &mut res)
@@ -773,9 +776,10 @@ impl Server {
         Ok(())
     }
 
-    async fn handle_edit_file(
+    async fn handle_deal_file(
         &self,
         path: &Path,
+        kind: DataKind,
         head_only: bool,
         user: Option<String>,
         res: &mut Response,
@@ -791,7 +795,7 @@ impl Server {
         let editable = meta.len() <= TEXT_MAX_SIZE && content_inspector::inspect(&buffer).is_text();
         let data = EditData {
             href,
-            kind: DataKind::Edit,
+            kind,
             uri_prefix: self.args.uri_prefix.clone(),
             allow_upload: self.args.allow_upload,
             allow_delete: self.args.allow_delete,
@@ -1198,10 +1202,11 @@ impl Server {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq)]
 enum DataKind {
     Index,
     Edit,
+    View,
 }
 
 #[derive(Debug, Serialize)]

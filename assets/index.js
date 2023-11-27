@@ -10,7 +10,7 @@
  * @typedef {object} DATA
  * @property {string} href
  * @property {string} uri_prefix
- * @property {"Index" | "Edit"} kind
+ * @property {"Index" | "Edit" | "View"} kind
  * @property {PathItem[]} paths
  * @property {boolean} allow_upload
  * @property {boolean} allow_delete
@@ -55,7 +55,8 @@ const ICONS = {
   download: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>`,
   move: `<svg width="16" height="16" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1.5 1.5A.5.5 0 0 0 1 2v4.8a2.5 2.5 0 0 0 2.5 2.5h9.793l-3.347 3.346a.5.5 0 0 0 .708.708l4.2-4.2a.5.5 0 0 0 0-.708l-4-4a.5.5 0 0 0-.708.708L13.293 8.3H3.5A1.5 1.5 0 0 1 2 6.8V2a.5.5 0 0 0-.5-.5z"/></svg>`,
   edit: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/></svg>`,
-  delete: `<svg width="16" height="16" fill="currentColor"viewBox="0 0 16 16"><path d="M6.854 7.146a.5.5 0 1 0-.708.708L7.293 9l-1.147 1.146a.5.5 0 0 0 .708.708L8 9.707l1.146 1.147a.5.5 0 0 0 .708-.708L8.707 9l1.147-1.146a.5.5 0 0 0-.708-.708L8 8.293 6.854 7.146z"/><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/></svg>`,
+  delete: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M6.854 7.146a.5.5 0 1 0-.708.708L7.293 9l-1.147 1.146a.5.5 0 0 0 .708.708L8 9.707l1.146 1.147a.5.5 0 0 0 .708-.708L8.707 9l1.147-1.146a.5.5 0 0 0-.708-.708L8 8.293 6.854 7.146z"/><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/></svg>`,
+  view: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2zm0 1h8a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1"/></svg>`,
 }
 
 /**
@@ -113,7 +114,12 @@ function ready() {
     document.title = `Edit ${DATA.href} - Dufs`;
     document.querySelector(".editor-page").classList.remove("hidden");;
 
-    setupEditPage();
+    setupEditorPage();
+  } else if (DATA.kind == "View") {
+    document.title = `View ${DATA.href} - Dufs`;
+    document.querySelector(".editor-page").classList.remove("hidden");;
+
+    setupEditorPage();
   }
 }
 
@@ -369,6 +375,7 @@ function addPath(file, index) {
   let actionDownload = "";
   let actionMove = "";
   let actionEdit = "";
+  let actionView = "";
   let isDir = file.path_type.endsWith("Dir");
   if (isDir) {
     url += "/";
@@ -394,9 +401,13 @@ function addPath(file, index) {
     actionDelete = `
     <div onclick="deletePath(${index})" class="action-btn" id="deleteBtn${index}" title="Delete">${ICONS.delete}</div>`;
   }
+  if (!actionEdit && !isDir) {
+    actionView = `<a class="action-btn" title="View file" target="_blank" href="${url}?view">${ICONS.view}</a>`;
+  }
   let actionCell = `
   <td class="cell-actions">
     ${actionDownload}
+    ${actionView}
     ${actionMove}
     ${actionDelete}
     ${actionEdit}
@@ -504,32 +515,40 @@ function setupNewFile() {
   });
 }
 
-async function setupEditPage() {
+async function setupEditorPage() {
   const url = baseUrl();
 
   const $download = document.querySelector(".download");
   $download.classList.remove("hidden");
   $download.href = url;
 
-  const $moveFile = document.querySelector(".move-file");
-  $moveFile.classList.remove("hidden");
-  $moveFile.addEventListener("click", async () => {
-    const query = location.href.slice(url.length);
-    const newFileUrl = await doMovePath(url);
-    if (newFileUrl) {
-      location.href = newFileUrl + query;
-    }
-  });
-
-  const $deleteFile = document.querySelector(".delete-file");
-  $deleteFile.classList.remove("hidden");
-  $deleteFile.addEventListener("click", async () => {
-    const url = baseUrl();
-    const name = baseName(url);
-    await doDeletePath(name, url, () => {
-      location.href = location.href.split("/").slice(0, -1).join("/");
+  if (DATA.kind == "Edit") {
+    const $moveFile = document.querySelector(".move-file");
+    $moveFile.classList.remove("hidden");
+    $moveFile.addEventListener("click", async () => {
+      const query = location.href.slice(url.length);
+      const newFileUrl = await doMovePath(url);
+      if (newFileUrl) {
+        location.href = newFileUrl + query;
+      }
     });
-  })
+
+    const $deleteFile = document.querySelector(".delete-file");
+    $deleteFile.classList.remove("hidden");
+    $deleteFile.addEventListener("click", async () => {
+      const url = baseUrl();
+      const name = baseName(url);
+      await doDeletePath(name, url, () => {
+        location.href = location.href.split("/").slice(0, -1).join("/");
+      });
+    })
+
+    const $saveBtn = document.querySelector(".save-btn");
+    $saveBtn.classList.remove("hidden");
+    $saveBtn.addEventListener("click", saveChange);
+  } else if (DATA.kind == "View") {
+    $editor.readonly = true;
+  }
 
   if (!DATA.editable) {
     const $notEditable = document.querySelector(".not-editable");
@@ -543,10 +562,6 @@ async function setupEditPage() {
     }
     return;
   }
-
-  const $saveBtn = document.querySelector(".save-btn");
-  $saveBtn.classList.remove("hidden");
-  $saveBtn.addEventListener("click", saveChange);
 
   $editor.classList.remove("hidden");
   try {
