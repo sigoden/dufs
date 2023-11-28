@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.38.0] - 2023-11-28
+
+### Bug Fixes
+
+- Unable to start if config file omit bind/port fields ([#294](https://github.com/sigoden/dufs/issues/294))
+
+### Features
+
+- Password can contain `:` `@` `|` ([#297](https://github.com/sigoden/dufs/issues/297))
+- Deprecate the use of `|` to separate auth rules ([#298](https://github.com/sigoden/dufs/issues/298))
+- More flexible config values ([#299](https://github.com/sigoden/dufs/issues/299))
+- Ui supports view file ([#301](https://github.com/sigoden/dufs/issues/301))
+
+### Refactor
+
+- Take improvements from the edge browser ([#289](https://github.com/sigoden/dufs/issues/289))
+- Ui change the cursor for upload-btn to a pointer ([#291](https://github.com/sigoden/dufs/issues/291))
+- Ui improve uploading progress ([#296](https://github.com/sigoden/dufs/issues/296))
+
 ## [0.37.1] - 2023-11-08
 
 ### Bug Fixes
