@@ -499,15 +499,7 @@ impl Server {
             .to_lowercase();
         if search.is_empty() {
             return self
-                .handle_ls_dir(
-                    path,
-                    true,
-                    &query_params,
-                    head_only,
-                    user,
-                    access_paths,
-                    res,
-                )
+                .handle_ls_dir(path, true, query_params, head_only, user, access_paths, res)
                 .await;
         } else {
             let path_buf = path.to_path_buf();
