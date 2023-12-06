@@ -497,7 +497,11 @@ impl Server {
             .get("q")
             .ok_or_else(|| anyhow!("invalid q"))?
             .to_lowercase();
-        if !search.is_empty() {
+        if search.is_empty() {
+            return self
+                .handle_ls_dir(path, true, query_params, head_only, user, access_paths, res)
+                .await;
+        } else {
             let path_buf = path.to_path_buf();
             let hidden = Arc::new(self.args.hidden.to_vec());
             let hidden = hidden.clone();

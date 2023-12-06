@@ -147,9 +147,7 @@ fn head_dir_search(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
 #[rstest]
 fn empty_search(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(format!("{}?q=", server.url()))?;
-    assert_eq!(resp.status(), 200);
-    let paths = utils::retrieve_index_paths(&resp.text()?);
-    assert!(paths.is_empty());
+    assert_resp_paths!(resp);
     Ok(())
 }
 
