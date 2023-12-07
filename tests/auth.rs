@@ -10,7 +10,15 @@ use rstest::rstest;
 fn no_auth(#[with(&["--auth", "user:pass@/:rw", "-A"])] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(server.url())?;
     assert_eq!(resp.status(), 401);
-    assert!(resp.headers().contains_key("www-authenticate"));
+    let values: Vec<&str> = resp
+        .headers()
+        .get_all("www-authenticate")
+        .iter()
+        .map(|v| v.to_str().unwrap())
+        .collect();
+    assert!(values[0].starts_with("Digest"));
+    assert!(values[1].starts_with("Basic"));
+
     let url = format!("{}file1", server.url());
     let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
     assert_eq!(resp.status(), 401);
