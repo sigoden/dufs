@@ -35,7 +35,8 @@ pub fn build_cli() -> Command {
                 .short('c')
                 .long("config")
                 .value_parser(value_parser!(PathBuf))
-                .help("Specify configuration file"),
+                .help("Specify configuration file")
+                .value_name("file"),
         )
         .arg(
             Arg::new("bind")
