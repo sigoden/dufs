@@ -54,7 +54,7 @@ Arguments:
   [serve-path]  Specific path to serve [default: .]
 
 Options:
-  -c, --config <config>      Specify configuration file
+  -c, --config <file>        Specify configuration file
   -b, --bind <addrs>         Specify bind address or unix socket
   -p, --port <port>          Specify port to listen on [default: 5000]
       --path-prefix <path>   Specify a path prefix
@@ -308,7 +308,7 @@ All options can be set using environment variables prefixed with `DUFS_`.
 
 ```
 [serve-path]                DUFS_SERVE_PATH="."
-    --config <path>         DUFS_CONFIG=config.yaml
+    --config <file>         DUFS_CONFIG=config.yaml
 -b, --bind <addrs>          DUFS_BIND=0.0.0.0
 -p, --port <port>           DUFS_PORT=5000
     --path-prefix <path>    DUFS_PATH_PREFIX=/static
