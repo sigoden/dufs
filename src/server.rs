@@ -21,7 +21,7 @@ use headers::{
 };
 use hyper::header::{
     HeaderValue, AUTHORIZATION, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE,
-    RANGE, WWW_AUTHENTICATE,
+    RANGE,
 };
 use hyper::{Body, Method, StatusCode, Uri};
 use serde::Serialize;
@@ -1056,9 +1056,8 @@ impl Server {
 
     fn auth_reject(&self, res: &mut Response) -> Result<()> {
         set_webdav_headers(res);
-        res.headers_mut()
-            .append(WWW_AUTHENTICATE, www_authenticate(&self.args)?);
-        // set 401 to make the browser pop up the login box
+
+        www_authenticate(res, &self.args)?;
         *res.status_mut() = StatusCode::UNAUTHORIZED;
         Ok(())
     }

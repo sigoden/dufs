@@ -1,7 +1,9 @@
+use crate::{args::Args, server::Response, utils::unix_now};
+
 use anyhow::{anyhow, bail, Result};
 use base64::{engine::general_purpose, Engine as _};
 use headers::HeaderValue;
-use hyper::Method;
+use hyper::{header::WWW_AUTHENTICATE, Method};
 use indexmap::IndexMap;
 use lazy_static::lazy_static;
 use md5::Context;
@@ -10,8 +12,6 @@ use std::{
     path::{Path, PathBuf},
 };
 use uuid::Uuid;
-
-use crate::{args::Args, utils::unix_now};
 
 const REALM: &str = "DUFS";
 const DIGEST_AUTH_TIMEOUT: u32 = 604800; // 7 days
@@ -258,17 +258,21 @@ impl AccessPerm {
     }
 }
 
-pub fn www_authenticate(args: &Args) -> Result<HeaderValue> {
-    let value = if args.auth.use_hashed_password {
-        format!("Basic realm=\"{}\"", REALM)
+pub fn www_authenticate(res: &mut Response, args: &Args) -> Result<()> {
+    if args.auth.use_hashed_password {
+        let basic = HeaderValue::from_str(&format!("Basic realm=\"{}\"", REALM))?;
+        res.headers_mut().insert(WWW_AUTHENTICATE, basic);
     } else {
         let nonce = create_nonce()?;
-        format!(
-            "Digest realm=\"{}\", nonce=\"{}\", qop=\"auth\", Basic realm=\"{}\"",
-            REALM, nonce, REALM
-        )
-    };
-    Ok(HeaderValue::from_str(&value)?)
+        let digest = HeaderValue::from_str(&format!(
+            "Digest realm=\"{}\", nonce=\"{}\", qop=\"auth\"",
+            REALM, nonce
+        ))?;
+        let basic = HeaderValue::from_str(&format!("Basic realm=\"{}\"", REALM))?;
+        res.headers_mut().append(WWW_AUTHENTICATE, digest);
+        res.headers_mut().append(WWW_AUTHENTICATE, basic);
+    }
+    Ok(())
 }
 
 pub fn get_auth_user(authorization: &HeaderValue) -> Option<String> {
