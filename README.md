@@ -348,6 +348,7 @@ hidden:
 auth:
   - admin:admin@/:rw
   - user:pass@/src:rw,/share
+  - '@/'  # According to the YAML spec, quoting is required.
 allow-all: false
 allow-upload: true
 allow-delete: true
