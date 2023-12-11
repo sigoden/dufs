@@ -126,9 +126,9 @@ function ready() {
 
 class Uploader {
   /**
-   * 
-   * @param {File} file 
-   * @param {string[]} dirs 
+   *
+   * @param {File} file
+   * @param {string[]} dirs
    */
   constructor(file, dirs) {
     /**
@@ -240,7 +240,7 @@ Uploader.runQueue = async () => {
 
 /**
  * Add breadcrumb
- * @param {string} href 
+ * @param {string} href
  * @param {string} uri_prefix
  */
 function addBreadcrumb(href, uri_prefix) {
@@ -365,8 +365,8 @@ function renderPathsTableBody() {
 
 /**
  * Add pathitem
- * @param {PathItem} file 
- * @param {number} index 
+ * @param {PathItem} file
+ * @param {number} index
  */
 function addPath(file, index) {
   const encodedName = encodedStr(file.name);
@@ -583,8 +583,8 @@ async function setupEditorPage() {
 
 /**
  * Delete path
- * @param {number} index 
- * @returns 
+ * @param {number} index
+ * @returns
  */
 async function deletePath(index) {
   const file = DATA.paths[index];
@@ -616,8 +616,8 @@ async function doDeletePath(name, url, cb) {
 
 /**
  * Move path
- * @param {number} index 
- * @returns 
+ * @param {number} index
+ * @returns
  */
 async function movePath(index) {
   const file = DATA.paths[index];
@@ -694,7 +694,7 @@ async function checkAuth() {
 
 /**
  * Create a folder
- * @param {string} name 
+ * @param {string} name
  */
 async function createFolder(name) {
   const url = newUrl(name);
@@ -732,8 +732,16 @@ async function addFileEntries(entries, dirs) {
         new Uploader(file, dirs).upload();
       });
     } else if (entry.isDirectory) {
-      const dirReader = entry.createReader()
-      dirReader.readEntries(entries => addFileEntries(entries, [...dirs, entry.name]));
+      const dirReader = entry.createReader();
+
+      const successCallback = entries => {
+        if (entries.length > 0) {
+          addFileEntries(entries, [...dirs, entry.name]);
+          dirReader.readEntries(successCallback);
+        }
+      };
+
+      dirReader.readEntries(successCallback);
     }
   }
 }
