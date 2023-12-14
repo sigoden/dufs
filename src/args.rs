@@ -1,6 +1,7 @@
 use anyhow::{bail, Context, Result};
-use clap::builder::PossibleValuesParser;
-use clap::{value_parser, Arg, ArgAction, ArgMatches, Command};
+use async_zip::Compression;
+use clap::builder::{PossibleValue, PossibleValuesParser};
+use clap::{value_parser, Arg, ArgAction, ArgMatches, Command, ValueEnum};
 use clap_complete::{generate, Generator, Shell};
 use serde::{Deserialize, Deserializer};
 use smart_default::SmartDefault;
@@ -197,6 +198,15 @@ pub fn build_cli() -> Command {
                 .help("Customize http log format"),
         )
         .arg(
+            Arg::new("compress")
+                .env("DUFS_COMPRESS")
+                .hide_env(true)
+                .value_parser(clap::builder::EnumValueParser::<Compress>::new())
+                .long("compress")
+                .value_name("level")
+                .help("Set zip compress level [default: low]")
+        )
+        .arg(
             Arg::new("completions")
                 .long("completions")
                 .value_name("shell")
@@ -270,6 +280,7 @@ pub struct Args {
     #[serde(deserialize_with = "deserialize_log_http")]
     #[serde(rename = "log-format")]
     pub http_logger: HttpLogger,
+    pub compress: Compress,
     pub tls_cert: Option<PathBuf>,
     pub tls_key: Option<PathBuf>,
 }
@@ -369,16 +380,20 @@ impl Args {
             args.render_spa = matches.get_flag("render-spa");
         }
 
-        if let Some(log_format) = matches.get_one::<String>("log-format") {
-            args.http_logger = log_format.parse()?;
-        }
-
         if let Some(assets_path) = matches.get_one::<PathBuf>("assets") {
             args.assets = Some(assets_path.clone());
         }
 
         if let Some(assets_path) = &args.assets {
             args.assets = Some(Args::sanitize_assets_path(assets_path)?);
+        }
+
+        if let Some(log_format) = matches.get_one::<String>("log-format") {
+            args.http_logger = log_format.parse()?;
+        }
+
+        if let Some(compress) = matches.get_one::<Compress>("compress") {
+            args.compress = *compress;
         }
 
         #[cfg(feature = "tls")]
@@ -403,6 +418,7 @@ impl Args {
             args.tls_cert = None;
             args.tls_key = None;
         }
+        println!("{args:?}");
 
         Ok(args)
     }
@@ -458,6 +474,47 @@ impl BindAddr {
             bail!("Invalid bind address `{}`", invalid_addrs.join(","));
         }
         Ok(bind_addrs)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Compress {
+    None,
+    Low,
+    Medium,
+    High,
+}
+
+impl Default for Compress {
+    fn default() -> Self {
+        Self::Low
+    }
+}
+
+impl ValueEnum for Compress {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[Self::None, Self::Low, Self::Medium, Self::High]
+    }
+
+    fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
+        Some(match self {
+            Compress::None => PossibleValue::new("none"),
+            Compress::Low => PossibleValue::new("low"),
+            Compress::Medium => PossibleValue::new("medium"),
+            Compress::High => PossibleValue::new("high"),
+        })
+    }
+}
+
+impl Compress {
+    pub fn to_compression(self) -> Compression {
+        match self {
+            Compress::None => Compression::Stored,
+            Compress::Low => Compression::Deflate,
+            Compress::Medium => Compression::Bz,
+            Compress::High => Compression::Xz,
+        }
     }
 }
 
