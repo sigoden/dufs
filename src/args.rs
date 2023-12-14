@@ -418,7 +418,6 @@ impl Args {
             args.tls_cert = None;
             args.tls_key = None;
         }
-        println!("{args:?}");
 
         Ok(args)
     }
