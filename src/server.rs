@@ -581,8 +581,18 @@ impl Server {
         let path = path.to_owned();
         let hidden = self.args.hidden.clone();
         let running = self.running.clone();
+        let compression = self.args.compress.to_compression();
         tokio::spawn(async move {
-            if let Err(e) = zip_dir(&mut writer, &path, access_paths, &hidden, running).await {
+            if let Err(e) = zip_dir(
+                &mut writer,
+                &path,
+                access_paths,
+                &hidden,
+                compression,
+                running,
+            )
+            .await
+            {
                 error!("Failed to zip {}, {}", path.display(), e);
             }
         });
@@ -1422,6 +1432,7 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
     dir: &Path,
     access_paths: AccessPaths,
     hidden: &[String],
+    compression: Compression,
     running: Arc<AtomicBool>,
 ) -> Result<()> {
     let mut writer = ZipFileWriter::with_tokio(writer);
@@ -1475,7 +1486,7 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
             None => continue,
         };
         let (datetime, mode) = get_file_mtime_and_mode(&zip_path).await?;
-        let builder = ZipEntryBuilder::new(filename.into(), Compression::Deflate)
+        let builder = ZipEntryBuilder::new(filename.into(), compression)
             .unix_permissions(mode)
             .last_modification_date(ZipDateTime::from_chrono(&datetime));
         let mut file = File::open(&zip_path).await?;

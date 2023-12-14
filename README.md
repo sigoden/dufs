@@ -72,6 +72,7 @@ Options:
       --render-spa           Serve SPA(Single Page Application)
       --assets <path>        Set the path to the assets directory for overriding the built-in assets
       --log-format <format>  Customize http log format
+      --compress <level>     Set zip compress level [default: low] [possible values: none, low, medium, high]
       --completions <shell>  Print shell completion script for <shell> [possible values: bash, elvish, fish, powershell, zsh]
       --tls-cert <path>      Path to an SSL/TLS certificate to serve with HTTPS
       --tls-key <path>       Path to the SSL/TLS certificate's private key
@@ -326,6 +327,7 @@ All options can be set using environment variables prefixed with `DUFS_`.
     --render-spa            DUFS_RENDER_SPA=true
     --assets <path>         DUFS_ASSETS=/assets
     --log-format <format>   DUFS_LOG_FORMAT=""
+    --compress <compress>   DUFS_COMPRESS="low"
     --tls-cert <path>       DUFS_TLS_CERT=cert.pem
     --tls-key <path>        DUFS_TLS_KEY=key.pem
 ```
@@ -361,6 +363,7 @@ render-try-index: true
 render-spa: true
 assets: ./assets/
 log-format: '$remote_addr "$request" $status $http_user_agent'
+compress: low
 tls-cert: tests/data/cert.pem
 tls-key: tests/data/key_pkcs1.pem
 ```
