@@ -95,7 +95,7 @@ fn serve(args: Args, running: Arc<AtomicBool>) -> Result<Vec<JoinHandle<()>>> {
                                 let (cnx, addr) = listener.accept().await.unwrap();
                                 let Ok(stream) = tls_accepter.accept(cnx).await else {
                                     eprintln!(
-                                        "error during tls handshake connection from {}",
+                                        "Error during tls handshake connection from {}",
                                         addr
                                     );
                                     continue;
@@ -161,9 +161,20 @@ where
     let hyper_service =
         service_fn(move |request: Request<Incoming>| handle.clone().call(request, addr));
 
-    let _ = Builder::new(TokioExecutor::new())
+    let ret = Builder::new(TokioExecutor::new())
         .serve_connection_with_upgrades(stream, hyper_service)
         .await;
+
+    if let Err(err) = ret {
+        let scope = match addr {
+            Some(addr) => format!(" from {}", addr),
+            None => String::new(),
+        };
+        match err.downcast_ref::<std::io::Error>() {
+            Some(err) if err.kind() == std::io::ErrorKind::UnexpectedEof => {}
+            _ => eprintln!("Error serving connection{}: {}", scope, err),
+        }
+    }
 }
 
 fn create_listener(addr: SocketAddr) -> Result<TcpListener> {
