@@ -51,7 +51,7 @@ rustls-pki-types = "1.0"
 hyper-util = { version = "0.1", features = ["server-auto", "tokio"] }
 http-body-util = "0.1"
 bytes = "1.5"
-pin-project-lite = "0.2.13"
+pin-project-lite = "0.2"
 
 [features]
 default = ["tls"]
