@@ -1,5 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use chrono::{DateTime, Utc};
+#[cfg(feature = "tls")]
+use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 use std::{
     borrow::Cow,
     path::Path,
@@ -56,6 +58,46 @@ pub fn glob(pattern: &str, target: &str) -> bool {
         Err(_) => return false,
     };
     pat.matches(target)
+}
+
+// Load public certificate from file.
+#[cfg(feature = "tls")]
+pub fn load_certs<T: AsRef<Path>>(filename: T) -> Result<Vec<CertificateDer<'static>>> {
+    // Open certificate file.
+    let cert_file = std::fs::File::open(filename.as_ref())
+        .with_context(|| format!("Failed to access `{}`", filename.as_ref().display()))?;
+    let mut reader = std::io::BufReader::new(cert_file);
+
+    // Load and return certificate.
+    let mut certs = vec![];
+    for cert in rustls_pemfile::certs(&mut reader) {
+        let cert = cert.with_context(|| "Failed to load certificate")?;
+        certs.push(cert)
+    }
+    if certs.is_empty() {
+        anyhow::bail!("No supported certificate in file");
+    }
+    Ok(certs)
+}
+
+// Load private key from file.
+#[cfg(feature = "tls")]
+pub fn load_private_key<T: AsRef<Path>>(filename: T) -> Result<PrivateKeyDer<'static>> {
+    let key_file = std::fs::File::open(filename.as_ref())
+        .with_context(|| format!("Failed to access `{}`", filename.as_ref().display()))?;
+    let mut reader = std::io::BufReader::new(key_file);
+
+    // Load and return a single private key.
+    for key in rustls_pemfile::read_all(&mut reader) {
+        let key = key.with_context(|| "There was a problem with reading private key")?;
+        match key {
+            rustls_pemfile::Item::Pkcs1Key(key) => return Ok(PrivateKeyDer::Pkcs1(key)),
+            rustls_pemfile::Item::Pkcs8Key(key) => return Ok(PrivateKeyDer::Pkcs8(key)),
+            rustls_pemfile::Item::Sec1Key(key) => return Ok(PrivateKeyDer::Sec1(key)),
+            _ => {}
+        }
+    }
+    anyhow::bail!("No supported private key in file");
 }
 
 #[test]

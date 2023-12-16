@@ -20,7 +20,7 @@ macro_rules! assert_resp_paths {
 #[macro_export]
 macro_rules! fetch {
     ($method:literal, $url:expr) => {
-        reqwest::blocking::Client::new().request(hyper::Method::from_bytes($method)?, $url)
+        reqwest::blocking::Client::new().request(reqwest::Method::from_bytes($method)?, $url)
     };
 }
 
