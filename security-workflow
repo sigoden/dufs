@@ -1,0 +1,26 @@
+name: Security Analysis Workflow
+on: [push, pull_request]
+
+jobs:
+  security_checks:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Semgrep Scan
+      uses: returntocorp/semgrep-action@v1
+
+    - name: Setup Java for Dependency Check
+      uses: actions/setup-java@v2
+      with:
+        distribution: 'adopt'
+        java-version: '11'
+
+    - name: OWASP Dependency Check
+      run: |
+        wget https://github.com/jeremylong/DependencyCheck/releases/download/v6.1.6/dependency-check-6.1.6-release.zip
+        unzip dependency-check-6.1.6-release.zip
+        ./dependency-check/bin/dependency-check.sh --project "MyProject" --scan .
+
+    - name: Gitleaks Scan
+      uses: zricethezav/gitleaks-action@v1
