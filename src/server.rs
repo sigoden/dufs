@@ -514,7 +514,7 @@ impl Server {
             let access_paths = access_paths.clone();
             let search_paths = tokio::task::spawn_blocking(move || {
                 let mut paths: Vec<PathBuf> = vec![];
-                for dir in access_paths.leaf_paths(&path_buf) {
+                for dir in access_paths.child_paths(&path_buf) {
                     let mut it = WalkDir::new(&dir).into_iter();
                     it.next();
                     while let Some(Ok(entry)) = it.next() {
@@ -1184,7 +1184,7 @@ impl Server {
     ) -> Result<Vec<PathItem>> {
         let mut paths: Vec<PathItem> = vec![];
         if access_paths.perm().indexonly() {
-            for name in access_paths.child_paths() {
+            for name in access_paths.child_names() {
                 let entry_path = entry_path.join(name);
                 self.add_pathitem(&mut paths, base_path, &entry_path).await;
             }
@@ -1465,7 +1465,7 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
     let dir_clone = dir.to_path_buf();
     let zip_paths = tokio::task::spawn_blocking(move || {
         let mut paths: Vec<PathBuf> = vec![];
-        for dir in access_paths.leaf_paths(&dir_clone) {
+        for dir in access_paths.child_paths(&dir_clone) {
             let mut it = WalkDir::new(&dir).into_iter();
             it.next();
             while let Some(Ok(entry)) = it.next() {
