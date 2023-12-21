@@ -94,10 +94,7 @@ fn serve(args: Args, running: Arc<AtomicBool>) -> Result<Vec<JoinHandle<()>>> {
                             loop {
                                 let (cnx, addr) = listener.accept().await.unwrap();
                                 let Ok(stream) = tls_accepter.accept(cnx).await else {
-                                    eprintln!(
-                                        "WARNING during tls handshake connection from {}",
-                                        addr
-                                    );
+                                    warn!("During cls handshake connection from {}", addr);
                                     continue;
                                 };
                                 let stream = TokioIo::new(stream);
@@ -172,7 +169,7 @@ where
         };
         match err.downcast_ref::<std::io::Error>() {
             Some(err) if err.kind() == std::io::ErrorKind::UnexpectedEof => {}
-            _ => eprintln!("WARNING serving connection{}: {}", scope, err),
+            _ => warn!("Serving connection{}: {}", scope, err),
         }
     }
 }
