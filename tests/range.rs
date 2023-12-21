@@ -2,7 +2,7 @@ mod fixtures;
 mod utils;
 
 use fixtures::{server, Error, TestServer};
-use headers::HeaderValue;
+use reqwest::header::HeaderValue;
 use rstest::rstest;
 
 #[rstest]
