@@ -3,7 +3,8 @@
 use crate::auth::{www_authenticate, AccessPaths, AccessPerm};
 use crate::http_utils::{body_full, IncomingStream, LengthLimitedStream};
 use crate::utils::{
-    decode_uri, encode_uri, get_file_mtime_and_mode, get_file_name, glob, try_get_file_name,
+    decode_uri, encode_uri, get_file_mtime_and_mode, get_file_name, glob, parse_range,
+    try_get_file_name,
 };
 use crate::Args;
 
@@ -716,6 +717,7 @@ impl Server {
     ) -> Result<()> {
         let (file, meta) = tokio::join!(fs::File::open(path), fs::metadata(path),);
         let (mut file, meta) = (file?, meta?);
+        let size = meta.len();
         let mut use_range = true;
         if let Some((etag, last_modified)) = extract_cache_headers(&meta) {
             let cached = {
@@ -747,7 +749,12 @@ impl Server {
         }
 
         let range = if use_range {
-            parse_range(headers)
+            headers.get(RANGE).map(|range| {
+                range
+                    .to_str()
+                    .ok()
+                    .and_then(|range| parse_range(range, size))
+            })
         } else {
             None
         };
@@ -762,18 +769,12 @@ impl Server {
 
         res.headers_mut().typed_insert(AcceptRanges::bytes());
 
-        let size = meta.len();
-
         if let Some(range) = range {
-            if range
-                .end
-                .map_or_else(|| range.start < size, |v| v >= range.start)
-                && file.seek(SeekFrom::Start(range.start)).await.is_ok()
-            {
-                let end = range.end.unwrap_or(size - 1).min(size - 1);
-                let range_size = end - range.start + 1;
+            if let Some((start, end)) = range {
+                file.seek(SeekFrom::Start(start)).await?;
+                let range_size = end - start + 1;
                 *res.status_mut() = StatusCode::PARTIAL_CONTENT;
-                let content_range = format!("bytes {}-{}/{}", range.start, end, size);
+                let content_range = format!("bytes {}-{}/{}", start, end, size);
                 res.headers_mut()
                     .insert(CONTENT_RANGE, content_range.parse()?);
                 res.headers_mut()
@@ -1528,36 +1529,6 @@ fn extract_cache_headers(meta: &Metadata) -> Option<(ETag, LastModified)> {
     let etag = format!(r#""{timestamp}-{size}""#).parse::<ETag>().ok()?;
     let last_modified = LastModified::from(mtime);
     Some((etag, last_modified))
-}
-
-#[derive(Debug)]
-struct RangeValue {
-    start: u64,
-    end: Option<u64>,
-}
-
-fn parse_range(headers: &HeaderMap<HeaderValue>) -> Option<RangeValue> {
-    let range_hdr = headers.get(RANGE)?;
-    let hdr = range_hdr.to_str().ok()?;
-    let mut sp = hdr.splitn(2, '=');
-    let units = sp.next()?;
-    if units == "bytes" {
-        let range = sp.next()?;
-        let mut sp_range = range.splitn(2, '-');
-        let start: u64 = sp_range.next()?.parse().ok()?;
-        let end: Option<u64> = if let Some(end) = sp_range.next() {
-            if end.is_empty() {
-                None
-            } else {
-                Some(end.parse().ok()?)
-            }
-        } else {
-            None
-        };
-        Some(RangeValue { start, end })
-    } else {
-        None
-    }
 }
 
 fn status_forbid(res: &mut Response) {
