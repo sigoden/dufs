@@ -100,26 +100,75 @@ pub fn load_private_key<T: AsRef<Path>>(filename: T) -> Result<PrivateKeyDer<'st
     anyhow::bail!("No supported private key in file");
 }
 
-#[test]
-fn test_glob_key() {
-    assert!(glob("", ""));
-    assert!(glob(".*", ".git"));
-    assert!(glob("abc", "abc"));
-    assert!(glob("a*c", "abc"));
-    assert!(glob("a?c", "abc"));
-    assert!(glob("a*c", "abbc"));
-    assert!(glob("*c", "abc"));
-    assert!(glob("a*", "abc"));
-    assert!(glob("?c", "bc"));
-    assert!(glob("a?", "ab"));
-    assert!(!glob("abc", "adc"));
-    assert!(!glob("abc", "abcd"));
-    assert!(!glob("a?c", "abbc"));
-    assert!(!glob("*.log", "log"));
-    assert!(glob("*.abc-cba", "xyz.abc-cba"));
-    assert!(glob("*.abc-cba", "123.xyz.abc-cba"));
-    assert!(glob("*.log", ".log"));
-    assert!(glob("*.log", "a.log"));
-    assert!(glob("*/", "abc/"));
-    assert!(!glob("*/", "abc"));
+pub fn parse_range(range: &str, size: u64) -> Option<(u64, u64)> {
+    let (unit, range) = range.split_once('=')?;
+    if unit != "bytes" || range.contains(',') {
+        return None;
+    }
+    let (start, end) = range.split_once('-')?;
+    if start.is_empty() {
+        let offset = end.parse::<u64>().ok()?;
+        if offset <= size {
+            Some((size - offset, size - 1))
+        } else {
+            None
+        }
+    } else {
+        let start = start.parse::<u64>().ok()?;
+        if start < size {
+            if end.is_empty() {
+                Some((start, size - 1))
+            } else {
+                let end = end.parse::<u64>().ok()?;
+                if end < size {
+                    Some((start, end))
+                } else {
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_glob_key() {
+        assert!(glob("", ""));
+        assert!(glob(".*", ".git"));
+        assert!(glob("abc", "abc"));
+        assert!(glob("a*c", "abc"));
+        assert!(glob("a?c", "abc"));
+        assert!(glob("a*c", "abbc"));
+        assert!(glob("*c", "abc"));
+        assert!(glob("a*", "abc"));
+        assert!(glob("?c", "bc"));
+        assert!(glob("a?", "ab"));
+        assert!(!glob("abc", "adc"));
+        assert!(!glob("abc", "abcd"));
+        assert!(!glob("a?c", "abbc"));
+        assert!(!glob("*.log", "log"));
+        assert!(glob("*.abc-cba", "xyz.abc-cba"));
+        assert!(glob("*.abc-cba", "123.xyz.abc-cba"));
+        assert!(glob("*.log", ".log"));
+        assert!(glob("*.log", "a.log"));
+        assert!(glob("*/", "abc/"));
+        assert!(!glob("*/", "abc"));
+    }
+
+    #[test]
+    fn test_parse_range() {
+        assert_eq!(parse_range("bytes=0-499", 500), Some((0, 499)));
+        assert_eq!(parse_range("bytes=0-", 500), Some((0, 499)));
+        assert_eq!(parse_range("bytes=299-", 500), Some((299, 499)));
+        assert_eq!(parse_range("bytes=-500", 500), Some((0, 499)));
+        assert_eq!(parse_range("bytes=-300", 500), Some((200, 499)));
+        assert_eq!(parse_range("bytes=500-", 500), None);
+        assert_eq!(parse_range("bytes=-501", 500), None);
+        assert_eq!(parse_range("bytes=0-500", 500), None);
+    }
 }
