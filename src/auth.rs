@@ -47,10 +47,7 @@ impl AccessControl {
         if raw_rules.is_empty() {
             return Ok(Default::default());
         }
-        let new_raw_rules = compact_split_rules(raw_rules);
-        if new_raw_rules.len() != raw_rules.len() {
-            eprintln!("Warning: deprecate the use of `|` to separate auth rules.")
-        }
+        let new_raw_rules = split_rules(raw_rules);
         let mut use_hashed_password = false;
         let create_err = |v: &str| anyhow!("Invalid auth `{v}`");
         let mut anony = None;
@@ -194,7 +191,11 @@ impl AccessPaths {
     }
 
     fn find_impl(&self, parts: &[&str], perm: AccessPerm) -> Option<AccessPaths> {
-        let perm = self.perm.max(perm);
+        let perm = if !self.perm.indexonly() {
+            self.perm
+        } else {
+            perm
+        };
         if parts.is_empty() {
             if perm.indexonly() {
                 return Some(self.clone());
@@ -215,24 +216,24 @@ impl AccessPaths {
         child.find_impl(&parts[1..], perm)
     }
 
-    pub fn child_paths(&self) -> Vec<&String> {
+    pub fn child_names(&self) -> Vec<&String> {
         self.children.keys().collect()
     }
 
-    pub fn leaf_paths(&self, base: &Path) -> Vec<PathBuf> {
+    pub fn child_paths(&self, base: &Path) -> Vec<PathBuf> {
         if !self.perm().indexonly() {
             return vec![base.to_path_buf()];
         }
         let mut output = vec![];
-        self.leaf_paths_impl(&mut output, base);
+        self.child_paths_impl(&mut output, base);
         output
     }
 
-    fn leaf_paths_impl(&self, output: &mut Vec<PathBuf>, base: &Path) {
+    fn child_paths_impl(&self, output: &mut Vec<PathBuf>, base: &Path) {
         for (name, child) in self.children.iter() {
             let base = base.join(name);
             if child.perm().indexonly() {
-                child.leaf_paths_impl(output, &base);
+                child.child_paths_impl(output, &base);
             } else {
                 output.push(base)
             }
@@ -489,8 +490,7 @@ fn split_account_paths(s: &str) -> Option<(&str, &str)> {
     Some((&s[0..i], &s[i + 1..]))
 }
 
-/// Compatible with deprecated usage of `|` for role separation
-fn compact_split_rules(rules: &[&str]) -> Vec<String> {
+fn split_rules(rules: &[&str]) -> Vec<String> {
     let mut output = vec![];
     for rule in rules {
         let parts: Vec<&str> = rule.split('|').collect();
@@ -540,15 +540,15 @@ mod tests {
     #[test]
     fn test_compact_split_rules() {
         assert_eq!(
-            compact_split_rules(&["user1:pass1@/:rw|user2:pass2@/:rw"]),
+            split_rules(&["user1:pass1@/:rw|user2:pass2@/:rw"]),
             ["user1:pass1@/:rw", "user2:pass2@/:rw"]
         );
         assert_eq!(
-            compact_split_rules(&["user1:pa|ss1@/:rw|user2:pa|ss2@/:rw"]),
+            split_rules(&["user1:pa|ss1@/:rw|user2:pa|ss2@/:rw"]),
             ["user1:pa|ss1@/:rw", "user2:pa|ss2@/:rw"]
         );
         assert_eq!(
-            compact_split_rules(&["user1:pa|ss1@/:rw|@/"]),
+            split_rules(&["user1:pa|ss1@/:rw|@/"]),
             ["user1:pa|ss1@/:rw", "@/"]
         );
     }
@@ -557,16 +557,18 @@ mod tests {
     fn test_access_paths() {
         let mut paths = AccessPaths::default();
         paths.add("/dir1", AccessPerm::ReadWrite);
-        paths.add("/dir2/dir1", AccessPerm::ReadWrite);
-        paths.add("/dir2/dir2", AccessPerm::ReadOnly);
-        paths.add("/dir2/dir3/dir1", AccessPerm::ReadWrite);
+        paths.add("/dir2/dir21", AccessPerm::ReadWrite);
+        paths.add("/dir2/dir21/dir211", AccessPerm::ReadOnly);
+        paths.add("/dir2/dir22", AccessPerm::ReadOnly);
+        paths.add("/dir2/dir22/dir221", AccessPerm::ReadWrite);
+        paths.add("/dir2/dir23/dir231", AccessPerm::ReadWrite);
         assert_eq!(
-            paths.leaf_paths(Path::new("/tmp")),
+            paths.child_paths(Path::new("/tmp")),
             [
                 "/tmp/dir1",
-                "/tmp/dir2/dir1",
-                "/tmp/dir2/dir2",
-                "/tmp/dir2/dir3/dir1"
+                "/tmp/dir2/dir21",
+                "/tmp/dir2/dir22",
+                "/tmp/dir2/dir23/dir231",
             ]
             .iter()
             .map(PathBuf::from)
@@ -575,16 +577,32 @@ mod tests {
         assert_eq!(
             paths
                 .find("dir2", false)
-                .map(|v| v.leaf_paths(Path::new("/tmp/dir2"))),
+                .map(|v| v.child_paths(Path::new("/tmp/dir2"))),
             Some(
-                ["/tmp/dir2/dir1", "/tmp/dir2/dir2", "/tmp/dir2/dir3/dir1"]
-                    .iter()
-                    .map(PathBuf::from)
-                    .collect::<Vec<_>>()
+                [
+                    "/tmp/dir2/dir21",
+                    "/tmp/dir2/dir22",
+                    "/tmp/dir2/dir23/dir231"
+                ]
+                .iter()
+                .map(PathBuf::from)
+                .collect::<Vec<_>>()
             )
         );
         assert_eq!(paths.find("dir2", true), None);
-        assert!(paths.find("dir1/file", true).is_some());
+        assert_eq!(
+            paths.find("dir1/file", true),
+            Some(AccessPaths::new(AccessPerm::ReadWrite))
+        );
+        assert_eq!(
+            paths.find("dir2/dir21/file", true),
+            Some(AccessPaths::new(AccessPerm::ReadWrite))
+        );
+        assert_eq!(
+            paths.find("dir2/dir21/dir211/file", false),
+            Some(AccessPaths::new(AccessPerm::ReadOnly))
+        );
+        assert_eq!(paths.find("dir2/dir21/dir211/file", true), None);
     }
 
     #[test]
