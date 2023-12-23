@@ -145,6 +145,23 @@ fn auth_readonly(
 }
 
 #[rstest]
+fn auth_forbidden(
+    #[with(&["--auth", "user:pass@/:rw,/dir1:-", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    let url = format!("{}file1", server.url());
+    let resp = fetch!(b"PUT", &url)
+        .body(b"abc".to_vec())
+        .send_with_digest_auth("user", "pass")?;
+    assert_eq!(resp.status(), 201);
+    let url = format!("{}dir1/file1", server.url());
+    let resp = fetch!(b"PUT", &url)
+        .body(b"abc".to_vec())
+        .send_with_digest_auth("user", "pass")?;
+    assert_eq!(resp.status(), 403);
+    Ok(())
+}
+
+#[rstest]
 fn auth_nest(
     #[with(&["--auth", "user:pass@/:rw", "--auth", "user2:pass2@/", "--auth", "user3:pass3@/dir1:rw", "-A"])]
     server: TestServer,

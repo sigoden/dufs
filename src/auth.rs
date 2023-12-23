@@ -49,46 +49,41 @@ impl AccessControl {
         }
         let new_raw_rules = split_rules(raw_rules);
         let mut use_hashed_password = false;
-        let create_err = |v: &str| anyhow!("Invalid auth `{v}`");
-        let mut anony = None;
-        let mut anony_paths = vec![];
-        let mut users = IndexMap::new();
+        let mut annoy_paths = None;
+        let mut account_paths_pairs = vec![];
         for rule in &new_raw_rules {
-            let (account, paths) = split_account_paths(rule).ok_or_else(|| create_err(rule))?;
-            if account.is_empty() && anony.is_some() {
-                bail!("Invalid auth, duplicate anonymous rules");
-            }
-            let mut access_paths = AccessPaths::default();
-            for item in paths.trim_matches(',').split(',') {
-                let (path, perm) = match item.split_once(':') {
-                    None => (item, AccessPerm::ReadOnly),
-                    Some((path, "rw")) => (path, AccessPerm::ReadWrite),
-                    _ => return Err(create_err(rule)),
-                };
-                if account.is_empty() {
-                    anony_paths.push((path, perm));
-                }
-                access_paths.add(path, perm);
-            }
+            let (account, paths) =
+                split_account_paths(rule).ok_or_else(|| anyhow!("Invalid auth `{rule}`"))?;
             if account.is_empty() {
-                anony = Some(access_paths);
+                if annoy_paths.is_some() {
+                    bail!("Invalid auth, no duplicate anonymous rules");
+                }
+                annoy_paths = Some(paths)
             } else if let Some((user, pass)) = account.split_once(':') {
                 if user.is_empty() || pass.is_empty() {
-                    return Err(create_err(rule));
+                    bail!("Invalid auth `{rule}`");
                 }
-                if pass.starts_with("$6$") {
-                    use_hashed_password = true;
-                }
-                users.insert(user.to_string(), (pass.to_string(), access_paths));
-            } else {
-                return Err(create_err(rule));
+                account_paths_pairs.push((user, pass, paths));
             }
         }
-        for (path, perm) in anony_paths {
-            for (_, (_, paths)) in users.iter_mut() {
-                paths.add(path, perm)
-            }
+        let mut anony = None;
+        if let Some(paths) = annoy_paths {
+            let mut access_paths = AccessPaths::default();
+            access_paths.merge(paths);
+            anony = Some(access_paths);
         }
+        let mut users = IndexMap::new();
+        for (user, pass, paths) in account_paths_pairs.into_iter() {
+            let mut access_paths = anony.clone().unwrap_or_default();
+            access_paths
+                .merge(paths)
+                .ok_or_else(|| anyhow!("Invalid auth `{user}:{pass}@{paths}"))?;
+            if pass.starts_with("$6$") {
+                use_hashed_password = true;
+            }
+            users.insert(user.to_string(), (pass.to_string(), access_paths));
+        }
+
         Ok(Self {
             use_hashed_password,
             users,
@@ -151,13 +146,27 @@ impl AccessPaths {
         self.perm
     }
 
-    fn set_perm(&mut self, perm: AccessPerm) {
-        if self.perm < perm {
-            self.perm = perm
+    pub fn set_perm(&mut self, perm: AccessPerm) {
+        if !perm.inherit() {
+            self.perm = perm;
         }
     }
 
-    pub fn add(&mut self, path: &str, perm: AccessPerm) {
+    pub fn merge(&mut self, paths: &str) -> Option<()> {
+        for item in paths.trim_matches(',').split(',') {
+            let (path, perm) = match item.split_once(':') {
+                None => (item, AccessPerm::ReadOnly),
+                Some((path, "ro")) => (path, AccessPerm::ReadOnly),
+                Some((path, "rw")) => (path, AccessPerm::ReadWrite),
+                Some((path, "-")) => (path, AccessPerm::Forbidden),
+                _ => return None,
+            };
+            self.add(path, perm);
+        }
+        Some(())
+    }
+
+    fn add(&mut self, path: &str, perm: AccessPerm) {
         let path = path.trim_matches('/');
         if path.is_empty() {
             self.set_perm(perm);
@@ -184,6 +193,9 @@ impl AccessPaths {
             .filter(|v| !v.is_empty())
             .collect();
         let target = self.find_impl(&parts, self.perm)?;
+        if target.perm().forbidden() {
+            return None;
+        }
         if writable && !target.perm().readwrite() {
             return None;
         }
@@ -191,13 +203,13 @@ impl AccessPaths {
     }
 
     fn find_impl(&self, parts: &[&str], perm: AccessPerm) -> Option<AccessPaths> {
-        let perm = if !self.perm.indexonly() {
+        let perm = if !self.perm.inherit() {
             self.perm
         } else {
             perm
         };
         if parts.is_empty() {
-            if perm.indexonly() {
+            if perm.inherit() {
                 return Some(self.clone());
             } else {
                 return Some(AccessPaths::new(perm));
@@ -206,7 +218,7 @@ impl AccessPaths {
         let child = match self.children.get(parts[0]) {
             Some(v) => v,
             None => {
-                if perm.indexonly() {
+                if perm.inherit() {
                     return None;
                 } else {
                     return Some(AccessPaths::new(perm));
@@ -221,7 +233,7 @@ impl AccessPaths {
     }
 
     pub fn child_paths(&self, base: &Path) -> Vec<PathBuf> {
-        if !self.perm().indexonly() {
+        if !self.perm().inherit() {
             return vec![base.to_path_buf()];
         }
         let mut output = vec![];
@@ -232,7 +244,7 @@ impl AccessPaths {
     fn child_paths_impl(&self, output: &mut Vec<PathBuf>, base: &Path) {
         for (name, child) in self.children.iter() {
             let base = base.join(name);
-            if child.perm().indexonly() {
+            if child.perm().inherit() {
                 child.child_paths_impl(output, &base);
             } else {
                 output.push(base)
@@ -244,18 +256,23 @@ impl AccessPaths {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum AccessPerm {
     #[default]
-    IndexOnly,
+    Inherit,
     ReadOnly,
     ReadWrite,
+    Forbidden,
 }
 
 impl AccessPerm {
+    pub fn inherit(&self) -> bool {
+        self == &AccessPerm::Inherit
+    }
+
     pub fn readwrite(&self) -> bool {
         self == &AccessPerm::ReadWrite
     }
 
-    pub fn indexonly(&self) -> bool {
-        self == &AccessPerm::IndexOnly
+    pub fn forbidden(&self) -> bool {
+        self == &AccessPerm::Forbidden
     }
 }
 
@@ -559,6 +576,7 @@ mod tests {
         paths.add("/dir1", AccessPerm::ReadWrite);
         paths.add("/dir2/dir21", AccessPerm::ReadWrite);
         paths.add("/dir2/dir21/dir211", AccessPerm::ReadOnly);
+        paths.add("/dir2/dir21/dir212", AccessPerm::Forbidden);
         paths.add("/dir2/dir22", AccessPerm::ReadOnly);
         paths.add("/dir2/dir22/dir221", AccessPerm::ReadWrite);
         paths.add("/dir2/dir23/dir231", AccessPerm::ReadWrite);
@@ -603,17 +621,6 @@ mod tests {
             Some(AccessPaths::new(AccessPerm::ReadOnly))
         );
         assert_eq!(paths.find("dir2/dir21/dir211/file", true), None);
-    }
-
-    #[test]
-    fn test_access_paths_perm() {
-        let mut paths = AccessPaths::default();
-        assert_eq!(paths.perm(), AccessPerm::IndexOnly);
-        paths.set_perm(AccessPerm::ReadOnly);
-        assert_eq!(paths.perm(), AccessPerm::ReadOnly);
-        paths.set_perm(AccessPerm::ReadWrite);
-        assert_eq!(paths.perm(), AccessPerm::ReadWrite);
-        paths.set_perm(AccessPerm::ReadOnly);
-        assert_eq!(paths.perm(), AccessPerm::ReadWrite);
+        assert_eq!(paths.find("dir2/dir21/dir212", false), None);
     }
 }
