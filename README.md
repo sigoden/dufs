@@ -207,17 +207,18 @@ curl http://192.168.8.10:5000/file --user user:pass --digest        # digest aut
 Dufs supports account based access control. You can control who can do what on which path with `--auth`/`-a`.
 
 ```
-dufs -a user:pass@/path1:rw,/path2 -a user2:pass2@/path3 -a @/path4
+dufs -a user:pass@/dir1:rw,/dir2,/dir2/sub1:- -a user2:pass2@/dir3 -a @/
 ```
 
 1. Use `@` to separate the account and paths. No account means anonymous user.
 2. Use `:` to separate the username and password of the account.
 3. Use `,` to separate paths.
-4. Use `:rw` suffix to indicate that the account has read-write permission on the path.
+4. Use `:rw`, `:ro`, `:-`  to set permissions: `read-write`, `read-only`(optional), `forbidden`.
+
 
 - `-a admin:amdin@/:rw`: `admin` has complete permissions for all paths.
 - `-a guest:guest@/`: `guest` has read-only permissions for all paths.
-- `-a user:pass@/dir1:rw,/dir2`: `user` has complete permissions for `/dir1/*`, has read-only permissions for `/dir2/`.
+- `-a user:pass@/dir1:rw,/dir2,/dir2/sub:-`: `user` has read-write permissions for `/dir1/*`, has read-only permissions for `/dir2/*`, but is fordden for `/dir2/sub1`.
 - `-a @/`: All paths is publicly accessible, everyone can view/download it.
 
 > There are no restrictions on using ':' and '@' characters in a password, `user:pa:ss@1@/:rw` is valid, and the password is `pa:ss@1`.
