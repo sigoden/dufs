@@ -16,7 +16,14 @@ pub const BIN_FILE: &str = "😀.bin";
 
 /// File names for testing purpose
 #[allow(dead_code)]
-pub static FILES: &[&str] = &["test.txt", "test.html", "index.html", BIN_FILE];
+pub static FILES: &[&str] = &[
+    "test.txt",
+    "test.html",
+    "index.html",
+    #[cfg(not(target_os = "windows"))]
+    "file\n1.txt",
+    BIN_FILE,
+];
 
 /// Directory names for testing directory don't exist
 #[allow(dead_code)]
