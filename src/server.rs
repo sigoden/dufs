@@ -1547,13 +1547,23 @@ fn status_no_content(res: &mut Response) {
 
 fn set_content_diposition(res: &mut Response, inline: bool, filename: &str) -> Result<()> {
     let kind = if inline { "inline" } else { "attachment" };
+    let filename: String = filename
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_control() && ch != '\t' {
+                ' '
+            } else {
+                ch
+            }
+        })
+        .collect();
     let value = if filename.is_ascii() {
         HeaderValue::from_str(&format!("{kind}; filename=\"{}\"", filename,))?
     } else {
         HeaderValue::from_str(&format!(
             "{kind}; filename=\"{}\"; filename*=UTF-8''{}",
             filename,
-            encode_uri(filename),
+            encode_uri(&filename),
         ))?
     };
     res.headers_mut().insert(CONTENT_DISPOSITION, value);

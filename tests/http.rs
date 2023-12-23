@@ -208,6 +208,17 @@ fn get_file_emoji_path(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn get_file_newline_path(server: TestServer) -> Result<(), Error> {
+    let resp = reqwest::blocking::get(format!("{}file%0A1.txt", server.url()))?;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(
+        resp.headers().get("content-disposition").unwrap(),
+        "inline; filename=\"file 1.txt\""
+    );
+    Ok(())
+}
+
+#[rstest]
 fn get_file_edit(server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"GET", format!("{}index.html?edit", server.url())).send()?;
     assert_eq!(resp.status(), 200);
