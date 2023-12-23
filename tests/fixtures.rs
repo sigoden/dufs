@@ -20,6 +20,7 @@ pub static FILES: &[&str] = &[
     "test.txt",
     "test.html",
     "index.html",
+    #[cfg(not(target_os = "windows"))]
     "file\n1.txt",
     BIN_FILE,
 ];

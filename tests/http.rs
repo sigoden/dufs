@@ -207,6 +207,7 @@ fn get_file_emoji_path(server: TestServer) -> Result<(), Error> {
     Ok(())
 }
 
+#[cfg(not(target_os = "windows"))]
 #[rstest]
 fn get_file_newline_path(server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(format!("{}file%0A1.txt", server.url()))?;
