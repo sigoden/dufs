@@ -327,33 +327,38 @@ impl Server {
                 set_webdav_headers(&mut res);
             }
             Method::PUT => {
-                if !allow_upload || is_dir {
+                if is_dir || !allow_upload || (!allow_delete && size > 0) {
                     status_forbid(&mut res);
-                    return Ok(res);
+                } else {
+                    self.handle_upload(path, None, size, req, &mut res).await?;
                 }
-                let content_range = match parse_content_range(headers) {
-                    Ok(v) => v,
-                    Err(err) => {
-                        status_bad_request(&mut res, &err.to_string());
-                        return Ok(res);
+            }
+            Method::PATCH => {
+                if is_miss {
+                    status_not_found(&mut res);
+                } else if !allow_upload {
+                    status_forbid(&mut res);
+                } else {
+                    let offset = match parse_upload_offset(headers) {
+                        Ok(v) => v,
+                        Err(_) => {
+                            status_bad_request(&mut res, "Invliad upload-offset");
+                            return Ok(res);
+                        }
+                    };
+                    match offset {
+                        Some(offset) => {
+                            if offset < size && !allow_delete {
+                                status_forbid(&mut res);
+                            }
+                            self.handle_upload(path, Some(offset), size, req, &mut res)
+                                .await?;
+                        }
+                        None => {
+                            *res.status_mut() = StatusCode::METHOD_NOT_ALLOWED;
+                        }
                     }
-                };
-                let content_length = match parse_content_length(headers) {
-                    Ok(v) => v,
-                    Err(err) => {
-                        status_bad_request(&mut res, &err.to_string());
-                        return Ok(res);
-                    }
-                };
-                if let (Some((None, _)), Some(0)) = (content_range, content_length) {
-                    upload_status(size, &mut res)?;
-                    return Ok(res);
                 }
-                let (done, start) = guard_upload(content_range, allow_delete, size, &mut res);
-                if done {
-                    return Ok(res);
-                }
-                self.handle_upload(path, start, size, req, &mut res).await?;
             }
             Method::DELETE => {
                 if !allow_delete {
@@ -442,22 +447,22 @@ impl Server {
     async fn handle_upload(
         &self,
         path: &Path,
-        start: Option<u64>,
+        upload_offset: Option<u64>,
         size: u64,
         req: Request,
         res: &mut Response,
     ) -> Result<()> {
         ensure_path_parent(path).await?;
-        let (mut file, status) = match start {
+        let (mut file, status) = match upload_offset {
             None => (fs::File::create(path).await?, StatusCode::CREATED),
-            Some(start) if start == size => (
+            Some(offset) if offset == size => (
                 fs::OpenOptions::new().append(true).open(path).await?,
-                StatusCode::OK,
+                StatusCode::NO_CONTENT,
             ),
-            Some(start) => {
+            Some(offset) => {
                 let mut file = fs::OpenOptions::new().write(true).open(path).await?;
-                file.seek(SeekFrom::Start(start)).await?;
-                (file, StatusCode::OK)
+                file.seek(SeekFrom::Start(offset)).await?;
+                (file, StatusCode::NO_CONTENT)
             }
         };
         let stream = IncomingStream::new(req.into_body());
@@ -469,12 +474,20 @@ impl Server {
 
         let ret = io::copy(&mut body_reader, &mut file).await;
         if ret.is_err() {
-            tokio::fs::remove_file(&path).await?;
+            // tokio::fs::remove_file(&path).await?;
 
             ret?;
         }
 
+        if upload_offset.is_some() {
+            let meta = fs::metadata(path).await?;
+            let size = meta.len();
+            res.headers_mut()
+                .insert("Upload-Offset", size.to_string().parse()?);
+        }
+
         *res.status_mut() = status;
+
         Ok(())
     }
 
@@ -800,6 +813,11 @@ impl Server {
         set_content_diposition(res, true, filename)?;
 
         res.headers_mut().typed_insert(AcceptRanges::bytes());
+
+        if head_only {
+            res.headers_mut()
+                .insert("Upload-Offset", size.to_string().parse()?);
+        }
 
         if let Some(range) = range {
             if let Some((start, end)) = range {
@@ -1660,91 +1678,12 @@ async fn get_content_type(path: &Path) -> Result<String> {
     Ok(content_type)
 }
 
-type ContentRangeValue = (Option<(u64, u64)>, Option<u64>);
-
-fn parse_content_range(headers: &HeaderMap<HeaderValue>) -> Result<Option<ContentRangeValue>> {
-    let value = match headers.get(CONTENT_RANGE) {
+fn parse_upload_offset(headers: &HeaderMap<HeaderValue>) -> Result<Option<u64>> {
+    let value = match headers.get("upload-offset") {
         Some(v) => v,
         None => return Ok(None),
     };
-    let err = || anyhow!("Invalid content-range");
-    let value = value.to_str().map_err(|_| err())?.trim();
-    let value = value.strip_prefix("bytes").ok_or_else(err)?;
-    let (range, size) = value.split_once('/').ok_or_else(err)?;
-    let (range, size) = (range.trim(), size.trim());
-    let range = if range == "*" {
-        None
-    } else {
-        let (start, end) = range.split_once('-').ok_or_else(err)?;
-        if let (Some(start), Some(end)) = (start.parse().ok(), end.parse().ok()) {
-            Some((start, end))
-        } else {
-            return Err(err());
-        }
-    };
-    let size = if size == "*" {
-        None
-    } else {
-        let size: u64 = size.parse().map_err(|_| err())?;
-        Some(size)
-    };
-    Ok(Some((range, size)))
-}
-
-fn parse_content_length(headers: &HeaderMap<HeaderValue>) -> Result<Option<u64>> {
-    let value = match headers.get(CONTENT_LENGTH) {
-        Some(v) => v,
-        None => return Ok(None),
-    };
-    let err = || anyhow!("Invalid content-length");
-    let value = value.to_str().map_err(|_| err())?.trim();
-    let value = value.parse().map_err(|_| err())?;
+    let value = value.to_str()?;
+    let value = value.parse()?;
     Ok(Some(value))
-}
-
-fn upload_status(size: u64, res: &mut Response) -> Result<()> {
-    *res.status_mut() = StatusCode::PERMANENT_REDIRECT;
-    if size > 0 {
-        let range = format!("bytes=0-{}", size - 1);
-        res.headers_mut().insert(RANGE, range.parse()?);
-    }
-    Ok(())
-}
-
-fn guard_upload(
-    content_range: Option<ContentRangeValue>,
-    allow_delete: bool,
-    size: u64,
-    res: &mut Response,
-) -> (bool, Option<u64>) {
-    let message = "Invalid content-range";
-    match content_range {
-        Some((Some((start, end)), Some(range_size))) => {
-            if start > end
-                || start >= range_size
-                || end >= range_size
-                || (allow_delete && start > size)
-            {
-                status_bad_request(res, message);
-                (true, None)
-            } else if !allow_delete && start != size {
-                status_forbid(res);
-                (true, None)
-            } else {
-                (false, Some(start))
-            }
-        }
-        Some(_) => {
-            status_bad_request(res, message);
-            (true, None)
-        }
-        None => {
-            if !allow_delete && size > 0 {
-                status_forbid(res);
-                (true, None)
-            } else {
-                (false, None)
-            }
-        }
-    }
 }

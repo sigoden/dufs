@@ -208,10 +208,9 @@ curl -C- -o file http://127.0.0.1:5000/file
 Resumable upload
 
 ```
-# Check the status of a resumable upload
-curl -i -X PUT -d '' -H "CONTENT-RANGE: bytes */$SIZE" http://localhost:5000/file 
-# Resume an interrupted upload
-curl -T remainder -H "Content-Range: bytes $NEXT_BYTE-$LAST_BYTE/$SIZE" http://localhost:5000/file
+upload_offset=$(curl -I -s http://127.0.0.1:5000/file | tr -d '\r' | sed -n 's/upload-offset: //p')
+dd skip=$upload_offset if=file of=remainder ibs=1
+curl -X PATCH -H "Upload-Offset: $upload_offset" -T remainder  http://127.0.0.1:5000/file
 ```
 
 <details>

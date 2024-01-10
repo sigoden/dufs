@@ -336,77 +336,16 @@ fn resumable_upload(#[with(&["--allow-upload"])] server: TestServer) -> Result<(
     let url = format!("{}file1", server.url());
     let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
     assert_eq!(resp.status(), 201);
-    let resp = fetch!(b"PUT", &url)
-        .header("content-length", "0")
-        .header("content-range", "bytes */3")
-        .send()?;
-    assert_eq!(resp.status(), 308);
-    assert_eq!(resp.headers().get("range").unwrap(), "bytes=0-2");
-    let resp = fetch!(b"PUT", &url)
-        .header("content-range", "bytes 3-5/6")
+    let resp = fetch!(b"HEAD", &url).send()?;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.headers().get("upload-offset").unwrap(), "3");
+    let resp = fetch!(b"PATCH", &url)
+        .header("Upload-Offset", "3")
         .body(b"abc".to_vec())
         .send()?;
-    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.status(), 204);
     let resp = reqwest::blocking::get(url)?;
     assert_eq!(resp.status(), 200);
     assert_eq!(resp.text().unwrap(), "abcabc");
-    Ok(())
-}
-
-#[rstest]
-fn partial_upload(
-    #[with(&["--allow-upload", "--allow-delete"])] server: TestServer,
-) -> Result<(), Error> {
-    let url = format!("{}file1", server.url());
-    let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
-    assert_eq!(resp.status(), 201);
-    let resp = fetch!(b"PUT", &url)
-        .header("content-range", "bytes 0-0/6")
-        .body(b"n".to_vec())
-        .send()?;
-    assert_eq!(resp.status(), 200);
-    let resp = reqwest::blocking::get(url)?;
-    assert_eq!(resp.status(), 200);
-    assert_eq!(resp.text().unwrap(), "nbc");
-    Ok(())
-}
-
-#[rstest]
-fn upload_content_range(#[with(&["--allow-upload"])] server: TestServer) -> Result<(), Error> {
-    let url = format!("{}file1", server.url());
-    let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
-    assert_eq!(resp.status(), 201);
-    let resp = fetch!(b"PUT", &url)
-        .body(b"abc".to_vec())
-        .header("content-range", "bytes */3")
-        .send()?;
-    assert_eq!(resp.status(), 400);
-    let resp = fetch!(b"PUT", &url)
-        .body(b"bc".to_vec())
-        .header("content-range", "bytes 1-2/3")
-        .send()?;
-    assert_eq!(resp.status(), 403);
-    let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
-    assert_eq!(resp.status(), 403);
-    Ok(())
-}
-
-#[rstest]
-fn upload_content_range_allow_delete(
-    #[with(&["--allow-upload", "--allow-delete"])] server: TestServer,
-) -> Result<(), Error> {
-    let url = format!("{}file1", server.url());
-    let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
-    assert_eq!(resp.status(), 201);
-    let resp = fetch!(b"PUT", &url)
-        .body(b"abc".to_vec())
-        .header("content-range", "bytes 4-6/7")
-        .send()?;
-    assert_eq!(resp.status(), 400);
-    let resp = fetch!(b"PUT", &url)
-        .body(b"abc".to_vec())
-        .header("content-range", "bytes 3-5/6")
-        .send()?;
-    assert_eq!(resp.status(), 200);
     Ok(())
 }
