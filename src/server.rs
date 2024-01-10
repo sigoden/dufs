@@ -327,11 +327,33 @@ impl Server {
                 set_webdav_headers(&mut res);
             }
             Method::PUT => {
-                if !allow_upload || (!allow_delete && is_file && size > 0) {
+                if !allow_upload || is_dir {
                     status_forbid(&mut res);
-                } else {
-                    self.handle_upload(path, req, &mut res).await?;
+                    return Ok(res);
                 }
+                let content_range = match parse_content_range(headers) {
+                    Ok(v) => v,
+                    Err(err) => {
+                        status_bad_request(&mut res, &err.to_string());
+                        return Ok(res);
+                    }
+                };
+                let content_length = match parse_content_length(headers) {
+                    Ok(v) => v,
+                    Err(err) => {
+                        status_bad_request(&mut res, &err.to_string());
+                        return Ok(res);
+                    }
+                };
+                if let (Some((None, _)), Some(0)) = (content_range, content_length) {
+                    upload_status(size, &mut res)?;
+                    return Ok(res);
+                }
+                let (done, start) = guard_upload(content_range, allow_delete, size, &mut res);
+                if done {
+                    return Ok(res);
+                }
+                self.handle_upload(path, start, size, req, &mut res).await?;
             }
             Method::DELETE => {
                 if !allow_delete {
@@ -417,17 +439,27 @@ impl Server {
         Ok(res)
     }
 
-    async fn handle_upload(&self, path: &Path, req: Request, res: &mut Response) -> Result<()> {
+    async fn handle_upload(
+        &self,
+        path: &Path,
+        start: Option<u64>,
+        size: u64,
+        req: Request,
+        res: &mut Response,
+    ) -> Result<()> {
         ensure_path_parent(path).await?;
-
-        let mut file = match fs::File::create(&path).await {
-            Ok(v) => v,
-            Err(_) => {
-                status_forbid(res);
-                return Ok(());
+        let (mut file, status) = match start {
+            None => (fs::File::create(path).await?, StatusCode::CREATED),
+            Some(start) if start == size => (
+                fs::OpenOptions::new().append(true).open(path).await?,
+                StatusCode::OK,
+            ),
+            Some(start) => {
+                let mut file = fs::OpenOptions::new().write(true).open(path).await?;
+                file.seek(SeekFrom::Start(start)).await?;
+                (file, StatusCode::OK)
             }
         };
-
         let stream = IncomingStream::new(req.into_body());
 
         let body_with_io_error = stream.map_err(|err| io::Error::new(io::ErrorKind::Other, err));
@@ -442,7 +474,7 @@ impl Server {
             ret?;
         }
 
-        *res.status_mut() = StatusCode::CREATED;
+        *res.status_mut() = status;
         Ok(())
     }
 
@@ -867,7 +899,7 @@ impl Server {
             Some(v) => match v.to_str().ok().and_then(|v| v.parse().ok()) {
                 Some(v) => v,
                 None => {
-                    *res.status_mut() = StatusCode::BAD_REQUEST;
+                    status_bad_request(res, "");
                     return Ok(());
                 }
             },
@@ -1545,6 +1577,13 @@ fn status_no_content(res: &mut Response) {
     *res.status_mut() = StatusCode::NO_CONTENT;
 }
 
+fn status_bad_request(res: &mut Response, body: &str) {
+    *res.status_mut() = StatusCode::BAD_REQUEST;
+    if !body.is_empty() {
+        *res.body_mut() = body_full(body.to_string());
+    }
+}
+
 fn set_content_diposition(res: &mut Response, inline: bool, filename: &str) -> Result<()> {
     let kind = if inline { "inline" } else { "attachment" };
     let filename: String = filename
@@ -1619,4 +1658,91 @@ async fn get_content_type(path: &Path) -> Result<String> {
         }
     };
     Ok(content_type)
+}
+
+type ContentRangeValue = (Option<(u64, u64)>, Option<u64>);
+
+fn parse_content_range(headers: &HeaderMap<HeaderValue>) -> Result<Option<ContentRangeValue>> {
+    let value = match headers.get(CONTENT_RANGE) {
+        Some(v) => v,
+        None => return Ok(None),
+    };
+    let err = || anyhow!("Invalid content-range");
+    let value = value.to_str().map_err(|_| err())?.trim();
+    let value = value.strip_prefix("bytes").ok_or_else(err)?;
+    let (range, size) = value.split_once('/').ok_or_else(err)?;
+    let (range, size) = (range.trim(), size.trim());
+    let range = if range == "*" {
+        None
+    } else {
+        let (start, end) = range.split_once('-').ok_or_else(err)?;
+        if let (Some(start), Some(end)) = (start.parse().ok(), end.parse().ok()) {
+            Some((start, end))
+        } else {
+            return Err(err());
+        }
+    };
+    let size = if size == "*" {
+        None
+    } else {
+        let size: u64 = size.parse().map_err(|_| err())?;
+        Some(size)
+    };
+    Ok(Some((range, size)))
+}
+
+fn parse_content_length(headers: &HeaderMap<HeaderValue>) -> Result<Option<u64>> {
+    let value = match headers.get(CONTENT_LENGTH) {
+        Some(v) => v,
+        None => return Ok(None),
+    };
+    let err = || anyhow!("Invalid content-length");
+    let value = value.to_str().map_err(|_| err())?.trim();
+    let value = value.parse().map_err(|_| err())?;
+    Ok(Some(value))
+}
+
+fn upload_status(size: u64, res: &mut Response) -> Result<()> {
+    *res.status_mut() = StatusCode::PERMANENT_REDIRECT;
+    if size > 0 {
+        let range = format!("bytes=0-{}", size - 1);
+        res.headers_mut().insert(RANGE, range.parse()?);
+    }
+    Ok(())
+}
+
+fn guard_upload(
+    content_range: Option<ContentRangeValue>,
+    allow_delete: bool,
+    size: u64,
+    res: &mut Response,
+) -> (bool, Option<u64>) {
+    let message = "Invalid content-range";
+    match content_range {
+        Some((Some((start, end)), Some(range_size))) => {
+            if start > end
+                || start >= range_size
+                || end >= range_size
+                || (!allow_delete && start != size)
+                || (allow_delete && start > size)
+            {
+                status_bad_request(res, message);
+                (true, None)
+            } else {
+                (false, Some(start))
+            }
+        }
+        Some(_) => {
+            status_bad_request(res, message);
+            (true, None)
+        }
+        None => {
+            if !allow_delete && size > 0 {
+                status_forbid(res);
+                (true, None)
+            } else {
+                (false, None)
+            }
+        }
+    }
 }

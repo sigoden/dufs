@@ -330,3 +330,25 @@ fn get_file_content_type(server: TestServer) -> Result<(), Error> {
     );
     Ok(())
 }
+
+#[rstest]
+fn resumable_upload(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let url = format!("{}file1", server.url());
+    let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
+    assert_eq!(resp.status(), 201);
+    let resp = fetch!(b"PUT", &url)
+        .header("content-length", "0")
+        .header("content-range", "bytes */3")
+        .send()?;
+    assert_eq!(resp.status(), 308);
+    assert_eq!(resp.headers().get("range").unwrap(), "bytes=0-2");
+    let resp = fetch!(b"PUT", &url)
+        .header("content-range", "bytes 3-5/6")
+        .body(b"abc".to_vec())
+        .send()?;
+    assert_eq!(resp.status(), 200);
+    let resp = reqwest::blocking::get(url)?;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.text().unwrap(), "abcabc");
+    Ok(())
+}
