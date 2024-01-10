@@ -1723,10 +1723,12 @@ fn guard_upload(
             if start > end
                 || start >= range_size
                 || end >= range_size
-                || (!allow_delete && start != size)
                 || (allow_delete && start > size)
             {
                 status_bad_request(res, message);
+                (true, None)
+            } else if !allow_delete && start != size {
+                status_forbid(res);
                 (true, None)
             } else {
                 (false, Some(start))
