@@ -13,5 +13,6 @@ The dufs log is crucial for locating the problem, so please do not omit it.
 
 **Environment:**
  - Dufs version:
- - Browser/Webdav Info: 
- - OS Info: 
+ - Browser/Webdav info:
+ - OS info:
+ - Proxy server:  e.g. nginx, cloudflare
