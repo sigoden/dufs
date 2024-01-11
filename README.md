@@ -151,63 +151,63 @@ dufs --tls-cert my.crt --tls-key my.key
 
 Upload a file
 
-```
+```sh
 curl -T path-to-file http://127.0.0.1:5000/new-path/path-to-file
 ```
 
 Download a file
-```
+```sh
 curl http://127.0.0.1:5000/path-to-file
 ```
 
 Download a folder as zip file
 
-```
+```sh
 curl -o path-to-folder.zip http://127.0.0.1:5000/path-to-folder?zip
 ```
 
 Delete a file/folder
 
-```
+```sh
 curl -X DELETE http://127.0.0.1:5000/path-to-file-or-folder
 ```
 
 Create a directory
 
-```
+```sh
 curl -X MKCOL https://127.0.0.1:5000/path-to-folder
 ```
 
 Move the file/folder to the new path
 
-```
+```sh
 curl -X MOVE https://127.0.0.1:5000/path -H "Destination: https://127.0.0.1:5000/new-path"
 ```
 
 List/search directory contents
 
-```
+```sh
 curl http://127.0.0.1:5000?q=Dockerfile           # search for files, similar to `find -name Dockerfile`
 curl http://127.0.0.1:5000?simple                 # output names only, similar to `ls -1`
 curl http://127.0.0.1:5000?json                   # output paths in json format
 ```
 
-With authorization
+With authorization (Both basic or digest auth works)
 
-```
+```sh
 curl http://127.0.0.1:5000/file --user user:pass                 # basic auth
 curl http://127.0.0.1:5000/file --user user:pass --digest        # digest auth
 ```
 
 Resumable downloads
 
-```
+```sh
 curl -C- -o file http://127.0.0.1:5000/file
 ```
 
 Resumable uploads
 
-```
+```sh
 upload_offset=$(curl -I -s http://127.0.0.1:5000/file | tr -d '\r' | sed -n 's/content-length: //p')
 dd skip=$upload_offset if=file status=none ibs=1 | \
   curl -X PATCH -H "X-Update-Range: append" --data-binary @- http://127.0.0.1:5000/file
@@ -402,7 +402,7 @@ Your assets folder must contains a `index.html` file.
 
 ## License
 
-Copyright (c) 2022 dufs-developers.
+Copyright (c) 2022-2024 dufs-developers.
 
 dufs is made available under the terms of either the MIT License or the Apache License 2.0, at your option.
 
