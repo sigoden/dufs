@@ -57,7 +57,8 @@ const INDEX_JS: &str = include_str!("../assets/index.js");
 const FAVICON_ICO: &[u8] = include_bytes!("../assets/favicon.ico");
 const INDEX_NAME: &str = "index.html";
 const BUF_SIZE: usize = 65536;
-const TEXT_MAX_SIZE: u64 = 4194304; // 4M
+const EDITABLE_TEXT_MAX_SIZE: u64 = 4194304; // 4M
+const RESUMABLE_UPLOAD_MIN_SIZE: u64 = 104857600; // 100M
 
 pub struct Server {
     args: Args,
@@ -473,15 +474,18 @@ impl Server {
         pin_mut!(body_reader);
 
         let ret = io::copy(&mut body_reader, &mut file).await;
+        let size = fs::metadata(path)
+            .await
+            .map(|v| v.len())
+            .unwrap_or_default();
         if ret.is_err() {
-            // tokio::fs::remove_file(&path).await?;
-
+            if upload_offset.is_none() && size < RESUMABLE_UPLOAD_MIN_SIZE {
+                let _ = tokio::fs::remove_file(&path).await;
+            }
             ret?;
         }
 
         if upload_offset.is_some() {
-            let meta = fs::metadata(path).await?;
-            let size = meta.len();
             res.headers_mut()
                 .insert("Upload-Offset", size.to_string().parse()?);
         }
@@ -880,7 +884,8 @@ impl Server {
         );
         let mut buffer: Vec<u8> = vec![];
         file.take(1024).read_to_end(&mut buffer).await?;
-        let editable = meta.len() <= TEXT_MAX_SIZE && content_inspector::inspect(&buffer).is_text();
+        let editable =
+            meta.len() <= EDITABLE_TEXT_MAX_SIZE && content_inspector::inspect(&buffer).is_text();
         let data = EditData {
             href,
             kind,
