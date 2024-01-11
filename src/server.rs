@@ -58,7 +58,7 @@ const FAVICON_ICO: &[u8] = include_bytes!("../assets/favicon.ico");
 const INDEX_NAME: &str = "index.html";
 const BUF_SIZE: usize = 65536;
 const EDITABLE_TEXT_MAX_SIZE: u64 = 4194304; // 4M
-const RESUMABLE_UPLOAD_MIN_SIZE: u64 = 104857600; // 100M
+const RESUMABLE_UPLOAD_MIN_SIZE: u64 = 20971520; // 20M
 
 pub struct Server {
     args: Args,
@@ -485,11 +485,6 @@ impl Server {
             ret?;
         }
 
-        if upload_offset.is_some() {
-            res.headers_mut()
-                .insert("Upload-Offset", size.to_string().parse()?);
-        }
-
         *res.status_mut() = status;
 
         Ok(())
@@ -817,11 +812,6 @@ impl Server {
         set_content_diposition(res, true, filename)?;
 
         res.headers_mut().typed_insert(AcceptRanges::bytes());
-
-        if head_only {
-            res.headers_mut()
-                .insert("Upload-Offset", size.to_string().parse()?);
-        }
 
         if let Some(range) = range {
             if let Some((start, end)) = range {

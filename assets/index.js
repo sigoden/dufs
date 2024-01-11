@@ -217,7 +217,7 @@ class Uploader {
     });
     let uploadOffset = 0;
     if (res.status == 200) {
-      let value = res.headers.get("upload-offset");
+      let value = res.headers.get("content-length");
       uploadOffset = parseInt(value) || 0;
     }
     this.uploadOffset = uploadOffset;

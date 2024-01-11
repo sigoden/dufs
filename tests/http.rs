@@ -338,7 +338,7 @@ fn resumable_upload(#[with(&["--allow-upload"])] server: TestServer) -> Result<(
     assert_eq!(resp.status(), 201);
     let resp = fetch!(b"HEAD", &url).send()?;
     assert_eq!(resp.status(), 200);
-    assert_eq!(resp.headers().get("upload-offset").unwrap(), "3");
+    assert_eq!(resp.headers().get("content-length").unwrap(), "3");
     let resp = fetch!(b"PATCH", &url)
         .header("Upload-Offset", "3")
         .body(b"abc".to_vec())
