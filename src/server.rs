@@ -42,6 +42,7 @@ use std::time::SystemTime;
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWrite};
 use tokio::{fs, io};
+
 use tokio_util::compat::FuturesAsyncWriteCompatExt;
 use tokio_util::io::{ReaderStream, StreamReader};
 use uuid::Uuid;
@@ -340,10 +341,10 @@ impl Server {
                 } else if !allow_upload {
                     status_forbid(&mut res);
                 } else {
-                    let offset = match parse_upload_offset(headers) {
+                    let offset = match parse_upload_offset(headers, size) {
                         Ok(v) => v,
-                        Err(_) => {
-                            status_bad_request(&mut res, "Invliad upload-offset");
+                        Err(err) => {
+                            status_bad_request(&mut res, &err.to_string());
                             return Ok(res);
                         }
                     };
@@ -1636,10 +1637,12 @@ fn is_hidden(hidden: &[String], file_name: &str, is_dir_type: bool) -> bool {
 fn set_webdav_headers(res: &mut Response) {
     res.headers_mut().insert(
         "Allow",
-        HeaderValue::from_static("GET,HEAD,PUT,OPTIONS,DELETE,PROPFIND,COPY,MOVE"),
+        HeaderValue::from_static("GET,HEAD,PUT,OPTIONS,DELETE,PATCH,PROPFIND,COPY,MOVE"),
     );
-    res.headers_mut()
-        .insert("DAV", HeaderValue::from_static("1,2"));
+    res.headers_mut().insert(
+        "DAV",
+        HeaderValue::from_static("1, 2, 3, sabredav-partialupdate"),
+    );
 }
 
 async fn get_content_type(path: &Path) -> Result<String> {
@@ -1673,12 +1676,16 @@ async fn get_content_type(path: &Path) -> Result<String> {
     Ok(content_type)
 }
 
-fn parse_upload_offset(headers: &HeaderMap<HeaderValue>) -> Result<Option<u64>> {
-    let value = match headers.get("upload-offset") {
+fn parse_upload_offset(headers: &HeaderMap<HeaderValue>, size: u64) -> Result<Option<u64>> {
+    let value = match headers.get("x-update-range") {
         Some(v) => v,
         None => return Ok(None),
     };
-    let value = value.to_str()?;
-    let value = value.parse()?;
-    Ok(Some(value))
+    let err = || anyhow!("Invalid X-Updage-Range header");
+    let value = value.to_str().map_err(|_| err())?;
+    if value == "append" {
+        return Ok(Some(size));
+    }
+    let (start, _) = parse_range(value, size).ok_or_else(err)?;
+    Ok(Some(start))
 }

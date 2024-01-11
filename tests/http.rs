@@ -250,9 +250,12 @@ fn options_dir(server: TestServer) -> Result<(), Error> {
     assert_eq!(resp.status(), 200);
     assert_eq!(
         resp.headers().get("allow").unwrap(),
-        "GET,HEAD,PUT,OPTIONS,DELETE,PROPFIND,COPY,MOVE"
+        "GET,HEAD,PUT,OPTIONS,DELETE,PATCH,PROPFIND,COPY,MOVE"
     );
-    assert_eq!(resp.headers().get("dav").unwrap(), "1,2");
+    assert_eq!(
+        resp.headers().get("dav").unwrap(),
+        "1, 2, 3, sabredav-partialupdate"
+    );
     Ok(())
 }
 
@@ -336,16 +339,13 @@ fn resumable_upload(#[with(&["--allow-upload"])] server: TestServer) -> Result<(
     let url = format!("{}file1", server.url());
     let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
     assert_eq!(resp.status(), 201);
-    let resp = fetch!(b"HEAD", &url).send()?;
-    assert_eq!(resp.status(), 200);
-    assert_eq!(resp.headers().get("content-length").unwrap(), "3");
     let resp = fetch!(b"PATCH", &url)
-        .header("Upload-Offset", "3")
-        .body(b"abc".to_vec())
+        .header("X-Update-Range", "append")
+        .body(b"123".to_vec())
         .send()?;
     assert_eq!(resp.status(), 204);
     let resp = reqwest::blocking::get(url)?;
     assert_eq!(resp.status(), 200);
-    assert_eq!(resp.text().unwrap(), "abcabc");
+    assert_eq!(resp.text().unwrap(), "abc123");
     Ok(())
 }

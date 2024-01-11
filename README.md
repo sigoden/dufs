@@ -210,7 +210,7 @@ Resumable uploads
 ```
 upload_offset=$(curl -I -s http://127.0.0.1:5000/file | tr -d '\r' | sed -n 's/content-length: //p')
 dd skip=$upload_offset if=file status=none ibs=1 | \
-  curl -X PATCH -H "Upload-Offset: $upload_offset" --data-binary @- http://127.0.0.1:5000/file
+  curl -X PATCH -H "X-Update-Range: append" --data-binary @- http://127.0.0.1:5000/file
 ```
 
 <details>

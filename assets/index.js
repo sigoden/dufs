@@ -202,11 +202,12 @@ class Uploader {
     ajax.addEventListener("abort", () => this.fail(), false);
     if (this.uploadOffset > 0) {
       ajax.open("PATCH", url);
-      ajax.setRequestHeader("Upload-Offset", this.uploadOffset);
+      ajax.setRequestHeader("X-Update-Range", "append");
       ajax.send(this.file.slice(this.uploadOffset));
     } else {
       ajax.open("PUT", url);
       ajax.send(this.file);
+      // setTimeout(() => ajax.abort(), 3000);
     }
   }
 
