@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.39.0] - 2024-01-11
+
+### Bug Fixes
+
+- Upload more than 100 files in directory ([#317](https://github.com/sigoden/dufs/issues/317))
+- Auth precedence ([#325](https://github.com/sigoden/dufs/issues/325))
+- Serve files with names containing newline char ([#328](https://github.com/sigoden/dufs/issues/328))
+- Corrupted zip when downloading large folders ([#337](https://github.com/sigoden/dufs/issues/337))
+
+### Features
+
+- Empty search `?q=` list all paths ([#311](https://github.com/sigoden/dufs/issues/311))
+- Add `--compress` option ([#319](https://github.com/sigoden/dufs/issues/319))
+- Upgrade to hyper 1.0 ([#321](https://github.com/sigoden/dufs/issues/321))
+- Auth supports forbidden permissions ([#329](https://github.com/sigoden/dufs/issues/329))
+- Supports resumable uploads ([#343](https://github.com/sigoden/dufs/issues/343))
+
+### Refactor
+
+- Change the format of www-authenticate ([#312](https://github.com/sigoden/dufs/issues/312))
+- Change the value name of `--config` ([#313](https://github.com/sigoden/dufs/issues/313))
+- Optimize http range parsing and handling ([#323](https://github.com/sigoden/dufs/issues/323))
+- Propfind with auth no need to list all ([#344](https://github.com/sigoden/dufs/issues/344))
+
 ## [0.38.0] - 2023-11-28
 
 ### Bug Fixes
