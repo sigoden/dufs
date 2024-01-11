@@ -199,13 +199,13 @@ curl http://127.0.0.1:5000/file --user user:pass                 # basic auth
 curl http://127.0.0.1:5000/file --user user:pass --digest        # digest auth
 ```
 
-Resumable download
+Resumable downloads
 
 ```
 curl -C- -o file http://127.0.0.1:5000/file
 ```
 
-Resumable upload
+Resumable uploads
 
 ```
 upload_offset=$(curl -I -s http://127.0.0.1:5000/file | tr -d '\r' | sed -n 's/upload-offset: //p')
