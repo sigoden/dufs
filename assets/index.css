@@ -134,7 +134,6 @@ body {
 }
 
 .cell-status span {
-  width: 80px;
   display: inline-block;
 }
 
@@ -237,6 +236,10 @@ body {
 
 .not-editable {
   font-style: italic;
+}
+
+.retry-btn {
+  cursor: pointer;
 }
 
 @media (min-width: 768px) {

@@ -60,6 +60,11 @@ const ICONS = {
 }
 
 /**
+ * @type Map<string, Uploader>
+ */
+const failUploaders = new Map();
+
+/**
  * @type Element
  */
 let $pathsTable;
@@ -128,23 +133,24 @@ class Uploader {
   /**
    *
    * @param {File} file
-   * @param {string[]} dirs
+   * @param {string[]} pathParts
    */
-  constructor(file, dirs) {
+  constructor(file, pathParts) {
     /**
      * @type Element
      */
     this.$uploadStatus = null
     this.uploaded = 0;
+    this.uploadOffset = 0;
     this.lastUptime = 0;
-    this.name = [...dirs, file.name].join("/");
+    this.name = [...pathParts, file.name].join("/");
     this.idx = Uploader.globalIdx++;
     this.file = file;
+    this.url = newUrl(this.name);
   }
 
   upload() {
-    const { idx, name } = this;
-    const url = newUrl(name);
+    const { idx, name, url } = this;
     const encodedName = encodedStr(name);
     $uploadersTable.insertAdjacentHTML("beforeend", `
   <tr id="upload${idx}" class="uploader">
@@ -160,13 +166,25 @@ class Uploader {
     $emptyFolder.classList.add("hidden");
     this.$uploadStatus = document.getElementById(`uploadStatus${idx}`);
     this.$uploadStatus.innerHTML = '-';
+    this.$uploadStatus.addEventListener("click", e => {
+      const nodeId = e.target.id;
+      const matches = /^retry(\d+)$/.exec(nodeId);
+      if (matches) {
+        const id = parseInt(matches[1]);
+        let uploader = failUploaders.get(id);
+        if (uploader) uploader.retry();
+      }
+    });
     Uploader.queues.push(this);
     Uploader.runQueue();
   }
 
   ajax() {
-    const url = newUrl(this.name);
+    const { url } = this;
+
+    this.uploaded = 0;
     this.lastUptime = Date.now();
+
     const ajax = new XMLHttpRequest();
     ajax.upload.addEventListener("progress", e => this.progress(e), false);
     ajax.addEventListener("readystatechange", () => {
@@ -174,37 +192,64 @@ class Uploader {
         if (ajax.status >= 200 && ajax.status < 300) {
           this.complete();
         } else {
-          this.fail();
+          if (ajax.status != 0) {
+            this.fail(`${ajax.status} ${ajax.statusText}`);
+          }
         }
       }
     })
     ajax.addEventListener("error", () => this.fail(), false);
     ajax.addEventListener("abort", () => this.fail(), false);
-    ajax.open("PUT", url);
-    ajax.send(this.file);
+    if (this.uploadOffset > 0) {
+      ajax.open("PATCH", url);
+      ajax.setRequestHeader("X-Update-Range", "append");
+      ajax.send(this.file.slice(this.uploadOffset));
+    } else {
+      ajax.open("PUT", url);
+      ajax.send(this.file);
+      // setTimeout(() => ajax.abort(), 3000);
+    }
   }
 
+  async retry() {
+    const { url } = this;
+    let res = await fetch(url, {
+      method: "HEAD",
+    });
+    let uploadOffset = 0;
+    if (res.status == 200) {
+      let value = res.headers.get("content-length");
+      uploadOffset = parseInt(value) || 0;
+    }
+    this.uploadOffset = uploadOffset;
+    this.ajax()
+  }
 
   progress(event) {
     const now = Date.now();
     const speed = (event.loaded - this.uploaded) / (now - this.lastUptime) * 1000;
     const [speedValue, speedUnit] = formatSize(speed);
     const speedText = `${speedValue} ${speedUnit}/s`;
-    const progress = formatPercent((event.loaded / event.total) * 100);
+    const progress = formatPercent(((event.loaded + this.uploadOffset) / this.file.size) * 100);
     const duration = formatDuration((event.total - event.loaded) / speed)
-    this.$uploadStatus.innerHTML = `<span>${speedText}</span><span>${progress} ${duration}</span>`;
+    this.$uploadStatus.innerHTML = `<span style="width: 80px;">${speedText}</span><span>${progress} ${duration}</span>`;
     this.uploaded = event.loaded;
     this.lastUptime = now;
   }
 
   complete() {
-    this.$uploadStatus.innerHTML = `✓`;
+    const $uploadStatusNew = this.$uploadStatus.cloneNode(true);
+    $uploadStatusNew.innerHTML = `✓`;
+    this.$uploadStatus.parentNode.replaceChild($uploadStatusNew, this.$uploadStatus);
+    this.$uploadStatus = null;
+    failUploaders.delete(this.idx);
     Uploader.runnings--;
     Uploader.runQueue();
   }
 
-  fail() {
-    this.$uploadStatus.innerHTML = `✗`;
+  fail(reason = "") {
+    this.$uploadStatus.innerHTML = `<span style="width: 20px;" title="${reason}">✗</span><span class="retry-btn" id="retry${this.idx}" title="Retry">↻</span>`;
+    failUploaders.set(this.idx, this);
     Uploader.runnings--;
     Uploader.runQueue();
   }
@@ -801,7 +846,7 @@ function padZero(value, size) {
 }
 
 function formatSize(size) {
-  if (size == null) return []
+  if (size == null) return [0, "B"]
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   if (size == 0) return [0, "B"];
   const i = parseInt(Math.floor(Math.log(size) / Math.log(1024)));

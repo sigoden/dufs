@@ -13,7 +13,7 @@ Dufs is a distinctive utility file server that supports static serving, uploadin
 - Download folder as zip file
 - Upload files and folders (Drag & Drop)
 - Create/Edit/Search files
-- Partial responses (Parallel/Resume download)
+- Resumable/partial uploads/downloads
 - Access control
 - Support https
 - Support webdav
@@ -195,8 +195,22 @@ curl http://127.0.0.1:5000?json                   # output paths in json format
 With authorization
 
 ```
-curl http://192.168.8.10:5000/file --user user:pass                 # basic auth
-curl http://192.168.8.10:5000/file --user user:pass --digest        # digest auth
+curl http://127.0.0.1:5000/file --user user:pass                 # basic auth
+curl http://127.0.0.1:5000/file --user user:pass --digest        # digest auth
+```
+
+Resumable downloads
+
+```
+curl -C- -o file http://127.0.0.1:5000/file
+```
+
+Resumable uploads
+
+```
+upload_offset=$(curl -I -s http://127.0.0.1:5000/file | tr -d '\r' | sed -n 's/content-length: //p')
+dd skip=$upload_offset if=file status=none ibs=1 | \
+  curl -X PATCH -H "X-Update-Range: append" --data-binary @- http://127.0.0.1:5000/file
 ```
 
 <details>
