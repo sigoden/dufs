@@ -206,6 +206,7 @@ class Uploader {
     } else {
       ajax.open("PUT", url);
       ajax.send(this.file);
+      // setTimeout(() => ajax.abort(), 3000); // debug resumable uploading
     }
   }
 

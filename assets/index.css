@@ -238,6 +238,10 @@ body {
   font-style: italic;
 }
 
+.retry-btn {
+  cursor: pointer;
+}
+
 @media (min-width: 768px) {
   .path a {
     min-width: 400px;
