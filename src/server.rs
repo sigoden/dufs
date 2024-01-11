@@ -374,12 +374,13 @@ impl Server {
             method => match method.as_str() {
                 "PROPFIND" => {
                     if is_dir {
-                        let access_paths = if access_paths.perm().inherit() {
-                            // see https://github.com/sigoden/dufs/issues/229
-                            AccessPaths::new(AccessPerm::ReadOnly)
-                        } else {
-                            access_paths
-                        };
+                        let access_paths =
+                            if access_paths.perm().inherit() && authorization.is_none() {
+                                // see https://github.com/sigoden/dufs/issues/229
+                                AccessPaths::new(AccessPerm::ReadOnly)
+                            } else {
+                                access_paths
+                            };
                         self.handle_propfind_dir(path, headers, access_paths, &mut res)
                             .await?;
                     } else if is_file {

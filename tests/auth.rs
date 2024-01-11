@@ -271,13 +271,26 @@ fn auth_partial_index(
 
 #[rstest]
 fn no_auth_propfind_dir(
-    #[with(&["--auth", "user:pass@/:rw", "--auth", "@/dir-assets", "-A"])] server: TestServer,
+    #[with(&["--auth", "admin:admin@/:rw", "--auth", "@/dir-assets", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
     let resp = fetch!(b"PROPFIND", server.url()).send()?;
     assert_eq!(resp.status(), 207);
     let body = resp.text()?;
     assert!(body.contains("<D:href>/dir-assets/</D:href>"));
     assert!(body.contains("<D:href>/dir1/</D:href>"));
+    Ok(())
+}
+
+#[rstest]
+fn auth_propfind_dir(
+    #[with(&["--auth", "admin:admin@/:rw", "--auth", "user:pass@/dir-assets", "-A"])]
+    server: TestServer,
+) -> Result<(), Error> {
+    let resp = fetch!(b"PROPFIND", server.url()).send_with_digest_auth("user", "pass")?;
+    assert_eq!(resp.status(), 207);
+    let body = resp.text()?;
+    assert!(body.contains("<D:href>/dir-assets/</D:href>"));
+    assert!(!body.contains("<D:href>/dir1/</D:href>"));
     Ok(())
 }
 
