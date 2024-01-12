@@ -320,6 +320,19 @@ function addBreadcrumb(href, uri_prefix) {
   }
 }
 
+function setupMaxUploadNumber() {
+  const $maxUploadNumber = document.getElementById('max-uploads-input');
+  $maxUploadNumber.classList.remove("hidden");
+  $maxUploadNumber.addEventListener('change', (e) => {
+    const value = parseInt(e.target.value);
+    if(isNaN(value) || value < 1) {
+      DUFS_MAX_UPLOADINGS = 1;
+      return;
+    }
+    DUFS_MAX_UPLOADINGS = value;
+  })
+}
+
 function setupIndexPage() {
   if (DATA.allow_archive) {
     const $download = document.querySelector(".download");
@@ -333,6 +346,7 @@ function setupIndexPage() {
     setupUploadFile();
     setupNewFolder();
     setupNewFile();
+    setupMaxUploadNumber();
   }
 
   if (DATA.auth) {

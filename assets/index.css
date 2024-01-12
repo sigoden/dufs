@@ -242,6 +242,15 @@ body {
   cursor: pointer;
 }
 
+.max-uploads {
+  padding: 0.1rem 0.5rem;
+  background-color: #fafafa;
+  transition: all .15s;
+  border: 1px #ddd solid;
+  border-radius: 15px;
+  margin-bottom: 2px;
+}
+
 @media (min-width: 768px) {
   .path a {
     min-width: 400px;
@@ -258,6 +267,12 @@ body {
   .breadcrumb>b,
   .searchbar #search {
     color: #fff;
+  }
+
+  .max-uploads {
+    background-color: #111;
+    border-color: #fff6;
+    color: white;
   }
 
   .uploaders-table th,
