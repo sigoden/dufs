@@ -623,7 +623,7 @@ impl Server {
     ) -> Result<()> {
         let (mut writer, reader) = tokio::io::duplex(BUF_SIZE);
         let filename = try_get_file_name(path)?;
-        set_content_diposition(res, false, &format!("{}.zip", filename))?;
+        set_content_disposition(res, false, &format!("{}.zip", filename))?;
         res.headers_mut()
             .insert("content-type", HeaderValue::from_static("application/zip"));
         if head_only {
@@ -811,7 +811,7 @@ impl Server {
         );
 
         let filename = try_get_file_name(path)?;
-        set_content_diposition(res, true, filename)?;
+        set_content_disposition(res, true, filename)?;
 
         res.headers_mut().typed_insert(AcceptRanges::bytes());
 
@@ -1599,7 +1599,7 @@ fn status_bad_request(res: &mut Response, body: &str) {
     }
 }
 
-fn set_content_diposition(res: &mut Response, inline: bool, filename: &str) -> Result<()> {
+fn set_content_disposition(res: &mut Response, inline: bool, filename: &str) -> Result<()> {
     let kind = if inline { "inline" } else { "attachment" };
     let filename: String = filename
         .chars()
@@ -1682,7 +1682,7 @@ fn parse_upload_offset(headers: &HeaderMap<HeaderValue>, size: u64) -> Result<Op
         Some(v) => v,
         None => return Ok(None),
     };
-    let err = || anyhow!("Invalid X-Updage-Range header");
+    let err = || anyhow!("Invalid X-Update-Range header");
     let value = value.to_str().map_err(|_| err())?;
     if value == "append" {
         return Ok(Some(size));

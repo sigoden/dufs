@@ -29,15 +29,15 @@ lazy_static! {
 pub struct AccessControl {
     use_hashed_password: bool,
     users: IndexMap<String, (String, AccessPaths)>,
-    anony: Option<AccessPaths>,
+    anonymous: Option<AccessPaths>,
 }
 
 impl Default for AccessControl {
     fn default() -> Self {
         AccessControl {
             use_hashed_password: false,
-            anony: Some(AccessPaths::new(AccessPerm::ReadWrite)),
             users: IndexMap::new(),
+            anonymous: Some(AccessPaths::new(AccessPerm::ReadWrite)),
         }
     }
 }
@@ -66,15 +66,15 @@ impl AccessControl {
                 account_paths_pairs.push((user, pass, paths));
             }
         }
-        let mut anony = None;
+        let mut anonymous = None;
         if let Some(paths) = annoy_paths {
             let mut access_paths = AccessPaths::default();
             access_paths.merge(paths);
-            anony = Some(access_paths);
+            anonymous = Some(access_paths);
         }
         let mut users = IndexMap::new();
         for (user, pass, paths) in account_paths_pairs.into_iter() {
-            let mut access_paths = anony.clone().unwrap_or_default();
+            let mut access_paths = anonymous.clone().unwrap_or_default();
             access_paths
                 .merge(paths)
                 .ok_or_else(|| anyhow!("Invalid auth `{user}:{pass}@{paths}"))?;
@@ -87,7 +87,7 @@ impl AccessControl {
         Ok(Self {
             use_hashed_password,
             users,
-            anony,
+            anonymous,
         })
     }
 
@@ -120,7 +120,7 @@ impl AccessControl {
             return (None, Some(AccessPaths::new(AccessPerm::ReadOnly)));
         }
 
-        if let Some(paths) = self.anony.as_ref() {
+        if let Some(paths) = self.anonymous.as_ref() {
             return (None, paths.find(path, !is_readonly_method(method)));
         }
 

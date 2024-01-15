@@ -59,7 +59,7 @@ fn hidden_search_dir(#[case] server: TestServer, #[case] exist: bool) -> Result<
 #[rstest]
 #[case(server(&["--hidden", "hidden/"]), "dir4/", 1)]
 #[case(server(&["--hidden", "hidden"]), "dir4/", 0)]
-fn hidden_dir_noly(
+fn hidden_dir_only(
     #[case] server: TestServer,
     #[case] dir: &str,
     #[case] count: usize,
