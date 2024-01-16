@@ -43,9 +43,11 @@ async fn main() -> Result<()> {
         print_completions(*generator, &mut cmd);
         return Ok(());
     }
-    let args = Args::parse(matches)?;
+    let mut args = Args::parse(matches)?;
+    let (new_addrs, print_addrs) = check_addrs(&args)?;
+    args.addrs = new_addrs;
     let running = Arc::new(AtomicBool::new(true));
-    let listening = print_listening(&args)?;
+    let listening = print_listening(&args, &print_addrs)?;
     let handles = serve(args, running.clone())?;
     println!("{listening}");
 
@@ -189,42 +191,64 @@ fn create_listener(addr: SocketAddr) -> Result<TcpListener> {
     Ok(listener)
 }
 
-fn print_listening(args: &Args) -> Result<String> {
-    let mut output = String::new();
-    let mut bind_addrs = vec![];
-    let (mut ipv4, mut ipv6) = (false, false);
+fn check_addrs(args: &Args) -> Result<(Vec<BindAddr>, Vec<BindAddr>)> {
+    let mut new_addrs = vec![];
+    let mut print_addrs = vec![];
+    let (ipv4_addrs, ipv6_addrs) = interface_addrs()?;
     for bind_addr in args.addrs.iter() {
         match bind_addr {
-            BindAddr::Address(ip) => {
-                if ip.is_unspecified() {
-                    if ip.is_ipv6() {
-                        ipv6 = true;
-                    } else {
-                        ipv4 = true;
+            BindAddr::Address(ip) => match &ip {
+                IpAddr::V4(_) => {
+                    if !ipv4_addrs.is_empty() {
+                        new_addrs.push(bind_addr.clone());
+                        if ip.is_unspecified() {
+                            print_addrs.extend(ipv4_addrs.clone());
+                        } else {
+                            print_addrs.push(bind_addr.clone());
+                        }
                     }
-                } else {
-                    bind_addrs.push(bind_addr.clone());
                 }
+                IpAddr::V6(_) => {
+                    if !ipv6_addrs.is_empty() {
+                        new_addrs.push(bind_addr.clone());
+                        if ip.is_unspecified() {
+                            print_addrs.extend(ipv6_addrs.clone());
+                        } else {
+                            print_addrs.push(bind_addr.clone())
+                        }
+                    }
+                }
+            },
+            _ => {
+                new_addrs.push(bind_addr.clone());
+                print_addrs.push(bind_addr.clone())
             }
-            _ => bind_addrs.push(bind_addr.clone()),
         }
     }
-    if ipv4 || ipv6 {
-        let ifaces =
-            if_addrs::get_if_addrs().with_context(|| "Failed to get local interface addresses")?;
-        for iface in ifaces.into_iter() {
-            let local_ip = iface.ip();
-            if ipv4 && local_ip.is_ipv4() {
-                bind_addrs.push(BindAddr::Address(local_ip))
-            }
-            if ipv6 && local_ip.is_ipv6() {
-                bind_addrs.push(BindAddr::Address(local_ip))
-            }
+    print_addrs.sort_unstable();
+    Ok((new_addrs, print_addrs))
+}
+
+fn interface_addrs() -> Result<(Vec<BindAddr>, Vec<BindAddr>)> {
+    let (mut ipv4_addrs, mut ipv6_addrs) = (vec![], vec![]);
+    let ifaces =
+        if_addrs::get_if_addrs().with_context(|| "Failed to get local interface addresses")?;
+    for iface in ifaces.into_iter() {
+        let ip = iface.ip();
+        if ip.is_ipv4() {
+            ipv4_addrs.push(BindAddr::Address(ip))
+        }
+        if ip.is_ipv6() {
+            ipv6_addrs.push(BindAddr::Address(ip))
         }
     }
-    bind_addrs.sort_unstable();
-    let urls = bind_addrs
-        .into_iter()
+    Ok((ipv4_addrs, ipv6_addrs))
+}
+
+fn print_listening(args: &Args, print_addrs: &[BindAddr]) -> Result<String> {
+    let mut output = String::new();
+    let urls = print_addrs
+        .iter()
         .map(|bind_addr| match bind_addr {
             BindAddr::Address(addr) => {
                 let addr = match addr {
