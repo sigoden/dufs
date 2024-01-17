@@ -147,7 +147,7 @@ impl AccessPaths {
     }
 
     pub fn set_perm(&mut self, perm: AccessPerm) {
-        if !perm.inherit() {
+        if !perm.indexonly() {
             self.perm = perm;
         }
     }
@@ -158,7 +158,6 @@ impl AccessPaths {
                 None => (item, AccessPerm::ReadOnly),
                 Some((path, "ro")) => (path, AccessPerm::ReadOnly),
                 Some((path, "rw")) => (path, AccessPerm::ReadWrite),
-                Some((path, "-")) => (path, AccessPerm::Forbidden),
                 _ => return None,
             };
             self.add(path, perm);
@@ -193,9 +192,6 @@ impl AccessPaths {
             .filter(|v| !v.is_empty())
             .collect();
         let target = self.find_impl(&parts, self.perm)?;
-        if target.perm().forbidden() {
-            return None;
-        }
         if writable && !target.perm().readwrite() {
             return None;
         }
@@ -203,13 +199,13 @@ impl AccessPaths {
     }
 
     fn find_impl(&self, parts: &[&str], perm: AccessPerm) -> Option<AccessPaths> {
-        let perm = if !self.perm.inherit() {
+        let perm = if !self.perm.indexonly() {
             self.perm
         } else {
             perm
         };
         if parts.is_empty() {
-            if perm.inherit() {
+            if perm.indexonly() {
                 return Some(self.clone());
             } else {
                 return Some(AccessPaths::new(perm));
@@ -218,7 +214,7 @@ impl AccessPaths {
         let child = match self.children.get(parts[0]) {
             Some(v) => v,
             None => {
-                if perm.inherit() {
+                if perm.indexonly() {
                     return None;
                 } else {
                     return Some(AccessPaths::new(perm));
@@ -233,7 +229,7 @@ impl AccessPaths {
     }
 
     pub fn child_paths(&self, base: &Path) -> Vec<PathBuf> {
-        if !self.perm().inherit() {
+        if !self.perm().indexonly() {
             return vec![base.to_path_buf()];
         }
         let mut output = vec![];
@@ -244,7 +240,7 @@ impl AccessPaths {
     fn child_paths_impl(&self, output: &mut Vec<PathBuf>, base: &Path) {
         for (name, child) in self.children.iter() {
             let base = base.join(name);
-            if child.perm().inherit() {
+            if child.perm().indexonly() {
                 child.child_paths_impl(output, &base);
             } else {
                 output.push(base)
@@ -256,23 +252,18 @@ impl AccessPaths {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum AccessPerm {
     #[default]
-    Inherit,
+    IndexOnly,
     ReadOnly,
     ReadWrite,
-    Forbidden,
 }
 
 impl AccessPerm {
-    pub fn inherit(&self) -> bool {
-        self == &AccessPerm::Inherit
+    pub fn indexonly(&self) -> bool {
+        self == &AccessPerm::IndexOnly
     }
 
     pub fn readwrite(&self) -> bool {
         self == &AccessPerm::ReadWrite
-    }
-
-    pub fn forbidden(&self) -> bool {
-        self == &AccessPerm::Forbidden
     }
 }
 
@@ -576,7 +567,6 @@ mod tests {
         paths.add("/dir1", AccessPerm::ReadWrite);
         paths.add("/dir2/dir21", AccessPerm::ReadWrite);
         paths.add("/dir2/dir21/dir211", AccessPerm::ReadOnly);
-        paths.add("/dir2/dir21/dir212", AccessPerm::Forbidden);
         paths.add("/dir2/dir22", AccessPerm::ReadOnly);
         paths.add("/dir2/dir22/dir221", AccessPerm::ReadWrite);
         paths.add("/dir2/dir23/dir231", AccessPerm::ReadWrite);
@@ -621,6 +611,5 @@ mod tests {
             Some(AccessPaths::new(AccessPerm::ReadOnly))
         );
         assert_eq!(paths.find("dir2/dir21/dir211/file", true), None);
-        assert_eq!(paths.find("dir2/dir21/dir212", false), None);
     }
 }

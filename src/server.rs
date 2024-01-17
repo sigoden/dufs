@@ -375,7 +375,7 @@ impl Server {
                 "PROPFIND" => {
                     if is_dir {
                         let access_paths =
-                            if access_paths.perm().inherit() && authorization.is_none() {
+                            if access_paths.perm().indexonly() && authorization.is_none() {
                                 // see https://github.com/sigoden/dufs/issues/229
                                 AccessPaths::new(AccessPerm::ReadOnly)
                             } else {
@@ -1230,7 +1230,7 @@ impl Server {
         access_paths: AccessPaths,
     ) -> Result<Vec<PathItem>> {
         let mut paths: Vec<PathItem> = vec![];
-        if access_paths.perm().inherit() {
+        if access_paths.perm().indexonly() {
             for name in access_paths.child_names() {
                 let entry_path = entry_path.join(name);
                 self.add_pathitem(&mut paths, base_path, &entry_path).await;
