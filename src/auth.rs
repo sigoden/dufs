@@ -112,6 +112,7 @@ impl AccessControl {
                     }
                 }
             }
+
             return (None, None);
         }
 
