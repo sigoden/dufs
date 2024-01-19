@@ -39,6 +39,25 @@ fn auth(#[case] server: TestServer, #[case] user: &str, #[case] pass: &str) -> R
     Ok(())
 }
 
+#[rstest]
+fn invalid_auth(
+    #[with(&["-a", "user:pass@/:rw", "-a", "@/", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    let resp = fetch!(b"GET", server.url())
+        .basic_auth("user", Some("-"))
+        .send()?;
+    assert_eq!(resp.status(), 401);
+    let resp = fetch!(b"GET", server.url())
+        .basic_auth("-", Some("pass"))
+        .send()?;
+    assert_eq!(resp.status(), 401);
+    let resp = fetch!(b"GET", server.url())
+        .header("Authorization", "Basic Og==")
+        .send()?;
+    assert_eq!(resp.status(), 401);
+    Ok(())
+}
+
 const HASHED_PASSWORD_AUTH: &str =  "user:$6$gQxZwKyWn/ZmWEA2$4uV7KKMnSUnET2BtWTj/9T5.Jq3h/MdkOlnIl5hdlTxDZ4MZKmJ.kl6C.NL9xnNPqC4lVHC1vuI0E5cLpTJX81@/:rw"; // user:pass
 
 #[rstest]
