@@ -752,7 +752,7 @@ async function checkAuth() {
 async function logout() {
   if (!DATA.auth) return;
   await fetch(baseUrl(), {
-    headers: { Authorization: 'Basic ' + btoa('__none:none__') },
+    headers: { Authorization: `Basic ${btoa(':')}` },
   });
   location.reload();
 }

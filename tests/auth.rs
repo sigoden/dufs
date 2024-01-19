@@ -77,6 +77,10 @@ fn invalid_auth(
         .basic_auth("-", Some("pass"))
         .send()?;
     assert_eq!(resp.status(), 401);
+    let resp = fetch!(b"GET", server.url())
+        .header("Authorization", "Basic Og==")
+        .send()?;
+    assert_eq!(resp.status(), 401);
     Ok(())
 }
 
