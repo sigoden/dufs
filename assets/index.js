@@ -91,11 +91,15 @@ let $editor;
 /**
  * @type Element
  */
-let $userBtn;
+let $userBox;
 /**
  * @type Element
  */
 let $userName;
+/**
+ * @type Element
+ */
+let $logoutBtn;
 
 function ready() {
   $pathsTable = document.querySelector(".paths-table")
@@ -104,8 +108,9 @@ function ready() {
   $uploadersTable = document.querySelector(".uploaders-table");
   $emptyFolder = document.querySelector(".empty-folder");
   $editor = document.querySelector(".editor");
-  $userBtn = document.querySelector(".user-btn");
+  $userBox = document.querySelector(".user-box");
   $userName = document.querySelector(".user-name");
+  $logoutBtn = document.querySelector(".logout-btn");
 
   addBreadcrumb(DATA.href, DATA.uri_prefix);
 
@@ -498,8 +503,15 @@ function setupDropzone() {
 
 function setupAuth() {
   if (DATA.user) {
-    $userBtn.classList.remove("hidden");
+    $userBox.classList.remove("hidden");
     $userName.textContent = DATA.user;
+    $logoutBtn.addEventListener("click", async () => {
+      try {
+        await logout()
+      } catch (err) {
+        alert(err.message);
+      }
+    });
   } else {
     const $loginBtn = document.querySelector(".login-btn");
     $loginBtn.classList.remove("hidden");
@@ -733,8 +745,16 @@ async function checkAuth() {
   });
   await assertResOK(res);
   document.querySelector(".login-btn").classList.add("hidden");
-  $userBtn.classList.remove("hidden");
+  $userBox.classList.remove("hidden");
   $userName.textContent = "";
+}
+
+async function logout() {
+  if (!DATA.auth) return;
+  await fetch(baseUrl(), {
+    headers: { Authorization: 'Basic ' + btoa('__none:none__') },
+  });
+  location.reload();
 }
 
 /**
@@ -790,7 +810,6 @@ async function addFileEntries(entries, dirs) {
     }
   }
 }
-
 
 function newUrl(name) {
   let url = baseUrl();
@@ -886,12 +905,12 @@ async function assertResOK(res) {
 }
 
 function getEncoding(contentType) {
-    const charset = contentType?.split(";")[1];
-    if (/charset/i.test(charset)) {
-      let encoding = charset.split("=")[1];
-      if (encoding) {
-        return encoding.toLowerCase()
-      }
+  const charset = contentType?.split(";")[1];
+  if (/charset/i.test(charset)) {
+    let encoding = charset.split("=")[1];
+    if (encoding) {
+      return encoding.toLowerCase()
     }
-    return 'utf-8'
+  }
+  return 'utf-8'
 }

@@ -109,11 +109,10 @@ impl AccessControl {
                     }
                     if check_auth(authorization, method.as_str(), &user, pass).is_some() {
                         return (Some(user), paths.find(path, !is_readonly_method(method)));
-                    } else {
-                        return (None, None);
                     }
                 }
             }
+            return (None, None);
         }
 
         if method == Method::OPTIONS {

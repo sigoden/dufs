@@ -225,9 +225,15 @@ body {
   user-select: none;
 }
 
-.user-btn {
-    display: flex;
-    align-items: center;
+.user-box {
+  display: flex;
+  align-items: center;
+}
+
+.logout-btn {
+  padding-left: 4px;
+  padding-top: 4px;
+  cursor: pointer;
 }
 
 .user-name {

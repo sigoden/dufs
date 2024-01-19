@@ -66,6 +66,21 @@ fn auth_hashed_password(
 }
 
 #[rstest]
+fn invalid_auth(
+    #[with(&["-a", "user:pass@/:rw", "-a", "@/", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    let resp = fetch!(b"GET", server.url())
+        .basic_auth("user", Some("-"))
+        .send()?;
+    assert_eq!(resp.status(), 401);
+    let resp = fetch!(b"GET", server.url())
+        .basic_auth("-", Some("pass"))
+        .send()?;
+    assert_eq!(resp.status(), 401);
+    Ok(())
+}
+
+#[rstest]
 fn auth_and_public(
     #[with(&["-a", "user:pass@/:rw", "-a", "@/", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
