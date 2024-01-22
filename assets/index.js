@@ -357,11 +357,11 @@ function renderPathsTableHead() {
       props: `colspan="2"`,
       text: "Name",
     },
-    {
-      name: "mtime",
-      props: ``,
-      text: "Last Modified",
-    },
+    // {
+    //   name: "mtime",
+    //   props: ``,
+    //   text: "Last Modified",
+    // },
     {
       name: "size",
       props: ``,
@@ -466,7 +466,7 @@ function addPath(file, index) {
   <td class="path cell-name">
     <a href="${url}" ${isDir ? "" : `target="_blank"`}>${encodedName}</a>
   </td>
-  <td class="cell-mtime">${formatMtime(file.mtime)}</td>
+<!--  <td class="cell-mtime">${formatMtime(file.mtime)}</td>-->
   <td class="cell-size">${formatSize(file.size).join(" ")}</td>
   ${actionCell}
 </tr>`)

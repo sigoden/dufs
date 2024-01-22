@@ -1,6 +1,6 @@
 [package]
 name = "dufs"
-version = "0.39.0"
+version = "0.40.0"
 edition = "2021"
 authors = ["sigoden <sigoden@gmail.com>"]
 description = "Dufs is a distinctive utility file server"

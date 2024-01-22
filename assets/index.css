@@ -186,7 +186,7 @@ body {
   display: block;
   text-decoration: none;
   max-width: calc(100vw - 375px);
-  min-width: 200px;
+  min-width: 380px;
 }
 
 .path a:hover {
