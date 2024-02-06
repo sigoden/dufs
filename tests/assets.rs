@@ -11,10 +11,11 @@ use std::process::{Command, Stdio};
 fn assets(server: TestServer) -> Result<(), Error> {
     let ver = env!("CARGO_PKG_VERSION");
     let resp = reqwest::blocking::get(server.url())?;
-    let index_js = format!("/__dufs_v{ver}_index.js");
-    let index_css = format!("/__dufs_v{ver}_index.css");
-    let favicon_ico = format!("/__dufs_v{ver}_favicon.ico");
+    let index_js = format!("/__dufs_v{ver}_/index.js");
+    let index_css = format!("/__dufs_v{ver}_/index.css");
+    let favicon_ico = format!("/__dufs_v{ver}_/favicon.ico");
     let text = resp.text()?;
+    println!("{text}");
     assert!(text.contains(&format!(r#"href="{index_css}""#)));
     assert!(text.contains(&format!(r#"href="{favicon_ico}""#)));
     assert!(text.contains(&format!(r#"src="{index_js}""#)));
@@ -24,7 +25,7 @@ fn assets(server: TestServer) -> Result<(), Error> {
 #[rstest]
 fn asset_js(server: TestServer) -> Result<(), Error> {
     let url = format!(
-        "{}__dufs_v{}_index.js",
+        "{}__dufs_v{}_/index.js",
         server.url(),
         env!("CARGO_PKG_VERSION")
     );
@@ -40,7 +41,7 @@ fn asset_js(server: TestServer) -> Result<(), Error> {
 #[rstest]
 fn asset_css(server: TestServer) -> Result<(), Error> {
     let url = format!(
-        "{}__dufs_v{}_index.css",
+        "{}__dufs_v{}_/index.css",
         server.url(),
         env!("CARGO_PKG_VERSION")
     );
@@ -56,7 +57,7 @@ fn asset_css(server: TestServer) -> Result<(), Error> {
 #[rstest]
 fn asset_ico(server: TestServer) -> Result<(), Error> {
     let url = format!(
-        "{}__dufs_v{}_favicon.ico",
+        "{}__dufs_v{}_/favicon.ico",
         server.url(),
         env!("CARGO_PKG_VERSION")
     );
@@ -70,9 +71,9 @@ fn asset_ico(server: TestServer) -> Result<(), Error> {
 fn assets_with_prefix(#[with(&["--path-prefix", "xyz"])] server: TestServer) -> Result<(), Error> {
     let ver = env!("CARGO_PKG_VERSION");
     let resp = reqwest::blocking::get(format!("{}xyz/", server.url()))?;
-    let index_js = format!("/xyz/__dufs_v{ver}_index.js");
-    let index_css = format!("/xyz/__dufs_v{ver}_index.css");
-    let favicon_ico = format!("/xyz/__dufs_v{ver}_favicon.ico");
+    let index_js = format!("/xyz/__dufs_v{ver}_/index.js");
+    let index_css = format!("/xyz/__dufs_v{ver}_/index.css");
+    let favicon_ico = format!("/xyz/__dufs_v{ver}_/favicon.ico");
     let text = resp.text()?;
     assert!(text.contains(&format!(r#"href="{index_css}""#)));
     assert!(text.contains(&format!(r#"href="{favicon_ico}""#)));
@@ -85,7 +86,7 @@ fn asset_js_with_prefix(
     #[with(&["--path-prefix", "xyz"])] server: TestServer,
 ) -> Result<(), Error> {
     let url = format!(
-        "{}xyz/__dufs_v{}_index.js",
+        "{}xyz/__dufs_v{}_/index.js",
         server.url(),
         env!("CARGO_PKG_VERSION")
     );
@@ -114,7 +115,7 @@ fn assets_override(tmpdir: TempDir, port: u16) -> Result<(), Error> {
     let url = format!("http://localhost:{port}");
     let resp = reqwest::blocking::get(&url)?;
     assert!(resp.text()?.starts_with(&format!(
-        "/__dufs_v{}_index.js;DATA",
+        "/__dufs_v{}_/index.js;DATA",
         env!("CARGO_PKG_VERSION")
     )));
     let resp = reqwest::blocking::get(&url)?;
