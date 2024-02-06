@@ -71,7 +71,7 @@ pub struct Server {
 
 impl Server {
     pub fn init(args: Args, running: Arc<AtomicBool>) -> Result<Self> {
-        let assets_prefix = format!("{}__dufs_v{}_", args.uri_prefix, env!("CARGO_PKG_VERSION"));
+        let assets_prefix = format!("{}__dufs_v{}_/", args.uri_prefix, env!("CARGO_PKG_VERSION"));
         let single_file_req_paths = if args.path_is_file {
             vec![
                 args.uri_prefix.to_string(),
@@ -143,6 +143,10 @@ impl Server {
         let req_path = req.uri().path();
         let headers = req.headers();
         let method = req.method().clone();
+
+        if guard_path(req_path, &mut res) {
+            return Ok(res);
+        }
 
         if method == Method::GET && self.handle_assets(req_path, headers, &mut res).await? {
             return Ok(res);
@@ -713,7 +717,12 @@ impl Server {
             match self.args.assets.as_ref() {
                 Some(assets_path) => {
                     let path = assets_path.join(name);
-                    self.handle_send_file(&path, headers, false, res).await?;
+                    if path.exists() {
+                        self.handle_send_file(&path, headers, false, res).await?;
+                    } else {
+                        status_not_found(res);
+                        return Ok(true);
+                    }
                 }
                 None => match name {
                     "index.js" => {
@@ -1153,7 +1162,10 @@ impl Server {
 
     fn extract_dest(&self, req: &Request, res: &mut Response) -> Option<PathBuf> {
         let headers = req.headers();
-        let dest_path = match self.extract_destination_header(headers) {
+        let dest_path = match self
+            .extract_destination_header(headers)
+            .and_then(|dest| self.resolve_path(&dest))
+        {
             Some(dest) => dest,
             None => {
                 *res.status_mut() = StatusCode::BAD_REQUEST;
@@ -1161,19 +1173,15 @@ impl Server {
             }
         };
 
-        let relative_path = match self.resolve_path(&dest_path) {
-            Some(v) => v,
-            None => {
-                *res.status_mut() = StatusCode::BAD_REQUEST;
-                return None;
-            }
-        };
+        if guard_path(&dest_path, res) {
+            return None;
+        }
 
         let authorization = headers.get(AUTHORIZATION);
         let guard = self
             .args
             .auth
-            .guard(&relative_path, req.method(), authorization);
+            .guard(&dest_path, req.method(), authorization);
 
         match guard {
             (_, Some(_)) => {}
@@ -1183,7 +1191,7 @@ impl Server {
             }
         };
 
-        let dest = match self.join_path(&relative_path) {
+        let dest = match self.join_path(&dest_path) {
             Some(dest) => dest,
             None => {
                 *res.status_mut() = StatusCode::BAD_REQUEST;
@@ -1689,4 +1697,13 @@ fn parse_upload_offset(headers: &HeaderMap<HeaderValue>, size: u64) -> Result<Op
     }
     let (start, _) = parse_range(value, size).ok_or_else(err)?;
     Ok(Some(start))
+}
+
+fn guard_path(path: &str, res: &mut Response) -> bool {
+    let path = Path::new(path);
+    if path.components().any(|v| v.as_os_str() == "..") {
+        status_bad_request(res, "");
+        return true;
+    }
+    false
 }
