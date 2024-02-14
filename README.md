@@ -1,3 +1,5 @@
+![Dufs Logo](./assets/dufs.png)
+
 # Dufs
 
 [![CI](https://github.com/sigoden/dufs/actions/workflows/ci.yaml/badge.svg)](https://github.com/sigoden/dufs/actions/workflows/ci.yaml)
