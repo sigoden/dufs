@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/sigoden/dufs/actions/workflows/ci.yaml/badge.svg)](https://github.com/sigoden/dufs/actions/workflows/ci.yaml)
 [![Crates](https://img.shields.io/crates/v/dufs.svg)](https://crates.io/crates/dufs)
+[![Docker Pulls](https://img.shields.io/docker/pulls/sigoden/dufs)](https://hub.docker.com/r/sigoden/dufs)
 
 Dufs is a distinctive utility file server that supports static serving, uploading, searching, accessing control, webdav...
 
