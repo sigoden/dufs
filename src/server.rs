@@ -1535,7 +1535,6 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
 ) -> Result<()> {
     let mut writer = ZipFileWriter::with_tokio(writer);
     let hidden = Arc::new(hidden.to_vec());
-    let hidden = hidden.clone();
     let dir_clone = dir.to_path_buf();
     let zip_paths = tokio::task::spawn_blocking(move || {
         let mut paths: Vec<PathBuf> = vec![];
