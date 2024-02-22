@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.40.0] - 2024-02-13
+
+### Bug Fixes
+
+- Guard req and destination path ([#359](https://github.com/sigoden/dufs/issues/359))
+
+### Features
+
+- Revert supporting for forbidden permission ([#352](https://github.com/sigoden/dufs/issues/352))
+
+### Refactor
+
+- Do not try to bind ipv6 if no ipv6 ([#348](https://github.com/sigoden/dufs/issues/348))
+- Improve invalid auth ([#356](https://github.com/sigoden/dufs/issues/356))
+- Improve resolve_path and handle_assets, abandon guard_path ([#360](https://github.com/sigoden/dufs/issues/360))
+
 ## [0.39.0] - 2024-01-11
 
 ### Bug Fixes

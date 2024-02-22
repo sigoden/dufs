@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/sigoden/dufs/actions/workflows/ci.yaml/badge.svg)](https://github.com/sigoden/dufs/actions/workflows/ci.yaml)
 [![Crates](https://img.shields.io/crates/v/dufs.svg)](https://crates.io/crates/dufs)
+[![Docker Pulls](https://img.shields.io/docker/pulls/sigoden/dufs)](https://hub.docker.com/r/sigoden/dufs)
 
 Dufs is a distinctive utility file server that supports static serving, uploading, searching, accessing control, webdav...
 
@@ -222,17 +223,17 @@ Dufs supports account based access control. You can control who can do what on w
 
 ```
 dufs -a admin:admin@/:rw -a guest:guest@/
-dufs -a user:pass@/:rw,/dir1,/dir2:- -a @/
+dufs -a user:pass@/:rw,/dir1 -a @/
 ```
 
 1. Use `@` to separate the account and paths. No account means anonymous user.
 2. Use `:` to separate the username and password of the account.
 3. Use `,` to separate paths.
-4. Use path suffix `:rw`, `:ro`, `:-` to set permissions: `read-write`, `read-only`, `forbidden`. `:ro` can be omitted.
+4. Use path suffix `:rw`/`:ro` set permissions: `read-write`/`read-only`. `:ro` can be omitted.
 
 - `-a admin:admin@/:rw`: `admin` has complete permissions for all paths.
 - `-a guest:guest@/`: `guest` has read-only permissions for all paths.
-- `-a user:pass@/:rw,/dir1,/dir2:-`: `user` has read-write permissions for `/*`, has read-only permissions for `/dir1/*`, but is fordden for `/dir2/*`.
+- `-a user:pass@/:rw,/dir1`: `user` has read-write permissions for `/*`, has read-only permissions for `/dir1/*`.
 - `-a @/`: All paths is publicly accessible, everyone can view/download it.
 
 > There are no restrictions on using ':' and '@' characters in a password. For example, `user:pa:ss@1@/:rw` is valid, the password is `pa:ss@1`.

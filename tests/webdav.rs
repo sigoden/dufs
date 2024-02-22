@@ -49,7 +49,7 @@ fn propfind_404(server: TestServer) -> Result<(), Error> {
 
 #[rstest]
 fn propfind_double_slash(server: TestServer) -> Result<(), Error> {
-    let resp = fetch!(b"PROPFIND", format!("{}/", server.url())).send()?;
+    let resp = fetch!(b"PROPFIND", server.url()).send()?;
     assert_eq!(resp.status(), 207);
     Ok(())
 }

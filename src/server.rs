@@ -35,7 +35,7 @@ use std::collections::HashMap;
 use std::fs::Metadata;
 use std::io::SeekFrom;
 use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{self, AtomicBool};
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -71,7 +71,7 @@ pub struct Server {
 
 impl Server {
     pub fn init(args: Args, running: Arc<AtomicBool>) -> Result<Self> {
-        let assets_prefix = format!("{}__dufs_v{}_", args.uri_prefix, env!("CARGO_PKG_VERSION"));
+        let assets_prefix = format!("__dufs_v{}__/", env!("CARGO_PKG_VERSION"));
         let single_file_req_paths = if args.path_is_file {
             vec![
                 args.uri_prefix.to_string(),
@@ -144,19 +144,23 @@ impl Server {
         let headers = req.headers();
         let method = req.method().clone();
 
-        if method == Method::GET && self.handle_assets(req_path, headers, &mut res).await? {
-            return Ok(res);
-        }
-
-        let authorization = headers.get(AUTHORIZATION);
         let relative_path = match self.resolve_path(req_path) {
             Some(v) => v,
             None => {
-                status_forbid(&mut res);
+                status_bad_request(&mut res, "Invalid Path");
                 return Ok(res);
             }
         };
 
+        if method == Method::GET
+            && self
+                .handle_assets(&relative_path, headers, &mut res)
+                .await?
+        {
+            return Ok(res);
+        }
+
+        let authorization = headers.get(AUTHORIZATION);
         let guard = self.args.auth.guard(&relative_path, &method, authorization);
 
         let (user, access_paths) = match guard {
@@ -298,10 +302,10 @@ impl Server {
                     }
                 } else if is_file {
                     if query_params.contains_key("edit") {
-                        self.handle_deal_file(path, DataKind::Edit, head_only, user, &mut res)
+                        self.handle_edit_file(path, DataKind::Edit, head_only, user, &mut res)
                             .await?;
                     } else if query_params.contains_key("view") {
-                        self.handle_deal_file(path, DataKind::View, head_only, user, &mut res)
+                        self.handle_edit_file(path, DataKind::View, head_only, user, &mut res)
                             .await?;
                     } else {
                         self.handle_send_file(path, headers, head_only, &mut res)
@@ -375,7 +379,7 @@ impl Server {
                 "PROPFIND" => {
                     if is_dir {
                         let access_paths =
-                            if access_paths.perm().inherit() && authorization.is_none() {
+                            if access_paths.perm().indexonly() && authorization.is_none() {
                                 // see https://github.com/sigoden/dufs/issues/229
                                 AccessPaths::new(AccessPerm::ReadOnly)
                             } else {
@@ -713,7 +717,12 @@ impl Server {
             match self.args.assets.as_ref() {
                 Some(assets_path) => {
                     let path = assets_path.join(name);
-                    self.handle_send_file(&path, headers, false, res).await?;
+                    if path.exists() {
+                        self.handle_send_file(&path, headers, false, res).await?;
+                    } else {
+                        status_not_found(res);
+                        return Ok(true);
+                    }
                 }
                 None => match name {
                     "index.js" => {
@@ -860,7 +869,7 @@ impl Server {
         Ok(())
     }
 
-    async fn handle_deal_file(
+    async fn handle_edit_file(
         &self,
         path: &Path,
         kind: DataKind,
@@ -892,7 +901,10 @@ impl Server {
             .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
         let output = self
             .html
-            .replace("__ASSETS_PREFIX__", &self.assets_prefix)
+            .replace(
+                "__ASSETS_PREFIX__",
+                &format!("{}{}", self.args.uri_prefix, self.assets_prefix),
+            )
             .replace("__INDEX_DATA__", &serde_json::to_string(&data)?);
         res.headers_mut()
             .typed_insert(ContentLength(output.as_bytes().len() as u64));
@@ -1117,7 +1129,10 @@ impl Server {
             res.headers_mut()
                 .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
             self.html
-                .replace("__ASSETS_PREFIX__", &self.assets_prefix)
+                .replace(
+                    "__ASSETS_PREFIX__",
+                    &format!("{}{}", self.args.uri_prefix, self.assets_prefix),
+                )
                 .replace("__INDEX_DATA__", &serde_json::to_string(&data)?)
         };
         res.headers_mut()
@@ -1153,18 +1168,13 @@ impl Server {
 
     fn extract_dest(&self, req: &Request, res: &mut Response) -> Option<PathBuf> {
         let headers = req.headers();
-        let dest_path = match self.extract_destination_header(headers) {
+        let dest_path = match self
+            .extract_destination_header(headers)
+            .and_then(|dest| self.resolve_path(&dest))
+        {
             Some(dest) => dest,
             None => {
-                *res.status_mut() = StatusCode::BAD_REQUEST;
-                return None;
-            }
-        };
-
-        let relative_path = match self.resolve_path(&dest_path) {
-            Some(v) => v,
-            None => {
-                *res.status_mut() = StatusCode::BAD_REQUEST;
+                status_bad_request(res, "Invalid Destination");
                 return None;
             }
         };
@@ -1173,7 +1183,7 @@ impl Server {
         let guard = self
             .args
             .auth
-            .guard(&relative_path, req.method(), authorization);
+            .guard(&dest_path, req.method(), authorization);
 
         match guard {
             (_, Some(_)) => {}
@@ -1183,7 +1193,7 @@ impl Server {
             }
         };
 
-        let dest = match self.join_path(&relative_path) {
+        let dest = match self.join_path(&dest_path) {
             Some(dest) => dest,
             None => {
                 *res.status_mut() = StatusCode::BAD_REQUEST;
@@ -1201,13 +1211,30 @@ impl Server {
     }
 
     fn resolve_path(&self, path: &str) -> Option<String> {
-        let path = path.trim_matches('/');
         let path = decode_uri(path)?;
-        let prefix = self.args.path_prefix.as_str();
-        if prefix == "/" {
-            return Some(path.to_string());
+        let path = path.trim_matches('/');
+        let mut parts = vec![];
+        for comp in Path::new(path).components() {
+            if let Component::Normal(v) = comp {
+                let v = v.to_string_lossy();
+                if cfg!(windows) {
+                    let chars: Vec<char> = v.chars().collect();
+                    if chars.len() == 2 && chars[1] == ':' && chars[0].is_ascii_alphabetic() {
+                        return None;
+                    }
+                }
+                parts.push(v);
+            } else {
+                return None;
+            }
         }
-        path.strip_prefix(prefix.trim_start_matches('/'))
+        let new_path = parts.join("/");
+        let path_prefix = self.args.path_prefix.as_str();
+        if path_prefix.is_empty() {
+            return Some(new_path);
+        }
+        new_path
+            .strip_prefix(path_prefix.trim_start_matches('/'))
             .map(|v| v.trim_matches('/').to_string())
     }
 
@@ -1230,7 +1257,7 @@ impl Server {
         access_paths: AccessPaths,
     ) -> Result<Vec<PathItem>> {
         let mut paths: Vec<PathItem> = vec![];
-        if access_paths.perm().inherit() {
+        if access_paths.perm().indexonly() {
             for name in access_paths.child_names() {
                 let entry_path = entry_path.join(name);
                 self.add_pathitem(&mut paths, base_path, &entry_path).await;
@@ -1335,7 +1362,7 @@ impl PathItem {
 
     pub fn to_dav_xml(&self, prefix: &str) -> String {
         let mtime = match Utc.timestamp_millis_opt(self.mtime as i64) {
-            LocalResult::Single(v) => v.to_rfc2822(),
+            LocalResult::Single(v) => format!("{}", v.format("%a, %d %b %Y %H:%M:%S GMT")),
             _ => String::new(),
         };
         let mut href = encode_uri(&format!("{}{}", prefix, &self.name));
@@ -1508,7 +1535,6 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
 ) -> Result<()> {
     let mut writer = ZipFileWriter::with_tokio(writer);
     let hidden = Arc::new(hidden.to_vec());
-    let hidden = hidden.clone();
     let dir_clone = dir.to_path_buf();
     let zip_paths = tokio::task::spawn_blocking(move || {
         let mut paths: Vec<PathBuf> = vec![];
@@ -1682,7 +1708,7 @@ fn parse_upload_offset(headers: &HeaderMap<HeaderValue>, size: u64) -> Result<Op
         Some(v) => v,
         None => return Ok(None),
     };
-    let err = || anyhow!("Invalid X-Update-Range header");
+    let err = || anyhow!("Invalid X-Update-Range Header");
     let value = value.to_str().map_err(|_| err())?;
     if value == "append" {
         return Ok(Some(size));
