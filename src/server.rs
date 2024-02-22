@@ -1362,7 +1362,7 @@ impl PathItem {
 
     pub fn to_dav_xml(&self, prefix: &str) -> String {
         let mtime = match Utc.timestamp_millis_opt(self.mtime as i64) {
-            LocalResult::Single(v) => v.to_rfc2822(),
+            LocalResult::Single(v) => format!("{}", v.format("%a, %d %b %Y %H:%M:%S GMT")),
             _ => String::new(),
         };
         let mut href = encode_uri(&format!("{}{}", prefix, &self.name));
