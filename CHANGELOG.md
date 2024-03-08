@@ -85,7 +85,7 @@ All notable changes to this project will be documented in this file.
 
 - Remove one clone on `assets_prefix` ([#270](https://github.com/sigoden/dufs/issues/270))
 - Optimize tests
-- Improve code quanity ([#282](https://github.com/sigoden/dufs/issues/282))
+- Improve code quality ([#282](https://github.com/sigoden/dufs/issues/282))
 
 ## [0.36.0] - 2023-08-24
 

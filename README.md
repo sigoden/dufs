@@ -247,12 +247,12 @@ Create hashed password
 ```
 $ mkpasswd  -m sha-512 -s
 Password: 123456 
-$6$qCAVUG7yn7t/hH4d$BWm8r5MoDywNmDP/J3V2S2a6flmKHC1IpblfoqZfuK.LtLBZ0KFXP9QIfJP8RqL8MCw4isdheoAMTuwOz.pAO/
+$6$tWMB51u6Kb2ui3wd$5gVHP92V9kZcMwQeKTjyTRgySsYJu471Jb1I6iHQ8iZ6s07GgCIO69KcPBRuwPE5tDq05xMAzye0NxVKuJdYs/
 ```
 
 Use hashed password
 ```
-dufs -a 'admin:$6$qCAVUG7yn7t/hH4d$BWm8r5MoDywNmDP/J3V2S2a6flmKHC1IpblfoqZfuK.LtLBZ0KFXP9QIfJP8RqL8MCw4isdheoAMTuwOz.pAO/@/:rw'
+dufs -a 'admin:$6$tWMB51u6Kb2ui3wd$5gVHP92V9kZcMwQeKTjyTRgySsYJu471Jb1I6iHQ8iZ6s07GgCIO69KcPBRuwPE5tDq05xMAzye0NxVKuJdYs/@/:rw'
 ```
 
 Two important things for hashed passwords:
