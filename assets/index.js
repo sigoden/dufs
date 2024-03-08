@@ -345,6 +345,102 @@ function setupIndexPage() {
 
   renderPathsTableHead();
   renderPathsTableBody();
+
+  monitorCheckbox();
+}
+
+/**
+ * Toggle multi-item
+ * only support delete now
+ * @param {*} checkbox 
+ */
+function toggleCheckBox() {
+  const checkboxes = document.querySelectorAll('input[name="select[]"]');
+  const isAnyChecked = Array.from(checkboxes).some(checkbox => checkbox.checked);
+  const selectAllCheckbox = document.querySelector('#selectAllCheckbox');
+  updateDeleteButtonVisibility();
+
+  if (isAnyChecked) {
+    if (!$deleteButton.querySelector('button')) {
+      const removeButton = document.createElement('button');
+      removeButton.textContent = 'Remove';
+      removeButton.addEventListener('click', deleteSelectedItems);
+      $deleteButton.appendChild(removeButton);
+    }
+  } else {
+    const removeButton = $deleteButton.querySelector('button');
+    if (removeButton) {
+      $deleteButton.removeChild(removeButton);
+    }
+    selectAllCheckbox.checked = false;
+  }
+}
+
+/**
+ * Toggle all checkboxeds based on "Select All" checkbox
+ * @param {*} selectAllCheckbox 
+ */
+function toggleSelectAll(selectAllCheckbox) {
+  const checkboxes = document.querySelectorAll('input[name="select[]"]');
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = selectAllCheckbox.checked;
+  });
+
+  toggleCheckBox();
+}
+
+function deleteSelectedItems() {
+  deleteBatchPaths(selectedItems);
+}
+
+/**
+ * listen the change of Checkbox `selected`
+ */
+const selectedItems = [];
+
+function monitorCheckbox() {
+  const checkboxes = document.querySelectorAll('input[name="select[]"]');
+  const selectAllCheckbox = document.querySelector('#selectAllCheckbox');
+
+  const updateSelectedItems = (item, isSelected) => {
+    const index = selectedItems.indexOf(item);
+    if (isSelected) {
+      // Not in array return -1
+      if (index === -1) selectedItems.push(item);
+    } else {
+      if (index !== -1) selectedItems.splice(index, 1);
+    }
+    updateDeleteButtonVisibility();
+  };
+
+  // Assign event listeners to checkboxes
+  checkboxes.forEach((checkbox) => {
+    checkbox.addEventListener('change', (e) => {
+      updateSelectedItems(e.target.value, e.target.checked);
+    });
+  });
+
+  selectAllCheckbox.addEventListener('change', (e) => {
+    const isAllChecked = e.target.checked;
+    checkboxes.forEach((checkbox) => {
+      checkbox.checked = isAllChecked;
+    });
+    // Directly update the selectedItems in bulk
+    selectedItems.splice(0, selectedItems.length);
+    if (isAllChecked) {
+      selectedItems.push(...Array.from(checkboxes).map(checkbox => checkbox.value));
+    }
+    updateDeleteButtonVisibility();
+  });
+}
+
+function updateDeleteButtonVisibility() {
+  $deleteButton = document.getElementById('delete-btn');
+  if (selectedItems.length > 0) {
+    $deleteButton.classList.remove('hidden');
+  } else {
+    $deleteButton.classList.add('hidden');
+  }
 }
 
 /**
@@ -370,6 +466,7 @@ function renderPathsTableHead() {
   ];
   $pathsTableHead.insertAdjacentHTML("beforeend", `
     <tr>
+    <th><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"></th>
       ${headerItems.map(item => {
     let svg = `<svg width="12" height="12" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M11.5 15a.5.5 0 0 0 .5-.5V2.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L11 2.707V14.5a.5.5 0 0 0 .5.5zm-7-14a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L4 13.293V1.5a.5.5 0 0 1 .5-.5z"/></svg>`;
     let order = "desc";
@@ -460,6 +557,7 @@ function addPath(file, index) {
 
   $pathsTableBody.insertAdjacentHTML("beforeend", `
 <tr id="addPath${index}">
+  <td><input type="checkbox" name="select[]" value="${index}" onchange="toggleCheckBox()"></td>
   <td class="path cell-icon">
     ${getPathSvg(file.path_type)}
   </td>
@@ -645,6 +743,53 @@ async function deletePath(index) {
   })
 }
 
+/**
+ * Delete path
+ * @param {number} index
+ * @returns
+ */
+async function deletePath(index) {
+  const file = DATA.paths[index];
+  if (!file) return;
+  await doDeletePath(file.name, newUrl(file.name), () => {
+    $deleteButton = document.getElementById("delete-btn");
+    document.getElementById(`addPath${index}`)?.remove();
+    DATA.paths[index] = null;
+    if (!DATA.paths.find(v => !!v)) {
+      $pathsTable.classList.add("hidden");
+      $deleteButton.classList.add("hidden");
+      $emptyFolder.textContent = dirEmptyNote;
+      $emptyFolder.classList.remove("hidden");
+    }
+  })
+}
+
+/**
+ * Delete paths in batch
+ * @param {[]} selectedItems 
+ * @returns 
+ */
+async function deleteBatchPaths(selectedItems) {
+  if (selectedItems.length == 0) return;
+  if (!confirm(`Delete selected files ?`)) return;
+  document.getElementById("delete-btn").classList.add("hidden");
+  selectedItems.forEach(async (index) => {
+    const file = DATA.paths[index];
+    if (!file) return;
+    await doDeletePathWithoutComfirm(newUrl(file.name), () => {
+      $deleteButton = document.getElementById("delete-btn");
+      document.getElementById(`addPath${index}`)?.remove();
+      DATA.paths[index] = null;
+      if (!DATA.paths.find(v => !!v)) {
+        $pathsTable.classList.add("hidden");
+        $deleteButton.classList.add("hidden");
+        $emptyFolder.textContent = dirEmptyNote;
+        $emptyFolder.classList.remove("hidden");
+      }
+    })
+  });
+}
+
 async function doDeletePath(name, url, cb) {
   if (!confirm(`Delete \`${name}\`?`)) return;
   try {
@@ -656,6 +801,19 @@ async function doDeletePath(name, url, cb) {
     cb();
   } catch (err) {
     alert(`Cannot delete \`${file.name}\`, ${err.message}`);
+  }
+}
+
+async function doDeletePathWithoutComfirm(url, callback) {
+  try {
+    await checkAuth();
+    const res = await fetch(url, {
+      method: "DELETE",
+    });
+    await assertResOK(res);
+    callback();
+  } catch (err) {
+    alert(`delete files failed, ${err.message}`);
   }
 }
 
@@ -886,12 +1044,12 @@ async function assertResOK(res) {
 }
 
 function getEncoding(contentType) {
-    const charset = contentType?.split(";")[1];
-    if (/charset/i.test(charset)) {
-      let encoding = charset.split("=")[1];
-      if (encoding) {
-        return encoding.toLowerCase()
-      }
+  const charset = contentType?.split(";")[1];
+  if (/charset/i.test(charset)) {
+    let encoding = charset.split("=")[1];
+    if (encoding) {
+      return encoding.toLowerCase()
     }
-    return 'utf-8'
+  }
+  return 'utf-8'
 }

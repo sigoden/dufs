@@ -297,3 +297,36 @@ body {
     color: white;
   }
 }
+
+#delete-btn {
+  margin-top: 10px; 
+  text-align: left;
+}
+
+button {
+  /* Generic styles for all buttons */
+  background-color: #f44336; /* A red color for the delete action */
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+button:hover {
+  /* Slightly darker red on hover for better user interaction */
+  background-color: #d32f2f;
+}
+
+button:active {
+  /* Slightly lighter red when the button is clicked */
+  background-color: #c62828;
+}
+
+button:focus {
+  /* Add a focus style to maintain accessibility */
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(244, 67, 54, 0.5);
+}
