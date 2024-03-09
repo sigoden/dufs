@@ -301,7 +301,7 @@ impl Args {
         }
 
         if let Some(path) = matches.get_one::<PathBuf>("serve-path") {
-            args.serve_path = path.clone()
+            args.serve_path.clone_from(path)
         }
 
         args.serve_path = Self::sanitize_path(args.serve_path)?;
