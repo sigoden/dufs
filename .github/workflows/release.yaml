@@ -177,11 +177,12 @@ jobs:
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Build and push
         uses: docker/build-push-action@v4
         with:
+          file: Dockerfile-release
           build-args: |
             REPO=${{ github.repository }}
             VER=${{ github.ref_name }}
