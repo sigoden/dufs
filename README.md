@@ -31,7 +31,7 @@ cargo install dufs
 ### With docker
 
 ```
-docker run -v `pwd`:/data -p 5000:5000 --rm -it sigoden/dufs /data -A
+docker run -v `pwd`:/data -p 5000:5000 --rm sigoden/dufs /data -A
 ```
 
 ### With [Homebrew](https://brew.sh)
