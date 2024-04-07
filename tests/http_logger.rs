@@ -1,7 +1,8 @@
+mod digest_auth_util;
 mod fixtures;
 mod utils;
 
-use diqwest::blocking::WithDigestAuth;
+use digest_auth_util::send_with_digest_auth;
 use fixtures::{port, tmpdir, wait_for_port, Error};
 
 use assert_cmd::prelude::*;
@@ -31,12 +32,12 @@ fn log_remote_user(
 
     let stdout = child.stdout.as_mut().expect("Failed to get stdout");
 
-    let req = fetch!(b"GET", &format!("http://localhost:{port}"));
+    let req_builder = fetch!(b"GET", &format!("http://localhost:{port}"));
 
     let resp = if is_basic {
-        req.basic_auth("user", Some("pass")).send()?
+        req_builder.basic_auth("user", Some("pass")).send()?
     } else {
-        req.send_with_digest_auth("user", "pass")?
+        send_with_digest_auth(req_builder, "user", "pass")?
     };
 
     assert_eq!(resp.status(), 200);

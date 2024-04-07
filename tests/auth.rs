@@ -1,7 +1,8 @@
+mod digest_auth_util;
 mod fixtures;
 mod utils;
 
-use diqwest::blocking::WithDigestAuth;
+use digest_auth_util::send_with_digest_auth;
 use fixtures::{server, Error, TestServer};
 use indexmap::IndexSet;
 use rstest::rstest;
@@ -32,9 +33,7 @@ fn auth(#[case] server: TestServer, #[case] user: &str, #[case] pass: &str) -> R
     let url = format!("{}file1", server.url());
     let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
     assert_eq!(resp.status(), 401);
-    let resp = fetch!(b"PUT", &url)
-        .body(b"abc".to_vec())
-        .send_with_digest_auth(user, pass)?;
+    let resp = send_with_digest_auth(fetch!(b"PUT", &url).body(b"abc".to_vec()), user, pass)?;
     assert_eq!(resp.status(), 201);
     Ok(())
 }
@@ -67,13 +66,12 @@ fn auth_hashed_password(
     let url = format!("{}file1", server.url());
     let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
     assert_eq!(resp.status(), 401);
-    if let Err(err) = fetch!(b"PUT", &url)
-        .body(b"abc".to_vec())
-        .send_with_digest_auth("user", "pass")
+    if let Err(err) =
+        send_with_digest_auth(fetch!(b"PUT", &url).body(b"abc".to_vec()), "user", "pass")
     {
         assert_eq!(
-            format!("{err:?}"),
-            r#"DigestAuth(MissingRequired("realm", "Basic realm=\"DUFS\""))"#
+            err.to_string(),
+            r#"Missing "realm" in header: Basic realm="DUFS""#
         );
     }
     let resp = fetch!(b"PUT", &url)
@@ -91,9 +89,7 @@ fn auth_and_public(
     let url = format!("{}file1", server.url());
     let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
     assert_eq!(resp.status(), 401);
-    let resp = fetch!(b"PUT", &url)
-        .body(b"abc".to_vec())
-        .send_with_digest_auth("user", "pass")?;
+    let resp = send_with_digest_auth(fetch!(b"PUT", &url).body(b"abc".to_vec()), "user", "pass")?;
     assert_eq!(resp.status(), 201);
     let resp = fetch!(b"GET", &url).send()?;
     assert_eq!(resp.status(), 200);
@@ -125,9 +121,9 @@ fn auth_check(
     let url = format!("{}index.html", server.url());
     let resp = fetch!(b"WRITEABLE", &url).send()?;
     assert_eq!(resp.status(), 401);
-    let resp = fetch!(b"WRITEABLE", &url).send_with_digest_auth("user2", "pass2")?;
+    let resp = send_with_digest_auth(fetch!(b"WRITEABLE", &url), "user2", "pass2")?;
     assert_eq!(resp.status(), 403);
-    let resp = fetch!(b"WRITEABLE", &url).send_with_digest_auth("user", "pass")?;
+    let resp = send_with_digest_auth(fetch!(b"WRITEABLE", &url), "user", "pass")?;
     assert_eq!(resp.status(), 200);
     Ok(())
 }
@@ -139,9 +135,9 @@ fn auth_compact_rules(
     let url = format!("{}index.html", server.url());
     let resp = fetch!(b"WRITEABLE", &url).send()?;
     assert_eq!(resp.status(), 401);
-    let resp = fetch!(b"WRITEABLE", &url).send_with_digest_auth("user2", "pass2")?;
+    let resp = send_with_digest_auth(fetch!(b"WRITEABLE", &url), "user2", "pass2")?;
     assert_eq!(resp.status(), 403);
-    let resp = fetch!(b"WRITEABLE", &url).send_with_digest_auth("user", "pass")?;
+    let resp = send_with_digest_auth(fetch!(b"WRITEABLE", &url), "user", "pass")?;
     assert_eq!(resp.status(), 200);
     Ok(())
 }
@@ -153,12 +149,10 @@ fn auth_readonly(
     let url = format!("{}index.html", server.url());
     let resp = fetch!(b"GET", &url).send()?;
     assert_eq!(resp.status(), 401);
-    let resp = fetch!(b"GET", &url).send_with_digest_auth("user2", "pass2")?;
+    let resp = send_with_digest_auth(fetch!(b"GET", &url), "user2", "pass2")?;
     assert_eq!(resp.status(), 200);
     let url = format!("{}file1", server.url());
-    let resp = fetch!(b"PUT", &url)
-        .body(b"abc".to_vec())
-        .send_with_digest_auth("user2", "pass2")?;
+    let resp = send_with_digest_auth(fetch!(b"PUT", &url).body(b"abc".to_vec()), "user2", "pass2")?;
     assert_eq!(resp.status(), 403);
     Ok(())
 }
@@ -171,13 +165,9 @@ fn auth_nest(
     let url = format!("{}dir1/file1", server.url());
     let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
     assert_eq!(resp.status(), 401);
-    let resp = fetch!(b"PUT", &url)
-        .body(b"abc".to_vec())
-        .send_with_digest_auth("user3", "pass3")?;
+    let resp = send_with_digest_auth(fetch!(b"PUT", &url).body(b"abc".to_vec()), "user3", "pass3")?;
     assert_eq!(resp.status(), 201);
-    let resp = fetch!(b"PUT", &url)
-        .body(b"abc".to_vec())
-        .send_with_digest_auth("user", "pass")?;
+    let resp = send_with_digest_auth(fetch!(b"PUT", &url).body(b"abc".to_vec()), "user", "pass")?;
     assert_eq!(resp.status(), 201);
     Ok(())
 }
@@ -219,9 +209,11 @@ fn auth_webdav_move(
 ) -> Result<(), Error> {
     let origin_url = format!("{}dir1/test.html", server.url());
     let new_url = format!("{}test2.html", server.url());
-    let resp = fetch!(b"MOVE", &origin_url)
-        .header("Destination", &new_url)
-        .send_with_digest_auth("user3", "pass3")?;
+    let resp = send_with_digest_auth(
+        fetch!(b"MOVE", &origin_url).header("Destination", &new_url),
+        "user3",
+        "pass3",
+    )?;
     assert_eq!(resp.status(), 403);
     Ok(())
 }
@@ -233,9 +225,11 @@ fn auth_webdav_copy(
 ) -> Result<(), Error> {
     let origin_url = format!("{}dir1/test.html", server.url());
     let new_url = format!("{}test2.html", server.url());
-    let resp = fetch!(b"COPY", &origin_url)
-        .header("Destination", &new_url)
-        .send_with_digest_auth("user3", "pass3")?;
+    let resp = send_with_digest_auth(
+        fetch!(b"COPY", &origin_url).header("Destination", &new_url),
+        "user3",
+        "pass3",
+    )?;
     assert_eq!(resp.status(), 403);
     Ok(())
 }
@@ -247,7 +241,7 @@ fn auth_path_prefix(
     let url = format!("{}xyz/index.html", server.url());
     let resp = fetch!(b"GET", &url).send()?;
     assert_eq!(resp.status(), 401);
-    let resp = fetch!(b"GET", &url).send_with_digest_auth("user", "pass")?;
+    let resp = send_with_digest_auth(fetch!(b"GET", &url), "user", "pass")?;
     assert_eq!(resp.status(), 200);
     Ok(())
 }
@@ -256,12 +250,15 @@ fn auth_path_prefix(
 fn auth_partial_index(
     #[with(&["--auth", "user:pass@/dir1:rw,/dir2:rw", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
-    let resp = fetch!(b"GET", server.url()).send_with_digest_auth("user", "pass")?;
+    let resp = send_with_digest_auth(fetch!(b"GET", server.url()), "user", "pass")?;
     assert_eq!(resp.status(), 200);
     let paths = utils::retrieve_index_paths(&resp.text()?);
     assert_eq!(paths, IndexSet::from(["dir1/".into(), "dir2/".into()]));
-    let resp = fetch!(b"GET", format!("{}?q={}", server.url(), "test.html"))
-        .send_with_digest_auth("user", "pass")?;
+    let resp = send_with_digest_auth(
+        fetch!(b"GET", format!("{}?q={}", server.url(), "test.html")),
+        "user",
+        "pass",
+    )?;
     assert_eq!(resp.status(), 200);
     let paths = utils::retrieve_index_paths(&resp.text()?);
     assert_eq!(
@@ -288,7 +285,7 @@ fn auth_propfind_dir(
     #[with(&["--auth", "admin:admin@/:rw", "--auth", "user:pass@/dir-assets", "-A"])]
     server: TestServer,
 ) -> Result<(), Error> {
-    let resp = fetch!(b"PROPFIND", server.url()).send_with_digest_auth("user", "pass")?;
+    let resp = send_with_digest_auth(fetch!(b"PROPFIND", server.url()), "user", "pass")?;
     assert_eq!(resp.status(), 207);
     let body = resp.text()?;
     assert!(body.contains("<D:href>/dir-assets/</D:href>"));
@@ -320,15 +317,11 @@ fn auth_precedence(
     #[with(&["--auth", "user:pass@/dir1:rw,/dir1/test.txt", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
     let url = format!("{}dir1/test.txt", server.url());
-    let resp = fetch!(b"PUT", &url)
-        .body(b"abc".to_vec())
-        .send_with_digest_auth("user", "pass")?;
+    let resp = send_with_digest_auth(fetch!(b"PUT", &url).body(b"abc".to_vec()), "user", "pass")?;
     assert_eq!(resp.status(), 403);
 
     let url = format!("{}dir1/file1", server.url());
-    let resp = fetch!(b"PUT", &url)
-        .body(b"abc".to_vec())
-        .send_with_digest_auth("user", "pass")?;
+    let resp = send_with_digest_auth(fetch!(b"PUT", &url).body(b"abc".to_vec()), "user", "pass")?;
     assert_eq!(resp.status(), 201);
 
     Ok(())
