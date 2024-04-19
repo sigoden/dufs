@@ -507,6 +507,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "sha-crypt",
+ "sha2",
  "smart-default",
  "socket2",
  "tokio",
