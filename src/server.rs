@@ -29,6 +29,7 @@ use hyper::{
     Method, StatusCode, Uri,
 };
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -307,6 +308,8 @@ impl Server {
                     } else if query_params.contains_key("view") {
                         self.handle_edit_file(path, DataKind::View, head_only, user, &mut res)
                             .await?;
+                    } else if query_params.contains_key("hash") {
+                        self.handle_hash_file(path, head_only, &mut res).await?;
                     } else {
                         self.handle_send_file(path, headers, head_only, &mut res)
                             .await?;
@@ -906,6 +909,22 @@ impl Server {
                 &format!("{}{}", self.args.uri_prefix, self.assets_prefix),
             )
             .replace("__INDEX_DATA__", &serde_json::to_string(&data)?);
+        res.headers_mut()
+            .typed_insert(ContentLength(output.as_bytes().len() as u64));
+        if head_only {
+            return Ok(());
+        }
+        *res.body_mut() = body_full(output);
+        Ok(())
+    }
+
+    async fn handle_hash_file(
+        &self,
+        path: &Path,
+        head_only: bool,
+        res: &mut Response,
+    ) -> Result<()> {
+        let output = sha256_file(path).await?;
         res.headers_mut()
             .typed_insert(ContentLength(output.as_bytes().len() as u64));
         if head_only {
@@ -1715,4 +1734,21 @@ fn parse_upload_offset(headers: &HeaderMap<HeaderValue>, size: u64) -> Result<Op
     }
     let (start, _) = parse_range(value, size).ok_or_else(err)?;
     Ok(Some(start))
+}
+
+async fn sha256_file(path: &Path) -> Result<String> {
+    let mut file = fs::File::open(path).await?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0u8; 8192];
+
+    loop {
+        let bytes_read = file.read(&mut buffer).await?;
+        if bytes_read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..bytes_read]);
+    }
+
+    let result = hasher.finalize();
+    Ok(format!("{:x}", result))
 }

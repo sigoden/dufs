@@ -52,6 +52,7 @@ hyper-util = { version = "0.1", features = ["server-auto", "tokio"] }
 http-body-util = "0.1"
 bytes = "1.5"
 pin-project-lite = "0.2"
+sha2 = "0.10.8"
 
 [features]
 default = ["tls"]
