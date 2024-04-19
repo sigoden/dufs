@@ -158,7 +158,8 @@ curl -T path-to-file http://127.0.0.1:5000/new-path/path-to-file
 
 Download a file
 ```sh
-curl http://127.0.0.1:5000/path-to-file
+curl http://127.0.0.1:5000/path-to-file           # download the file
+curl http://127.0.0.1:5000/path-to-file?hash      # retrieve the sha256 hash of a file
 ```
 
 Download a folder as zip file
@@ -176,13 +177,13 @@ curl -X DELETE http://127.0.0.1:5000/path-to-file-or-folder
 Create a directory
 
 ```sh
-curl -X MKCOL https://127.0.0.1:5000/path-to-folder
+curl -X MKCOL http://127.0.0.1:5000/path-to-folder
 ```
 
 Move the file/folder to the new path
 
 ```sh
-curl -X MOVE https://127.0.0.1:5000/path -H "Destination: https://127.0.0.1:5000/new-path"
+curl -X MOVE http://127.0.0.1:5000/path -H "Destination: http://127.0.0.1:5000/new-path"
 ```
 
 List/search directory contents
