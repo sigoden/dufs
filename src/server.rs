@@ -926,6 +926,8 @@ impl Server {
     ) -> Result<()> {
         let output = sha256_file(path).await?;
         res.headers_mut()
+            .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
+        res.headers_mut()
             .typed_insert(ContentLength(output.as_bytes().len() as u64));
         if head_only {
             return Ok(());
