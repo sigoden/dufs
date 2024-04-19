@@ -159,7 +159,7 @@ curl -T path-to-file http://127.0.0.1:5000/new-path/path-to-file
 Download a file
 ```sh
 curl http://127.0.0.1:5000/path-to-file           # download the file
-curl http://127.0.0.1:5000/path-to-file?hash      # retrieve the sha256 hash of a file
+curl http://127.0.0.1:5000/path-to-file?hash      # retrieve the sha256 hash of the file
 ```
 
 Download a folder as zip file
