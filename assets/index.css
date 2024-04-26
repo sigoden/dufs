@@ -159,12 +159,14 @@ body {
 .paths-table .cell-mtime {
   width: 120px;
   padding-left: 0.6em;
+  font-variant-numeric: tabular-nums;
 }
 
 .paths-table .cell-size {
   text-align: right;
   width: 70px;
   padding-left: 0.6em;
+  font-variant-numeric: tabular-nums;
 }
 
 .path svg {
