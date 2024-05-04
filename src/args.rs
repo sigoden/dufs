@@ -301,7 +301,7 @@ impl Args {
         }
 
         if let Some(path) = matches.get_one::<PathBuf>("serve-path") {
-            args.serve_path = path.clone()
+            args.serve_path.clone_from(path)
         }
 
         args.serve_path = Self::sanitize_path(args.serve_path)?;
@@ -317,7 +317,7 @@ impl Args {
 
         args.path_is_file = args.serve_path.metadata()?.is_file();
         if let Some(path_prefix) = matches.get_one::<String>("path-prefix") {
-            args.path_prefix = path_prefix.clone();
+            args.path_prefix.clone_from(path_prefix)
         }
         args.path_prefix = args.path_prefix.trim_matches('/').to_string();
 

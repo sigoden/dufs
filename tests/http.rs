@@ -4,7 +4,7 @@ mod utils;
 use fixtures::{server, Error, TestServer, BIN_FILE};
 use rstest::rstest;
 use serde_json::Value;
-use utils::retrive_edit_file;
+use utils::retrieve_edit_file;
 
 #[rstest]
 fn get_dir(server: TestServer) -> Result<(), Error> {
@@ -238,7 +238,7 @@ fn get_file_newline_path(server: TestServer) -> Result<(), Error> {
 fn get_file_edit(server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"GET", format!("{}index.html?edit", server.url())).send()?;
     assert_eq!(resp.status(), 200);
-    let editable = retrive_edit_file(&resp.text().unwrap()).unwrap();
+    let editable = retrieve_edit_file(&resp.text().unwrap()).unwrap();
     assert!(editable);
     Ok(())
 }
@@ -247,7 +247,7 @@ fn get_file_edit(server: TestServer) -> Result<(), Error> {
 fn get_file_edit_bin(server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"GET", format!("{}{BIN_FILE}?edit", server.url())).send()?;
     assert_eq!(resp.status(), 200);
-    let editable = retrive_edit_file(&resp.text().unwrap()).unwrap();
+    let editable = retrieve_edit_file(&resp.text().unwrap()).unwrap();
     assert!(!editable);
     Ok(())
 }
