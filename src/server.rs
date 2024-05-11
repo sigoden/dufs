@@ -23,7 +23,7 @@ use hyper::body::Frame;
 use hyper::{
     body::Incoming,
     header::{
-        HeaderValue, AUTHORIZATION, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_RANGE,
+        HeaderValue, AUTHORIZATION, CONNECTION, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_RANGE,
         CONTENT_TYPE, RANGE,
     },
     Method, StatusCode, Uri,
@@ -107,12 +107,18 @@ impl Server {
         let uri = req.uri().clone();
         let assets_prefix = &self.assets_prefix;
         let enable_cors = self.args.enable_cors;
+        let is_microsoft_webdav = req
+            .headers()
+            .get("user-agent")
+            .and_then(|v| v.to_str().ok())
+            .map(|v| v.starts_with("Microsoft-WebDAV-MiniRedir/"))
+            .unwrap_or_default();
         let mut http_log_data = self.args.http_logger.data(&req);
         if let Some(addr) = addr {
             http_log_data.insert("remote_addr".to_string(), addr.ip().to_string());
         }
 
-        let mut res = match self.clone().handle(req).await {
+        let mut res = match self.clone().handle(req, is_microsoft_webdav).await {
             Ok(res) => {
                 http_log_data.insert("status".to_string(), res.status().as_u16().to_string());
                 if !uri.path().starts_with(assets_prefix) {
@@ -132,13 +138,22 @@ impl Server {
             }
         };
 
+        if is_microsoft_webdav {
+            // microsoft webdav requires this.
+            res.headers_mut()
+                .insert(CONNECTION, HeaderValue::from_static("close"));
+        }
         if enable_cors {
             add_cors(&mut res);
         }
         Ok(res)
     }
 
-    pub async fn handle(self: Arc<Self>, req: Request) -> Result<Response> {
+    pub async fn handle(
+        self: Arc<Self>,
+        req: Request,
+        is_microsoft_webdav: bool,
+    ) -> Result<Response> {
         let mut res = Response::default();
 
         let req_path = req.uri().path();
@@ -162,7 +177,10 @@ impl Server {
         }
 
         let authorization = headers.get(AUTHORIZATION);
-        let guard = self.args.auth.guard(&relative_path, &method, authorization);
+        let guard =
+            self.args
+                .auth
+                .guard(&relative_path, &method, authorization, is_microsoft_webdav);
 
         let (user, access_paths) = match guard {
             (None, None) => {
@@ -1204,7 +1222,7 @@ impl Server {
         let guard = self
             .args
             .auth
-            .guard(&dest_path, req.method(), authorization);
+            .guard(&dest_path, req.method(), authorization, false);
 
         match guard {
             (_, Some(_)) => {}

@@ -100,6 +100,7 @@ impl AccessControl {
         path: &str,
         method: &Method,
         authorization: Option<&HeaderValue>,
+        guard_options: bool,
     ) -> (Option<String>, Option<AccessPaths>) {
         if let Some(authorization) = authorization {
             if let Some(user) = get_auth_user(authorization) {
@@ -116,7 +117,7 @@ impl AccessControl {
             return (None, None);
         }
 
-        if method == Method::OPTIONS {
+        if !guard_options && method == Method::OPTIONS {
             return (None, Some(AccessPaths::new(AccessPerm::ReadOnly)));
         }
 
