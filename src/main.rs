@@ -37,7 +37,6 @@ use tokio_rustls::{rustls::ServerConfig, TlsAcceptor};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    logger::init().map_err(|e| anyhow!("Failed to init logger, {e}"))?;
     let cmd = build_cli();
     let matches = cmd.get_matches();
     if let Some(generator) = matches.get_one::<Shell>("completions") {
@@ -46,6 +45,7 @@ async fn main() -> Result<()> {
         return Ok(());
     }
     let mut args = Args::parse(matches)?;
+    logger::init(args.log_file.clone()).map_err(|e| anyhow!("Failed to init logger, {e}"))?;
     let (new_addrs, print_addrs) = check_addrs(&args)?;
     args.addrs = new_addrs;
     let running = Arc::new(AtomicBool::new(true));
