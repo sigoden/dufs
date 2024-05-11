@@ -73,6 +73,7 @@ Options:
       --render-spa           Serve SPA(Single Page Application)
       --assets <path>        Set the path to the assets directory for overriding the built-in assets
       --log-format <format>  Customize http log format
+      --log-file <file>      Specify the file to save logs to, other than stdout/stderr
       --compress <level>     Set zip compress level [default: low] [possible values: none, low, medium, high]
       --completions <shell>  Print shell completion script for <shell> [possible values: bash, elvish, fish, powershell, zsh]
       --tls-cert <path>      Path to an SSL/TLS certificate to serve with HTTPS
@@ -329,7 +330,7 @@ All options can be set using environment variables prefixed with `DUFS_`.
     --config <file>         DUFS_CONFIG=config.yaml
 -b, --bind <addrs>          DUFS_BIND=0.0.0.0
 -p, --port <port>           DUFS_PORT=5000
-    --path-prefix <path>    DUFS_PATH_PREFIX=/static
+    --path-prefix <path>    DUFS_PATH_PREFIX=/dufs
     --hidden <value>        DUFS_HIDDEN=tmp,*.log,*.lock
 -a, --auth <rules>          DUFS_AUTH="admin:admin@/:rw|@/" 
 -A, --allow-all             DUFS_ALLOW_ALL=true
@@ -342,9 +343,10 @@ All options can be set using environment variables prefixed with `DUFS_`.
     --render-index          DUFS_RENDER_INDEX=true
     --render-try-index      DUFS_RENDER_TRY_INDEX=true
     --render-spa            DUFS_RENDER_SPA=true
-    --assets <path>         DUFS_ASSETS=/assets
+    --assets <path>         DUFS_ASSETS=./assets
     --log-format <format>   DUFS_LOG_FORMAT=""
-    --compress <compress>   DUFS_COMPRESS="low"
+    --log-file <file>       DUFS_LOG_FILE=./dufs.log
+    --compress <compress>   DUFS_COMPRESS=low
     --tls-cert <path>       DUFS_TLS_CERT=cert.pem
     --tls-key <path>        DUFS_TLS_KEY=key.pem
 ```
@@ -380,6 +382,7 @@ render-try-index: true
 render-spa: true
 assets: ./assets/
 log-format: '$remote_addr "$request" $status $http_user_agent'
+log-file: ./dufs.log
 compress: low
 tls-cert: tests/data/cert.pem
 tls-key: tests/data/key_pkcs1.pem
