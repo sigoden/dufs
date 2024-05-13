@@ -192,6 +192,7 @@ List/search directory contents
 ```sh
 curl http://127.0.0.1:5000?q=Dockerfile           # search for files, similar to `find -name Dockerfile`
 curl http://127.0.0.1:5000?simple                 # output names only, similar to `ls -1`
+curl http://127.0.0.1:5000?index                 # output index only, pure read-only html
 curl http://127.0.0.1:5000?json                   # output paths in json format
 ```
 

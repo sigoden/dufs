@@ -1142,6 +1142,52 @@ impl Server {
             }
             return Ok(());
         }
+        if query_params.contains_key("index") {
+            let uri_prefix = self.args.uri_prefix.clone();
+            let current_pathname = normalize_path(path.strip_prefix(&self.args.serve_path)?);
+            let mut final_pathname = format!("{}{}", uri_prefix, current_pathname);
+            if !final_pathname.ends_with('/') {
+                final_pathname.push('/');
+            }
+            let segments = paths
+                .into_iter()
+                .map(|v| {
+                    if v.is_dir() {
+                        format!(
+                            "<a href=\"{}{}?index\">{}/</a><br>\n",
+                            final_pathname, v.name, v.name
+                        )
+                    } else {
+                        format!("<a href=\"{}{}\">{}</a><br>\n", final_pathname, v.name, v.name)
+                    }
+                })
+                .collect::<Vec<String>>()
+                .join("");
+            let output = format!(
+                r#"<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Index of {path}</title>
+</head>
+<body>
+<h1>Index of {path}</h1>
+{segments}
+</body>
+</html>"#,
+                path = final_pathname,
+                segments = segments
+            );
+            res.headers_mut()
+                .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
+            res.headers_mut()
+                .typed_insert(ContentLength(output.as_bytes().len() as u64));
+            *res.body_mut() = body_full(output);
+            if head_only {
+                return Ok(());
+            }
+            return Ok(());
+        }
         let href = format!(
             "/{}",
             normalize_path(path.strip_prefix(&self.args.serve_path)?)

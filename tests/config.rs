@@ -38,6 +38,11 @@ fn use_config_file(tmpdir: TempDir, port: u16) -> Result<(), Error> {
     assert!(!text.split('\n').any(|c| c == "dir3/"));
     assert!(!text.split('\n').any(|c| c == "test.txt"));
 
+    let url = format!("http://localhost:{port}/dufs?index");
+    let resp = send_with_digest_auth(fetch!(b"GET", &url), "user", "pass")?;
+    let text: String = resp.text().unwrap();
+    assert!(text.split('\n').any(|c| c == "<!DOCTYPE html>"));
+
     let url = format!("http://localhost:{port}/dufs/dir1/upload.txt");
     let resp = send_with_digest_auth(fetch!(b"PUT", &url).body("Hello"), "user", "pass")?;
     assert_eq!(resp.status(), 201);

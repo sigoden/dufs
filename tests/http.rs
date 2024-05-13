@@ -83,6 +83,19 @@ fn get_dir_simple(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn get_dir_index(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let resp = reqwest::blocking::get(format!("{}?index", server.url()))?;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(
+        resp.headers().get("content-type").unwrap(),
+        "text/html; charset=utf-8"
+    );
+    let text = resp.text().unwrap();
+    assert!(text.split('\n').any(|v| v == "<!DOCTYPE html>"));
+    Ok(())
+}
+
+#[rstest]
 fn head_dir_zip(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"HEAD", format!("{}?zip", server.url())).send()?;
     assert_eq!(resp.status(), 200);
