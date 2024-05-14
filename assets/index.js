@@ -886,12 +886,12 @@ async function assertResOK(res) {
 }
 
 function getEncoding(contentType) {
-    const charset = contentType?.split(";")[1];
-    if (/charset/i.test(charset)) {
-      let encoding = charset.split("=")[1];
-      if (encoding) {
-        return encoding.toLowerCase()
-      }
+  const charset = contentType?.split(";")[1];
+  if (/charset/i.test(charset)) {
+    let encoding = charset.split("=")[1];
+    if (encoding) {
+      return encoding.toLowerCase()
     }
-    return 'utf-8'
+  }
+  return 'utf-8'
 }
