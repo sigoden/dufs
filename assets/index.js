@@ -126,6 +126,8 @@ function ready() {
 
     setupEditorPage();
   }
+
+  setMainMargin();
 }
 
 
@@ -150,7 +152,7 @@ class Uploader {
   }
 
   upload() {
-    const { idx, name, url } = this;
+    const {idx, name, url} = this;
     const encodedName = encodedStr(name);
     $uploadersTable.insertAdjacentHTML("beforeend", `
   <tr id="upload${idx}" class="uploader">
@@ -180,7 +182,7 @@ class Uploader {
   }
 
   ajax() {
-    const { url } = this;
+    const {url} = this;
 
     this.uploaded = 0;
     this.lastUptime = Date.now();
@@ -212,7 +214,7 @@ class Uploader {
   }
 
   async retry() {
-    const { url } = this;
+    const {url} = this;
     let res = await fetch(url, {
       method: "HEAD",
     });
@@ -381,7 +383,7 @@ function renderPathsTableHead() {
         svg = `<svg width="12" height="12" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 15a.5.5 0 0 0 .5-.5V2.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L7.5 2.707V14.5a.5.5 0 0 0 .5.5z"/></svg>`
       }
     }
-    const qs = new URLSearchParams({ ...PARAMS, order, sort: item.name }).toString();
+    const qs = new URLSearchParams({...PARAMS, order, sort: item.name}).toString();
     const icon = `<span>${svg}</span>`
     return `<th class="cell-${item.name}" ${item.props}><a href="?${qs}">${item.text}${icon}</a></th>`
   }).join("\n")}
@@ -886,12 +888,18 @@ async function assertResOK(res) {
 }
 
 function getEncoding(contentType) {
-    const charset = contentType?.split(";")[1];
-    if (/charset/i.test(charset)) {
-      let encoding = charset.split("=")[1];
-      if (encoding) {
-        return encoding.toLowerCase()
-      }
+  const charset = contentType?.split(";")[1];
+  if (/charset/i.test(charset)) {
+    let encoding = charset.split("=")[1];
+    if (encoding) {
+      return encoding.toLowerCase()
     }
-    return 'utf-8'
+  }
+  return 'utf-8'
+}
+
+function setMainMargin() {
+  let headDiv = document.getElementById("head");
+  let mainDiv = document.getElementById("main");
+  mainDiv.style.marginTop = window.getComputedStyle(headDiv).height;
 }

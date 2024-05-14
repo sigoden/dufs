@@ -20,6 +20,8 @@ body {
   align-items: center;
   padding: 0.6em 1em;
   position: fixed;
+  left: 0;
+  top: 0;
   width: 100%;
   background-color: white;
 }
@@ -108,7 +110,7 @@ body {
 }
 
 .main {
-  padding: 3.3em 1em 0;
+  padding: 1.3em 1em 0;
 }
 
 .empty-folder {
