@@ -6,7 +6,7 @@ html {
 
 body {
   /* prevent premature breadcrumb wrapping on mobile */
-  min-width: 500px;
+  min-width: 538px;
   margin: 0;
 }
 
@@ -19,14 +19,15 @@ body {
   flex-wrap: wrap;
   align-items: center;
   padding: 0.6em 1em;
-  position: fixed;
-  width: 100%;
+  position: sticky;
+  top: 0;
   background-color: white;
 }
 
 .breadcrumb {
   font-size: 1.25em;
   padding-right: 0.6em;
+  word-break: break-all;
 }
 
 .breadcrumb>a {
@@ -108,7 +109,7 @@ body {
 }
 
 .main {
-  padding: 3.3em 1em 0;
+  padding: 0 1em;
 }
 
 .empty-folder {
