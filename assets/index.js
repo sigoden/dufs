@@ -114,7 +114,6 @@ function ready() {
     document.querySelector(".index-page").classList.remove("hidden");
 
     setupIndexPage();
-
   } else if (DATA.kind == "Edit") {
     document.title = `Edit ${DATA.href} - Dufs`;
     document.querySelector(".editor-page").classList.remove("hidden");;

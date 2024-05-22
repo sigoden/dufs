@@ -154,19 +154,19 @@ body {
 .paths-table .cell-actions {
   width: 90px;
   display: flex;
-  padding-left: 0.6em;
+  padding-left: 0.5em;
 }
 
 .paths-table .cell-mtime {
   width: 120px;
-  padding-left: 0.6em;
+  padding-left: 0.5em;
   font-variant-numeric: tabular-nums;
 }
 
 .paths-table .cell-size {
   text-align: right;
   width: 70px;
-  padding-left: 0.6em;
+  padding-left: 0.5em;
   font-variant-numeric: tabular-nums;
 }
 
@@ -189,7 +189,7 @@ body {
   display: block;
   text-decoration: none;
   max-width: calc(100vw - 375px);
-  min-width: 200px;
+  min-width: 170px;
 }
 
 .path a:hover {
