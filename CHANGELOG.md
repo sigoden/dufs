@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.41.0] - 2024-05-22
+
+### Bug Fixes
+
+- Timestamp format of getlastmodified in dav xml ([#366](https://github.com/sigoden/dufs/issues/366))
+- Strange issue that occurs only on Microsoft WebDAV ([#382](https://github.com/sigoden/dufs/issues/382))
+- Head div overlap main contents when wrap ([#386](https://github.com/sigoden/dufs/issues/386))
+
+### Features
+
+- Tls handshake timeout ([#368](https://github.com/sigoden/dufs/issues/368))
+- Add api to get the hash of a file ([#375](https://github.com/sigoden/dufs/issues/375))
+- Add log-file option ([#383](https://github.com/sigoden/dufs/issues/383))
+
+### Refactor
+
+- Digest_auth related tests ([#372](https://github.com/sigoden/dufs/issues/372))
+- Add fixed-width numerals to date and size on file list page ([#378](https://github.com/sigoden/dufs/issues/378))
+
 ## [0.40.0] - 2024-02-13
 
 ### Bug Fixes
