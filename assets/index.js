@@ -104,7 +104,6 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   const dirEmptyNote = PARAMS.q ? 'No results' : DATA.dir_exists ? 'Empty folder' : 'Folder will be created when a file is uploaded';
 
-  // Continue with the rest of your setup
   await ready();
 });
 
@@ -137,7 +136,6 @@ async function ready() {
     await setupEditorPage();
   }
 }
-
 
 class Uploader {
   /**
