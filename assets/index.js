@@ -97,6 +97,9 @@ let $userBtn;
  */
 let $userName;
 
+// Produce table when window loads
+window.addEventListener("DOMContentLoaded", ready);
+
 function ready() {
   $pathsTable = document.querySelector(".paths-table")
   $pathsTableHead = document.querySelector(".paths-table thead");
