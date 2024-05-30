@@ -858,7 +858,7 @@ function formatSize(size) {
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   if (size == 0) return [0, "B"];
   const i = parseInt(Math.floor(Math.log(size) / Math.log(1024)));
-  const ratio = 1;
+  let ratio = 1; // Changed from const to let
   if (i >= 3) {
     ratio = 100;
   }
