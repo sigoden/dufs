@@ -45,8 +45,6 @@ const IFRAME_FORMATS = [
   ".mp3", ".ogg", ".wav", ".m4a",
 ];
 
-const dirEmptyNote = PARAMS.q ? 'No results' : DATA.dir_exists ? 'Empty folder' : 'Folder will be created when a file is uploaded';
-
 const ICONS = {
   dir: `<svg height="16" viewBox="0 0 14 16" width="14"><path fill-rule="evenodd" d="M13 4H7V3c0-.66-.31-1-1-1H1c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1V5c0-.55-.45-1-1-1zM6 4H1V3h5v1z"></path></svg>`,
   symlinkFile: `<svg height="16" viewBox="0 0 12 16" width="12"><path fill-rule="evenodd" d="M8.5 1H1c-.55 0-1 .45-1 1v12c0 .55.45 1 1 1h10c.55 0 1-.45 1-1V4.5L8.5 1zM11 14H1V2h7l3 3v9zM6 4.5l4 3-4 3v-2c-.98-.02-1.84.22-2.55.7-.71.48-1.19 1.25-1.45 2.3.02-1.64.39-2.88 1.13-3.73.73-.84 1.69-1.27 2.88-1.27v-2H6z"></path></svg>`,
@@ -55,7 +53,7 @@ const ICONS = {
   download: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>`,
   move: `<svg width="16" height="16" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1.5 1.5A.5.5 0 0 0 1 2v4.8a2.5 2.5 0 0 0 2.5 2.5h9.793l-3.347 3.346a.5.5 0 0 0 .708.708l4.2-4.2a.5.5 0 0 0 0-.708l-4-4a.5.5 0 0 0-.708.708L13.293 8.3H3.5A1.5 1.5 0 0 1 2 6.8V2a.5.5 0 0 0-.5-.5z"/></svg>`,
   edit: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/></svg>`,
-  delete: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M6.854 7.146a.5.5 0 1 0-.708.708L7.293 9l-1.147 1.146a.5.5 0 0 0 .708.708L8 9.707l1.146 1.147a.5.5 0 0 0 .708-.708L8.707 9l1.147-1.146a.5.5 0 0 0-.708-.708L8 8.293 6.854 7.146z"/><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/></svg>`,
+  delete: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M6.854 7.146a.5.5 0 1 0-.708.708L7.293 9l-1.147 1.146a.5.5 0 0 0 .708.708L8 9.707l1.146 1.147a.5.5 0 0 0 .708-.708L8.707 9l1.147-1.146a.5.5 0 0 0-.708-.708L8 8.293 6.854 7.146z"/><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"></path></svg>`,
   view: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2zm0 1h8a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1"/></svg>`,
 }
 
@@ -98,10 +96,20 @@ let $userBtn;
 let $userName;
 
 // Produce table when window loads
-window.addEventListener("DOMContentLoaded", ready);
+window.addEventListener("DOMContentLoaded", async () => {
+  const dataElement = document.getElementById('index-data');
+  if (dataElement) {
+    DATA = JSON.parse(dataElement.textContent);
+  }
 
-function ready() {
-  $pathsTable = document.querySelector(".paths-table")
+  const dirEmptyNote = PARAMS.q ? 'No results' : DATA.dir_exists ? 'Empty folder' : 'Folder will be created when a file is uploaded';
+
+  // Continue with the rest of your setup
+  await ready();
+});
+
+async function ready() {
+  $pathsTable = document.querySelector(".paths-table");
   $pathsTableHead = document.querySelector(".paths-table thead");
   $pathsTableBody = document.querySelector(".paths-table tbody");
   $uploadersTable = document.querySelector(".uploaders-table");
@@ -112,21 +120,21 @@ function ready() {
 
   addBreadcrumb(DATA.href, DATA.uri_prefix);
 
-  if (DATA.kind == "Index") {
+  if (DATA.kind === "Index") {
     document.title = `Index of ${DATA.href} - Dufs`;
     document.querySelector(".index-page").classList.remove("hidden");
 
-    setupIndexPage();
-  } else if (DATA.kind == "Edit") {
+    await setupIndexPage();
+  } else if (DATA.kind === "Edit") {
     document.title = `Edit ${DATA.href} - Dufs`;
-    document.querySelector(".editor-page").classList.remove("hidden");;
+    document.querySelector(".editor-page").classList.remove("hidden");
 
-    setupEditorPage();
-  } else if (DATA.kind == "View") {
+    await setupEditorPage();
+  } else if (DATA.kind === "View") {
     document.title = `View ${DATA.href} - Dufs`;
-    document.querySelector(".editor-page").classList.remove("hidden");;
+    document.querySelector(".editor-page").classList.remove("hidden");
 
-    setupEditorPage();
+    await setupEditorPage();
   }
 }
 
@@ -224,7 +232,7 @@ class Uploader {
       uploadOffset = parseInt(value) || 0;
     }
     this.uploadOffset = uploadOffset;
-    this.ajax()
+    this.ajax();
   }
 
   progress(event) {
@@ -233,7 +241,7 @@ class Uploader {
     const [speedValue, speedUnit] = formatSize(speed);
     const speedText = `${speedValue} ${speedUnit}/s`;
     const progress = formatPercent(((event.loaded + this.uploadOffset) / this.file.size) * 100);
-    const duration = formatDuration((event.total - event.loaded) / speed)
+    const duration = formatDuration((event.total - event.loaded) / speed);
     this.$uploadStatus.innerHTML = `<span style="width: 80px;">${speedText}</span><span>${progress} ${duration}</span>`;
     this.uploaded = event.loaded;
     this.lastUptime = now;
@@ -277,7 +285,7 @@ Uploader.runQueue = async () => {
   if (!Uploader.auth) {
     Uploader.auth = true;
     try {
-      await checkAuth()
+      await checkAuth();
     } catch {
       Uploader.auth = false;
     }
@@ -322,7 +330,7 @@ function addBreadcrumb(href, uri_prefix) {
   }
 }
 
-function setupIndexPage() {
+async function setupIndexPage() {
   if (DATA.allow_archive) {
     const $download = document.querySelector(".download");
     $download.href = baseUrl() + "?zip";
@@ -338,11 +346,11 @@ function setupIndexPage() {
   }
 
   if (DATA.auth) {
-    setupAuth();
+    await setupAuth();
   }
 
   if (DATA.allow_search) {
-    setupSearch()
+    setupSearch();
   }
 
   renderPathsTableHead();
@@ -378,7 +386,7 @@ function renderPathsTableHead() {
     if (PARAMS.sort === item.name) {
       if (PARAMS.order === "desc") {
         order = "asc";
-        svg = `<svg width="12" height="12" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 1a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L7.5 13.293V1.5A.5.5 0 0 1 8 1z"/></svg>`
+        svg = `<svg width="12" height="12" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 1a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 1 0 .708.708L7.5 13.293V1.5A.5.5 0 0 1 8 1z"/></svg>`
       } else {
         svg = `<svg width="12" height="12" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 15a.5.5 0 0 0 .5-.5V2.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L7.5 2.707V14.5a.5.5 0 0 0 .5.5z"/></svg>`
       }
@@ -417,7 +425,7 @@ function renderPathsTableBody() {
  */
 function addPath(file, index) {
   const encodedName = encodedStr(file.name);
-  let url = newUrl(file.name)
+  let url = newUrl(file.name);
   let actionDelete = "";
   let actionDownload = "";
   let actionMove = "";
@@ -458,7 +466,7 @@ function addPath(file, index) {
     ${actionMove}
     ${actionDelete}
     ${actionEdit}
-  </td>`
+  </td>`;
 
   $pathsTableBody.insertAdjacentHTML("beforeend", `
 <tr id="addPath${index}">
@@ -471,7 +479,7 @@ function addPath(file, index) {
   <td class="cell-mtime">${formatMtime(file.mtime)}</td>
   <td class="cell-size">${formatSize(file.size).join(" ")}</td>
   ${actionCell}
-</tr>`)
+</tr>`);
 }
 
 function setupDropzone() {
@@ -483,7 +491,7 @@ function setupDropzone() {
   });
   document.addEventListener("drop", async e => {
     if (!e.dataTransfer.items[0].webkitGetAsEntry) {
-      const files = e.dataTransfer.files.filter(v => v.size > 0);
+      const files = Array.from(e.dataTransfer.files).filter(v => v.size > 0);
       for (const file of files) {
         new Uploader(file, []).upload();
       }
@@ -493,12 +501,12 @@ function setupDropzone() {
       for (let i = 0; i < len; i++) {
         entries.push(e.dataTransfer.items[i].webkitGetAsEntry());
       }
-      addFileEntries(entries, [])
+      addFileEntries(entries, []);
     }
   });
 }
 
-function setupAuth() {
+async function setupAuth() {
   if (DATA.user) {
     $userBtn.classList.remove("hidden");
     $userName.textContent = DATA.user;
@@ -507,7 +515,7 @@ function setupAuth() {
     $loginBtn.classList.remove("hidden");
     $loginBtn.addEventListener("click", async () => {
       try {
-        await checkAuth()
+        await checkAuth();
         location.reload();
       } catch (err) {
         alert(err.message);
@@ -588,7 +596,7 @@ async function setupEditorPage() {
       await doDeletePath(name, url, () => {
         location.href = location.href.split("/").slice(0, -1).join("/");
       });
-    })
+    });
 
     const $saveBtn = document.querySelector(".save-btn");
     $saveBtn.classList.remove("hidden");
@@ -602,7 +610,7 @@ async function setupEditorPage() {
     const url = baseUrl();
     const ext = extName(baseName(url));
     if (IFRAME_FORMATS.find(v => v === ext)) {
-      $notEditable.insertAdjacentHTML("afterend", `<iframe src="${url}" sandbox width="100%" height="${window.innerHeight - 100}px"></iframe>`)
+      $notEditable.insertAdjacentHTML("afterend", `<iframe src="${url}" sandbox width="100%" height="${window.innerHeight - 100}px"></iframe>`);
     } else {
       $notEditable.classList.remove("hidden");
       $notEditable.textContent = "Cannot edit because file is too large or binary.";
@@ -619,8 +627,8 @@ async function setupEditorPage() {
       $editor.value = await res.text();
     } else {
       const bytes = await res.arrayBuffer();
-      const dataView = new DataView(bytes)
-      const decoder = new TextDecoder(encoding)
+      const dataView = new DataView(bytes);
+      const decoder = new TextDecoder(encoding);
       $editor.value = decoder.decode(dataView);
     }
   } catch (err) {
@@ -644,7 +652,7 @@ async function deletePath(index) {
       $emptyFolder.textContent = dirEmptyNote;
       $emptyFolder.classList.remove("hidden");
     }
-  })
+  });
 }
 
 async function doDeletePath(name, url, cb) {
@@ -677,13 +685,13 @@ async function movePath(index) {
 }
 
 async function doMovePath(fileUrl) {
-  const fileUrlObj = new URL(fileUrl)
+  const fileUrlObj = new URL(fileUrl);
 
   const prefix = DATA.uri_prefix.slice(0, -1);
 
   const filePath = decodeURIComponent(fileUrlObj.pathname.slice(prefix.length));
 
-  let newPath = prompt("Enter new path", filePath)
+  let newPath = prompt("Enter new path", filePath);
   if (!newPath) return;
   if (!newPath.startsWith("/")) newPath = "/" + newPath;
   if (filePath === newPath) return;
@@ -806,7 +814,7 @@ function baseUrl() {
 }
 
 function baseName(url) {
-  return decodeURIComponent(url.split("/").filter(v => v.length > 0).slice(-1)[0])
+  return decodeURIComponent(url.split("/").filter(v => v.length > 0).slice(-1)[0]);
 }
 
 function extName(filename) {
@@ -833,7 +841,7 @@ function getPathSvg(path_type) {
 }
 
 function formatMtime(mtime) {
-  if (!mtime) return ""
+  if (!mtime) return "";
   const date = new Date(mtime);
   const year = date.getFullYear();
   const month = padZero(date.getMonth() + 1, 2);
@@ -844,17 +852,17 @@ function formatMtime(mtime) {
 }
 
 function padZero(value, size) {
-  return ("0".repeat(size) + value).slice(-1 * size)
+  return ("0".repeat(size) + value).slice(-1 * size);
 }
 
 function formatSize(size) {
-  if (size == null) return [0, "B"]
+  if (size == null) return [0, "B"];
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   if (size == 0) return [0, "B"];
   const i = parseInt(Math.floor(Math.log(size) / Math.log(1024)));
-  ratio = 1
+  const ratio = 1;
   if (i >= 3) {
-    ratio = 100
+    ratio = 100;
   }
   return [Math.round(size * ratio / Math.pow(1024, i), 2) / ratio, sizes[i]];
 }
@@ -863,7 +871,7 @@ function formatDuration(seconds) {
   seconds = Math.ceil(seconds);
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds - h * 3600) / 60);
-  const s = seconds - h * 3600 - m * 60
+  const s = seconds - h * 3600 - m * 60;
   return `${padZero(h, 2)}:${padZero(m, 2)}:${padZero(s, 2)}`;
 }
 
@@ -892,8 +900,8 @@ function getEncoding(contentType) {
   if (/charset/i.test(charset)) {
     let encoding = charset.split("=")[1];
     if (encoding) {
-      return encoding.toLowerCase()
+      return encoding.toLowerCase();
     }
   }
-  return 'utf-8'
+  return 'utf-8';
 }
