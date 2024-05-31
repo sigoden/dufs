@@ -30,6 +30,11 @@ var DUFS_MAX_UPLOADINGS = 1;
 var DATA;
 
 /**
+ * @type {string}
+ */
+var DIR_EMPTY_NOTE;
+
+/**
  * @type {PARAMS}
  * @typedef {object} PARAMS
  * @property {string} q
@@ -44,8 +49,6 @@ const IFRAME_FORMATS = [
   ".mp4", ".mov", ".avi", ".wmv", ".flv", ".webm",
   ".mp3", ".ogg", ".wav", ".m4a",
 ];
-
-const dirEmptyNote = PARAMS.q ? 'No results' : DATA.dir_exists ? 'Empty folder' : 'Folder will be created when a file is uploaded';
 
 const ICONS = {
   dir: `<svg height="16" viewBox="0 0 14 16" width="14"><path fill-rule="evenodd" d="M13 4H7V3c0-.66-.31-1-1-1H1c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1V5c0-.55-.45-1-1-1zM6 4H1V3h5v1z"></path></svg>`,
@@ -97,8 +100,22 @@ let $userBtn;
  */
 let $userName;
 
-function ready() {
-  $pathsTable = document.querySelector(".paths-table")
+// Produce table when window loads
+window.addEventListener("DOMContentLoaded", async () => {
+  const $indexData = document.getElementById('index-data');
+  if (!$indexData) {
+    alert("No data");
+    return;
+  }
+
+  DATA = JSON.parse($indexData.innerHTML);
+  DIR_EMPTY_NOTE = PARAMS.q ? 'No results' : DATA.dir_exists ? 'Empty folder' : 'Folder will be created when a file is uploaded';
+
+  await ready();
+});
+
+async function ready() {
+  $pathsTable = document.querySelector(".paths-table");
   $pathsTableHead = document.querySelector(".paths-table thead");
   $pathsTableBody = document.querySelector(".paths-table tbody");
   $uploadersTable = document.querySelector(".uploaders-table");
@@ -109,24 +126,23 @@ function ready() {
 
   addBreadcrumb(DATA.href, DATA.uri_prefix);
 
-  if (DATA.kind == "Index") {
+  if (DATA.kind === "Index") {
     document.title = `Index of ${DATA.href} - Dufs`;
     document.querySelector(".index-page").classList.remove("hidden");
 
-    setupIndexPage();
-  } else if (DATA.kind == "Edit") {
+    await setupIndexPage();
+  } else if (DATA.kind === "Edit") {
     document.title = `Edit ${DATA.href} - Dufs`;
-    document.querySelector(".editor-page").classList.remove("hidden");;
+    document.querySelector(".editor-page").classList.remove("hidden");
 
-    setupEditorPage();
-  } else if (DATA.kind == "View") {
+    await setupEditorPage();
+  } else if (DATA.kind === "View") {
     document.title = `View ${DATA.href} - Dufs`;
-    document.querySelector(".editor-page").classList.remove("hidden");;
+    document.querySelector(".editor-page").classList.remove("hidden");
 
-    setupEditorPage();
+    await setupEditorPage();
   }
 }
-
 
 class Uploader {
   /**
@@ -221,7 +237,7 @@ class Uploader {
       uploadOffset = parseInt(value) || 0;
     }
     this.uploadOffset = uploadOffset;
-    this.ajax()
+    this.ajax();
   }
 
   progress(event) {
@@ -230,7 +246,7 @@ class Uploader {
     const [speedValue, speedUnit] = formatSize(speed);
     const speedText = `${speedValue} ${speedUnit}/s`;
     const progress = formatPercent(((event.loaded + this.uploadOffset) / this.file.size) * 100);
-    const duration = formatDuration((event.total - event.loaded) / speed)
+    const duration = formatDuration((event.total - event.loaded) / speed);
     this.$uploadStatus.innerHTML = `<span style="width: 80px;">${speedText}</span><span>${progress} ${duration}</span>`;
     this.uploaded = event.loaded;
     this.lastUptime = now;
@@ -274,7 +290,7 @@ Uploader.runQueue = async () => {
   if (!Uploader.auth) {
     Uploader.auth = true;
     try {
-      await checkAuth()
+      await checkAuth();
     } catch {
       Uploader.auth = false;
     }
@@ -319,7 +335,7 @@ function addBreadcrumb(href, uri_prefix) {
   }
 }
 
-function setupIndexPage() {
+async function setupIndexPage() {
   if (DATA.allow_archive) {
     const $download = document.querySelector(".download");
     $download.href = baseUrl() + "?zip";
@@ -335,11 +351,11 @@ function setupIndexPage() {
   }
 
   if (DATA.auth) {
-    setupAuth();
+    await setupAuth();
   }
 
   if (DATA.allow_search) {
-    setupSearch()
+    setupSearch();
   }
 
   renderPathsTableHead();
@@ -402,7 +418,7 @@ function renderPathsTableBody() {
       addPath(DATA.paths[i], i);
     }
   } else {
-    $emptyFolder.textContent = dirEmptyNote;
+    $emptyFolder.textContent = DIR_EMPTY_NOTE;
     $emptyFolder.classList.remove("hidden");
   }
 }
@@ -414,7 +430,7 @@ function renderPathsTableBody() {
  */
 function addPath(file, index) {
   const encodedName = encodedStr(file.name);
-  let url = newUrl(file.name)
+  let url = newUrl(file.name);
   let actionDelete = "";
   let actionDownload = "";
   let actionMove = "";
@@ -455,7 +471,7 @@ function addPath(file, index) {
     ${actionMove}
     ${actionDelete}
     ${actionEdit}
-  </td>`
+  </td>`;
 
   $pathsTableBody.insertAdjacentHTML("beforeend", `
 <tr id="addPath${index}">
@@ -468,7 +484,7 @@ function addPath(file, index) {
   <td class="cell-mtime">${formatMtime(file.mtime)}</td>
   <td class="cell-size">${formatSize(file.size).join(" ")}</td>
   ${actionCell}
-</tr>`)
+</tr>`);
 }
 
 function setupDropzone() {
@@ -480,7 +496,7 @@ function setupDropzone() {
   });
   document.addEventListener("drop", async e => {
     if (!e.dataTransfer.items[0].webkitGetAsEntry) {
-      const files = e.dataTransfer.files.filter(v => v.size > 0);
+      const files = Array.from(e.dataTransfer.files).filter(v => v.size > 0);
       for (const file of files) {
         new Uploader(file, []).upload();
       }
@@ -490,12 +506,12 @@ function setupDropzone() {
       for (let i = 0; i < len; i++) {
         entries.push(e.dataTransfer.items[i].webkitGetAsEntry());
       }
-      addFileEntries(entries, [])
+      addFileEntries(entries, []);
     }
   });
 }
 
-function setupAuth() {
+async function setupAuth() {
   if (DATA.user) {
     $userBtn.classList.remove("hidden");
     $userName.textContent = DATA.user;
@@ -504,7 +520,7 @@ function setupAuth() {
     $loginBtn.classList.remove("hidden");
     $loginBtn.addEventListener("click", async () => {
       try {
-        await checkAuth()
+        await checkAuth();
         location.reload();
       } catch (err) {
         alert(err.message);
@@ -585,7 +601,7 @@ async function setupEditorPage() {
       await doDeletePath(name, url, () => {
         location.href = location.href.split("/").slice(0, -1).join("/");
       });
-    })
+    });
 
     const $saveBtn = document.querySelector(".save-btn");
     $saveBtn.classList.remove("hidden");
@@ -599,7 +615,7 @@ async function setupEditorPage() {
     const url = baseUrl();
     const ext = extName(baseName(url));
     if (IFRAME_FORMATS.find(v => v === ext)) {
-      $notEditable.insertAdjacentHTML("afterend", `<iframe src="${url}" sandbox width="100%" height="${window.innerHeight - 100}px"></iframe>`)
+      $notEditable.insertAdjacentHTML("afterend", `<iframe src="${url}" sandbox width="100%" height="${window.innerHeight - 100}px"></iframe>`);
     } else {
       $notEditable.classList.remove("hidden");
       $notEditable.textContent = "Cannot edit because file is too large or binary.";
@@ -616,8 +632,8 @@ async function setupEditorPage() {
       $editor.value = await res.text();
     } else {
       const bytes = await res.arrayBuffer();
-      const dataView = new DataView(bytes)
-      const decoder = new TextDecoder(encoding)
+      const dataView = new DataView(bytes);
+      const decoder = new TextDecoder(encoding);
       $editor.value = decoder.decode(dataView);
     }
   } catch (err) {
@@ -638,10 +654,10 @@ async function deletePath(index) {
     DATA.paths[index] = null;
     if (!DATA.paths.find(v => !!v)) {
       $pathsTable.classList.add("hidden");
-      $emptyFolder.textContent = dirEmptyNote;
+      $emptyFolder.textContent = DIR_EMPTY_NOTE;
       $emptyFolder.classList.remove("hidden");
     }
-  })
+  });
 }
 
 async function doDeletePath(name, url, cb) {
@@ -674,13 +690,13 @@ async function movePath(index) {
 }
 
 async function doMovePath(fileUrl) {
-  const fileUrlObj = new URL(fileUrl)
+  const fileUrlObj = new URL(fileUrl);
 
   const prefix = DATA.uri_prefix.slice(0, -1);
 
   const filePath = decodeURIComponent(fileUrlObj.pathname.slice(prefix.length));
 
-  let newPath = prompt("Enter new path", filePath)
+  let newPath = prompt("Enter new path", filePath);
   if (!newPath) return;
   if (!newPath.startsWith("/")) newPath = "/" + newPath;
   if (filePath === newPath) return;
@@ -803,7 +819,7 @@ function baseUrl() {
 }
 
 function baseName(url) {
-  return decodeURIComponent(url.split("/").filter(v => v.length > 0).slice(-1)[0])
+  return decodeURIComponent(url.split("/").filter(v => v.length > 0).slice(-1)[0]);
 }
 
 function extName(filename) {
@@ -830,7 +846,7 @@ function getPathSvg(path_type) {
 }
 
 function formatMtime(mtime) {
-  if (!mtime) return ""
+  if (!mtime) return "";
   const date = new Date(mtime);
   const year = date.getFullYear();
   const month = padZero(date.getMonth() + 1, 2);
@@ -841,17 +857,17 @@ function formatMtime(mtime) {
 }
 
 function padZero(value, size) {
-  return ("0".repeat(size) + value).slice(-1 * size)
+  return ("0".repeat(size) + value).slice(-1 * size);
 }
 
 function formatSize(size) {
-  if (size == null) return [0, "B"]
+  if (size == null) return [0, "B"];
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   if (size == 0) return [0, "B"];
   const i = parseInt(Math.floor(Math.log(size) / Math.log(1024)));
-  ratio = 1
+  let ratio = 1;
   if (i >= 3) {
-    ratio = 100
+    ratio = 100;
   }
   return [Math.round(size * ratio / Math.pow(1024, i), 2) / ratio, sizes[i]];
 }
@@ -860,7 +876,7 @@ function formatDuration(seconds) {
   seconds = Math.ceil(seconds);
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds - h * 3600) / 60);
-  const s = seconds - h * 3600 - m * 60
+  const s = seconds - h * 3600 - m * 60;
   return `${padZero(h, 2)}:${padZero(m, 2)}:${padZero(s, 2)}`;
 }
 
@@ -889,8 +905,8 @@ function getEncoding(contentType) {
   if (/charset/i.test(charset)) {
     let encoding = charset.split("=")[1];
     if (encoding) {
-      return encoding.toLowerCase()
+      return encoding.toLowerCase();
     }
   }
-  return 'utf-8'
+  return 'utf-8';
 }
