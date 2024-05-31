@@ -4,10 +4,6 @@ html {
   color: #24292e;
 }
 
-#index-data {
-  display: none !important;
-}
-
 body {
   /* prevent premature breadcrumb wrapping on mobile */
   min-width: 538px;
