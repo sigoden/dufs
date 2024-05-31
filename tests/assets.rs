@@ -115,7 +115,7 @@ fn assets_override(tmpdir: TempDir, port: u16) -> Result<(), Error> {
     let url = format!("http://localhost:{port}");
     let resp = reqwest::blocking::get(&url)?;
     assert!(resp.text()?.starts_with(&format!(
-        "/__dufs_v{}__/index.js;DATA",
+        "/__dufs_v{}__/index.js;<template id=\"index-data\">",
         env!("CARGO_PKG_VERSION")
     )));
     let resp = reqwest::blocking::get(&url)?;
