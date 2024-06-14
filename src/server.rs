@@ -963,9 +963,10 @@ impl Server {
     ) -> Result<()> {
         let depth: u32 = match headers.get("depth") {
             Some(v) => match v.to_str().ok().and_then(|v| v.parse().ok()) {
-                Some(v) => v,
-                None => {
-                    status_bad_request(res, "");
+                Some(0) => 0,
+                Some(1) => 1,
+                _ => {
+                    status_bad_request(res, "Invalid depth: only 0 and 1 are allowed.");
                     return Ok(());
                 }
             },
@@ -975,7 +976,7 @@ impl Server {
             Some(v) => vec![v],
             None => vec![],
         };
-        if depth != 0 {
+        if depth > 0 {
             match self
                 .list_dir(path, &self.args.serve_path, access_paths)
                 .await
