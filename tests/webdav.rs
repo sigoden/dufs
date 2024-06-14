@@ -41,6 +41,17 @@ fn propfind_dir_depth0(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn propfind_dir_depth2(server: TestServer) -> Result<(), Error> {
+    let resp = fetch!(b"PROPFIND", format!("{}dir1", server.url()))
+        .header("depth", "2")
+        .send()?;
+    assert_eq!(resp.status(), 400);
+    let body = resp.text()?;
+    assert_eq!(body, "Invalid depth: only 0 and 1 are allowed.");
+    Ok(())
+}
+
+#[rstest]
 fn propfind_404(server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"PROPFIND", format!("{}404", server.url())).send()?;
     assert_eq!(resp.status(), 404);
