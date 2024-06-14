@@ -976,7 +976,7 @@ impl Server {
             Some(v) => vec![v],
             None => vec![],
         };
-        if depth > 0 {
+        if depth == 1 {
             match self
                 .list_dir(path, &self.args.serve_path, access_paths)
                 .await
