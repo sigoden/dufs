@@ -802,38 +802,36 @@ impl Server {
                     return Ok(());
                 }
             }
+            if let Some(if_match) = headers.typed_get::<IfMatch>() {
+                if !if_match.precondition_passes(&etag) {
+                    *res.status_mut() = StatusCode::PRECONDITION_FAILED;
+                    return Ok(());
+                }
+            }
             if let Some(if_modified_since) = headers.typed_get::<IfModifiedSince>() {
                 if !if_modified_since.is_modified(last_modified.into()) {
                     *res.status_mut() = StatusCode::NOT_MODIFIED;
                     return Ok(());
                 }
             }
-            if let Some(etag) = etag {
-                if let Some(if_none_match) = headers.typed_get::<IfNoneMatch>() {
-                    if !if_none_match.precondition_passes(&etag) {
-                        *res.status_mut() = StatusCode::NOT_MODIFIED;
-                        return Ok(());
-                    }
+            if let Some(if_none_match) = headers.typed_get::<IfNoneMatch>() {
+                if !if_none_match.precondition_passes(&etag) {
+                    *res.status_mut() = StatusCode::NOT_MODIFIED;
+                    return Ok(());
                 }
-                if let Some(if_match) = headers.typed_get::<IfMatch>() {
-                    if !if_match.precondition_passes(&etag) {
-                        *res.status_mut() = StatusCode::PRECONDITION_FAILED;
-                        return Ok(());
-                    }
-                }
+            }
 
-                res.headers_mut().typed_insert(last_modified);
-                res.headers_mut().typed_insert(etag.clone());
+            res.headers_mut().typed_insert(last_modified);
+            res.headers_mut().typed_insert(etag.clone());
 
-                if headers.typed_get::<Range>().is_some() {
-                    use_range = headers
-                        .typed_get::<IfRange>()
-                        .map(|if_range| !if_range.is_modified(Some(&etag), Some(&last_modified)))
-                        // Always be fresh if there is no validators
-                        .unwrap_or(true);
-                } else {
-                    use_range = false;
-                }
+            if headers.typed_get::<Range>().is_some() {
+                use_range = headers
+                    .typed_get::<IfRange>()
+                    .map(|if_range| !if_range.is_modified(Some(&etag), Some(&last_modified)))
+                    // Always be fresh if there is no validators
+                    .unwrap_or(true);
+            } else {
+                use_range = false;
             }
         }
 
@@ -1648,11 +1646,11 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
     Ok(())
 }
 
-fn extract_cache_headers(meta: &Metadata) -> Option<(Option<ETag>, LastModified)> {
+fn extract_cache_headers(meta: &Metadata) -> Option<(ETag, LastModified)> {
     let mtime = meta.modified().ok()?;
     let timestamp = to_timestamp(&mtime);
     let size = meta.len();
-    let etag = format!(r#""{timestamp}-{size}""#).parse::<ETag>().ok();
+    let etag = format!(r#""{timestamp}-{size}""#).parse::<ETag>().ok()?;
     let last_modified = LastModified::from(mtime);
     Some((etag, last_modified))
 }
