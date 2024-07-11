@@ -15,7 +15,7 @@ about: Create a report to help us improve
 
 **Log**
 
-The dufs log is crucial for locating the problem, so please do not omit it.
+<!-- The dufs log is crucial for locating the problem, so please do not omit it. -->
 
 **Environment:**
  - Dufs version:
