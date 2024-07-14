@@ -267,10 +267,7 @@ fn options_dir(server: TestServer) -> Result<(), Error> {
         resp.headers().get("allow").unwrap(),
         "GET,HEAD,PUT,OPTIONS,DELETE,PATCH,PROPFIND,COPY,MOVE"
     );
-    assert_eq!(
-        resp.headers().get("dav").unwrap(),
-        "1, 2, 3, sabredav-partialupdate"
-    );
+    assert_eq!(resp.headers().get("dav").unwrap(), "1, 2, 3");
     Ok(())
 }
 

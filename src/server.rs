@@ -1717,10 +1717,8 @@ fn set_webdav_headers(res: &mut Response) {
         "Allow",
         HeaderValue::from_static("GET,HEAD,PUT,OPTIONS,DELETE,PATCH,PROPFIND,COPY,MOVE"),
     );
-    res.headers_mut().insert(
-        "DAV",
-        HeaderValue::from_static("1, 2, 3, sabredav-partialupdate"),
-    );
+    res.headers_mut()
+        .insert("DAV", HeaderValue::from_static("1, 2, 3"));
 }
 
 async fn get_content_type(path: &Path) -> Result<String> {
