@@ -285,9 +285,9 @@ fn put_file(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
 fn put_file_create_dir(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let url = format!("{}xyz/file1", server.url());
     let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
-    assert_eq!(resp.status(), 201);
+    assert_eq!(resp.status(), 409);
     let resp = reqwest::blocking::get(url)?;
-    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.status(), 404);
     Ok(())
 }
 

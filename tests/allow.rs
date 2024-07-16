@@ -39,7 +39,7 @@ fn allow_upload_not_exist_dir(
     #[with(&["--allow-upload"])] server: TestServer,
 ) -> Result<(), Error> {
     let resp = reqwest::blocking::get(format!("{}404/", server.url()))?;
-    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.status(), 404);
     Ok(())
 }
 

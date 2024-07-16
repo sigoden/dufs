@@ -335,17 +335,6 @@ impl Server {
                 } else if render_spa {
                     self.handle_render_spa(path, headers, head_only, &mut res)
                         .await?;
-                } else if allow_upload && req_path.ends_with('/') {
-                    self.handle_ls_dir(
-                        path,
-                        false,
-                        &query_params,
-                        head_only,
-                        user,
-                        access_paths,
-                        &mut res,
-                    )
-                    .await?;
                 } else {
                     status_not_found(&mut res);
                 }
@@ -356,6 +345,9 @@ impl Server {
             Method::PUT => {
                 if is_dir || !allow_upload || (!allow_delete && size > 0) {
                     status_forbid(&mut res);
+                } else if !path_parent_exist(path) {
+                    *res.status_mut() = StatusCode::CONFLICT;
+                    *res.body_mut() = body_full("Parent directory does not exist");
                 } else {
                     self.handle_upload(path, None, size, req, &mut res).await?;
                 }
@@ -427,6 +419,9 @@ impl Server {
                     } else if !is_miss {
                         *res.status_mut() = StatusCode::METHOD_NOT_ALLOWED;
                         *res.body_mut() = body_full("Already exists");
+                    } else if !path_parent_exist(path) {
+                        *res.status_mut() = StatusCode::CONFLICT;
+                        *res.body_mut() = body_full("Parent directory does not exist");
                     } else {
                         self.handle_mkcol(path, &mut res).await?;
                     }
@@ -436,6 +431,9 @@ impl Server {
                         status_forbid(&mut res);
                     } else if is_miss {
                         status_not_found(&mut res);
+                    } else if !path_parent_exist(path) {
+                        *res.status_mut() = StatusCode::CONFLICT;
+                        *res.body_mut() = body_full("Parent directory does not exist");
                     } else {
                         self.handle_copy(path, &req, &mut res).await?
                     }
@@ -445,6 +443,9 @@ impl Server {
                         status_forbid(&mut res);
                     } else if is_miss {
                         status_not_found(&mut res);
+                    } else if !path_parent_exist(path) {
+                        *res.status_mut() = StatusCode::CONFLICT;
+                        *res.body_mut() = body_full("Parent directory does not exist");
                     } else {
                         self.handle_move(path, &req, &mut res).await?
                     }
@@ -480,7 +481,6 @@ impl Server {
         req: Request,
         res: &mut Response,
     ) -> Result<()> {
-        ensure_path_parent(path).await?;
         let (mut file, status) = match upload_offset {
             None => (fs::File::create(path).await?, StatusCode::CREATED),
             Some(offset) if offset == size => (
@@ -1020,7 +1020,7 @@ impl Server {
     }
 
     async fn handle_mkcol(&self, path: &Path, res: &mut Response) -> Result<()> {
-        fs::create_dir_all(path).await?;
+        fs::create_dir(path).await?;
         *res.status_mut() = StatusCode::CREATED;
         Ok(())
     }
@@ -1039,8 +1039,6 @@ impl Server {
             return Ok(());
         }
 
-        ensure_path_parent(&dest).await?;
-
         fs::copy(path, &dest).await?;
 
         status_no_content(res);
@@ -1054,8 +1052,6 @@ impl Server {
                 return Ok(());
             }
         };
-
-        ensure_path_parent(&dest).await?;
 
         fs::rename(path, &dest).await?;
 
@@ -1534,13 +1530,11 @@ fn normalize_path<P: AsRef<Path>>(path: P) -> String {
     }
 }
 
-async fn ensure_path_parent(path: &Path) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        if fs::symlink_metadata(parent).await.is_err() {
-            fs::create_dir_all(&parent).await?;
-        }
+fn path_parent_exist(path: &Path) -> bool {
+    match path.parent() {
+        Some(parent) => parent.exists(),
+        None => false,
     }
-    Ok(())
 }
 
 fn add_cors(res: &mut Response) {
