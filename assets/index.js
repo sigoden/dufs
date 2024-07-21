@@ -108,7 +108,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  DATA = JSON.parse($indexData.innerHTML);
+  DATA = JSON.parse(atob($indexData.innerHTML));
   DIR_EMPTY_NOTE = PARAMS.q ? 'No results' : DATA.dir_exists ? 'Empty folder' : 'Folder will be created when a file is uploaded';
 
   await ready();

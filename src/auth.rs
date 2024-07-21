@@ -1,7 +1,7 @@
 use crate::{args::Args, server::Response, utils::unix_now};
 
 use anyhow::{anyhow, bail, Result};
-use base64::{engine::general_purpose, Engine as _};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use headers::HeaderValue;
 use hyper::{header::WWW_AUTHENTICATE, Method};
 use indexmap::IndexMap;
@@ -287,7 +287,7 @@ pub fn www_authenticate(res: &mut Response, args: &Args) -> Result<()> {
 
 pub fn get_auth_user(authorization: &HeaderValue) -> Option<String> {
     if let Some(value) = strip_prefix(authorization.as_bytes(), b"Basic ") {
-        let value: Vec<u8> = general_purpose::STANDARD.decode(value).ok()?;
+        let value: Vec<u8> = STANDARD.decode(value).ok()?;
         let parts: Vec<&str> = std::str::from_utf8(&value).ok()?.split(':').collect();
         Some(parts[0].to_string())
     } else if let Some(value) = strip_prefix(authorization.as_bytes(), b"Digest ") {
@@ -306,7 +306,7 @@ pub fn check_auth(
     auth_pass: &str,
 ) -> Option<()> {
     if let Some(value) = strip_prefix(authorization.as_bytes(), b"Basic ") {
-        let value: Vec<u8> = general_purpose::STANDARD.decode(value).ok()?;
+        let value: Vec<u8> = STANDARD.decode(value).ok()?;
         let parts: Vec<&str> = std::str::from_utf8(&value).ok()?.split(':').collect();
 
         if parts[0] != auth_user {
