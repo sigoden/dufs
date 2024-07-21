@@ -810,7 +810,7 @@ async function addFileEntries(entries, dirs) {
 function newUrl(name) {
   let url = baseUrl();
   if (!url.endsWith("/")) url += "/";
-  url += name.split("/").map(encodeURIComponent).join("/");
+  url += name.split("/").join("/");
   return url;
 }
 
