@@ -10,6 +10,7 @@ use crate::Args;
 
 use anyhow::{anyhow, Result};
 use async_zip::{tokio::write::ZipFileWriter, Compression, ZipDateTime, ZipEntryBuilder};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use bytes::Bytes;
 use chrono::{LocalResult, TimeZone, Utc};
 use futures_util::{pin_mut, TryStreamExt};
@@ -931,13 +932,14 @@ impl Server {
         };
         res.headers_mut()
             .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
+        let index_data = STANDARD.encode(serde_json::to_string(&data)?);
         let output = self
             .html
             .replace(
                 "__ASSETS_PREFIX__",
                 &format!("{}{}", self.args.uri_prefix, self.assets_prefix),
             )
-            .replace("__INDEX_DATA__", &serde_json::to_string(&data)?);
+            .replace("__INDEX_DATA__", &index_data);
         res.headers_mut()
             .typed_insert(ContentLength(output.as_bytes().len() as u64));
         if head_only {
@@ -1179,12 +1181,14 @@ impl Server {
         } else {
             res.headers_mut()
                 .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
+
+            let index_data = STANDARD.encode(serde_json::to_string(&data)?);
             self.html
                 .replace(
                     "__ASSETS_PREFIX__",
                     &format!("{}{}", self.args.uri_prefix, self.assets_prefix),
                 )
-                .replace("__INDEX_DATA__", &serde_json::to_string(&data)?)
+                .replace("__INDEX_DATA__", &index_data)
         };
         res.headers_mut()
             .typed_insert(ContentLength(output.as_bytes().len() as u64));
