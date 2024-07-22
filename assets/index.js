@@ -100,25 +100,6 @@ let $userBtn;
  */
 let $userName;
 
-// Parsing base64 strings with Unicode characters
-function decodeBase64WithUnicode(base64String) {
-  const binString = atob(base64String);
-  const len = binString.length;
-  const bytes = new Uint8Array(len);
-  const arr = new Uint32Array(bytes.buffer, 0, Math.floor(len / 4));
-  let i = 0;
-  for (; i < arr.length; i++) {
-    arr[i] = binString.charCodeAt(i * 4) |
-             (binString.charCodeAt(i * 4 + 1) << 8) |
-             (binString.charCodeAt(i * 4 + 2) << 16) |
-             (binString.charCodeAt(i * 4 + 3) << 24);
-  }
-  for (i = i * 4; i < len; i++) {
-    bytes[i] = binString.charCodeAt(i);
-  }
-  return new TextDecoder().decode(bytes);
-}
-
 // Produce table when window loads
 window.addEventListener("DOMContentLoaded", async () => {
   const $indexData = document.getElementById('index-data');
@@ -127,7 +108,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  DATA = JSON.parse(decodeBase64WithUnicode($indexData.innerHTML));
+  DATA = JSON.parse(decodeBase64($indexData.innerHTML));
   DIR_EMPTY_NOTE = PARAMS.q ? 'No results' : DATA.dir_exists ? 'Empty folder' : 'Folder will be created when a file is uploaded';
 
   await ready();
@@ -928,4 +909,23 @@ function getEncoding(contentType) {
     }
   }
   return 'utf-8';
+}
+
+// Parsing base64 strings with Unicode characters
+function decodeBase64(base64String) {
+  const binString = atob(base64String);
+  const len = binString.length;
+  const bytes = new Uint8Array(len);
+  const arr = new Uint32Array(bytes.buffer, 0, Math.floor(len / 4));
+  let i = 0;
+  for (; i < arr.length; i++) {
+    arr[i] = binString.charCodeAt(i * 4) |
+             (binString.charCodeAt(i * 4 + 1) << 8) |
+             (binString.charCodeAt(i * 4 + 2) << 16) |
+             (binString.charCodeAt(i * 4 + 3) << 24);
+  }
+  for (i = i * 4; i < len; i++) {
+    bytes[i] = binString.charCodeAt(i);
+  }
+  return new TextDecoder().decode(bytes);
 }
