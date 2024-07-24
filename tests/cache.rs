@@ -30,7 +30,7 @@ fn get_file_with_if_modified_since_condition(
         .get(LAST_MODIFIED)
         .and_then(|h| h.to_str().ok())
         .and_then(|s| DateTime::parse_from_rfc2822(s).ok())
-        .expect("Recieved no valid last modified header");
+        .expect("Received no valid last modified header");
 
     let req_modified_time = (last_modified + duration_after_file_modified)
         .format("%a, %e %b %Y %T GMT")
@@ -69,7 +69,7 @@ fn get_file_with_etag_match(
         .headers()
         .get(ETAG)
         .and_then(|h| h.to_str().ok())
-        .expect("Recieved no valid etag header");
+        .expect("Received no valid etag header");
 
     let resp = fetch!(b"GET", format!("{}index.html", server.url()))
         .header(header_condition, etag_modifier(etag))
