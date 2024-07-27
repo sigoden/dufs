@@ -208,7 +208,7 @@ Resumable downloads
 curl -C- -o file http://127.0.0.1:5000/file
 ```
 
-Resumable uploads
+Resumable uploads (hint: you can check resumable uploads support; please see Advanced topics)
 
 ```sh
 upload_offset=$(curl -I -s http://127.0.0.1:5000/file | tr -d '\r' | sed -n 's/content-length: //p')
@@ -278,6 +278,16 @@ dufs --hidden '.*'                          # hidden dotfiles
 dufs --hidden '*/'                          # hidden all folders
 dufs --hidden '*.log,*.lock'                # hidden by exts
 dufs --hidden '*.log' --hidden '*.lock'
+```
+
+### Check Resumable Uploads Support
+
+Not all webdav server supports resumable/partial/chuncked uploads.
+
+If you (or your automatical client-side application) check the 'DAV:' header, you see the below keywords in values, you are safe to trigger a resumable upload:
+
+```
+DAV: 1, 2, 3, dufs-append
 ```
 
 ### Log Format
