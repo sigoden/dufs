@@ -1722,7 +1722,7 @@ fn set_webdav_headers(res: &mut Response) {
         HeaderValue::from_static("GET,HEAD,PUT,OPTIONS,DELETE,PATCH,PROPFIND,COPY,MOVE"),
     );
     res.headers_mut()
-        .insert("DAV", HeaderValue::from_static("1, 2, 3"));
+        .insert("DAV", HeaderValue::from_static("1, 2, 3, dufs-append"));
 }
 
 async fn get_content_type(path: &Path) -> Result<String> {
