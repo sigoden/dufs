@@ -33,7 +33,7 @@ fn get_file_with_if_modified_since_condition(
         .expect("Received no valid last modified header");
 
     let req_modified_time = (last_modified + duration_after_file_modified)
-        .format("%a, %e %b %Y %T GMT")
+        .format("%a, %d %b %Y %T GMT")
         .to_string();
 
     let resp = fetch!(b"GET", format!("{}index.html", server.url()))
