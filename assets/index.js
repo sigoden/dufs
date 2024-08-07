@@ -603,9 +603,11 @@ async function setupEditorPage() {
       });
     });
 
-    const $saveBtn = document.querySelector(".save-btn");
-    $saveBtn.classList.remove("hidden");
-    $saveBtn.addEventListener("click", saveChange);
+    if (DATA.editable) {
+      const $saveBtn = document.querySelector(".save-btn");
+      $saveBtn.classList.remove("hidden");
+      $saveBtn.addEventListener("click", saveChange);
+    }
   } else if (DATA.kind == "View") {
     $editor.readonly = true;
   }
