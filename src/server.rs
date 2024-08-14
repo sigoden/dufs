@@ -251,7 +251,7 @@ impl Server {
             Method::GET | Method::HEAD => {
                 if is_dir {
                     if render_try_index {
-                        if allow_archive && query_params.contains_key("zip") {
+                        if allow_archive && has_query_flag(&query_params, "zip") {
                             if !allow_archive {
                                 status_not_found(&mut res);
                                 return Ok(res);
@@ -291,7 +291,7 @@ impl Server {
                             &mut res,
                         )
                         .await?;
-                    } else if query_params.contains_key("zip") {
+                    } else if has_query_flag(&query_params, "zip") {
                         if !allow_archive {
                             status_not_found(&mut res);
                             return Ok(res);
@@ -321,13 +321,13 @@ impl Server {
                         .await?;
                     }
                 } else if is_file {
-                    if query_params.contains_key("edit") {
+                    if has_query_flag(&query_params, "edit") {
                         self.handle_edit_file(path, DataKind::Edit, head_only, user, &mut res)
                             .await?;
-                    } else if query_params.contains_key("view") {
+                    } else if has_query_flag(&query_params, "view") {
                         self.handle_edit_file(path, DataKind::View, head_only, user, &mut res)
                             .await?;
-                    } else if query_params.contains_key("hash") {
+                    } else if has_query_flag(&query_params, "hash") {
                         self.handle_hash_file(path, head_only, &mut res).await?;
                     } else {
                         self.handle_send_file(path, headers, head_only, &mut res)
@@ -1134,7 +1134,7 @@ impl Server {
         } else {
             paths.sort_by(|v1, v2| v1.sort_by_name(v2))
         }
-        if query_params.contains_key("simple") {
+        if has_query_flag(query_params, "simple") {
             let output = paths
                 .into_iter()
                 .map(|v| {
@@ -1174,7 +1174,7 @@ impl Server {
             user,
             paths,
         };
-        let output = if query_params.contains_key("json") {
+        let output = if has_query_flag(query_params, "json") {
             res.headers_mut()
                 .typed_insert(ContentType::from(mime_guess::mime::APPLICATION_JSON));
             serde_json::to_string_pretty(&data)?
@@ -1785,4 +1785,11 @@ async fn sha256_file(path: &Path) -> Result<String> {
 
     let result = hasher.finalize();
     Ok(format!("{:x}", result))
+}
+
+fn has_query_flag(query_params: &HashMap<String, String>, name: &str) -> bool {
+    query_params
+        .get(name)
+        .map(|v| v.is_empty())
+        .unwrap_or_default()
 }
