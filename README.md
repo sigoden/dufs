@@ -230,7 +230,7 @@ dufs -a user:pass@/:rw,/dir1 -a @/
 
 1. Use `@` to separate the account and paths. No account means anonymous user.
 2. Use `:` to separate the username and password of the account.
-3. Use `,` to separate paths.
+3. Use `,` to separate paths. Each path is relative to `serve-path`. That is, `/` does not represent the root path in Unix-like system.
 4. Use path suffix `:rw`/`:ro` set permissions: `read-write`/`read-only`. `:ro` can be omitted.
 
 - `-a admin:admin@/:rw`: `admin` has complete permissions for all paths.
