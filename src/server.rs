@@ -200,7 +200,10 @@ impl Server {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
 
-        if method.as_str() == "WRITEABLE" {
+        if method.as_str() == "AUTH" {
+            if user.is_none() {
+                self.auth_reject(&mut res)?;
+            }
             return Ok(res);
         }
 

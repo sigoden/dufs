@@ -429,6 +429,7 @@ fn is_readonly_method(method: &Method) -> bool {
         || method == Method::OPTIONS
         || method == Method::HEAD
         || method.as_str() == "PROPFIND"
+        || method.as_str() == "AUTH"
 }
 
 fn strip_prefix<'a>(search: &'a [u8], prefix: &[u8]) -> Option<&'a [u8]> {
