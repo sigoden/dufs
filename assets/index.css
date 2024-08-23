@@ -222,13 +222,18 @@ body {
   margin-right: 2em;
 }
 
+.login-btn {
+  cursor: pointer;
+}
+
 .save-btn {
   cursor: pointer;
   -webkit-user-select: none;
   user-select: none;
 }
 
-.user-btn {
+.logout-btn {
+  cursor: pointer;
   display: flex;
   align-items: center;
 }
