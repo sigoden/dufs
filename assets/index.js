@@ -94,7 +94,7 @@ let $editor;
 /**
  * @type Element
  */
-let $userBtn;
+let $logoutBtn;
 /**
  * @type Element
  */
@@ -121,7 +121,7 @@ async function ready() {
   $uploadersTable = document.querySelector(".uploaders-table");
   $emptyFolder = document.querySelector(".empty-folder");
   $editor = document.querySelector(".editor");
-  $userBtn = document.querySelector(".user-btn");
+  $logoutBtn = document.querySelector(".logout-btn");
   $userName = document.querySelector(".user-name");
 
   addBreadcrumb(DATA.href, DATA.uri_prefix);
@@ -513,7 +513,8 @@ function setupDropzone() {
 
 async function setupAuth() {
   if (DATA.user) {
-    $userBtn.classList.remove("hidden");
+    $logoutBtn.classList.remove("hidden");
+    $logoutBtn.addEventListener("click", logout);
     $userName.textContent = DATA.user;
   } else {
     const $loginBtn = document.querySelector(".login-btn");
@@ -522,9 +523,7 @@ async function setupAuth() {
       try {
         await checkAuth();
         location.reload();
-      } catch (err) {
-        alert(err.message);
-      }
+      } catch {}
     });
   }
 }
@@ -750,8 +749,19 @@ async function checkAuth() {
   });
   await assertResOK(res);
   document.querySelector(".login-btn").classList.add("hidden");
-  $userBtn.classList.remove("hidden");
+  $logoutBtn.classList.remove("hidden");
   $userName.textContent = "";
+}
+
+function logout() {
+  if (!DATA.auth) return;
+  const url = baseUrl();
+  const xhr = new XMLHttpRequest();
+  xhr.open("AUTH", url, true, ":");
+  xhr.send();
+  setTimeout(() => {
+    location.href = url;
+  }, 200);
 }
 
 /**
