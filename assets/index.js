@@ -758,10 +758,10 @@ function logout() {
   const url = baseUrl();
   const xhr = new XMLHttpRequest();
   xhr.open("AUTH", url, true, ":");
-  xhr.send();
-  setTimeout(() => {
+  xhr.onload = () => {
     location.href = url;
-  }, 200);
+  }
+  xhr.send();
 }
 
 /**
