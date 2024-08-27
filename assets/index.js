@@ -94,6 +94,10 @@ let $editor;
 /**
  * @type Element
  */
+let $loginBtn;
+/**
+ * @type Element
+ */
 let $logoutBtn;
 /**
  * @type Element
@@ -121,6 +125,7 @@ async function ready() {
   $uploadersTable = document.querySelector(".uploaders-table");
   $emptyFolder = document.querySelector(".empty-folder");
   $editor = document.querySelector(".editor");
+  $loginBtn = document.querySelector(".login-btn");
   $logoutBtn = document.querySelector(".logout-btn");
   $userName = document.querySelector(".user-name");
 
@@ -517,13 +522,12 @@ async function setupAuth() {
     $logoutBtn.addEventListener("click", logout);
     $userName.textContent = DATA.user;
   } else {
-    const $loginBtn = document.querySelector(".login-btn");
     $loginBtn.classList.remove("hidden");
     $loginBtn.addEventListener("click", async () => {
       try {
         await checkAuth();
-        location.reload();
       } catch {}
+      location.reload();
     });
   }
 }
@@ -745,10 +749,10 @@ async function saveChange() {
 async function checkAuth() {
   if (!DATA.auth) return;
   const res = await fetch(baseUrl(), {
-    method: "AUTH",
+    method: "CHECKAUTH",
   });
   await assertResOK(res);
-  document.querySelector(".login-btn").classList.add("hidden");
+  $loginBtn.classList.add("hidden");
   $logoutBtn.classList.remove("hidden");
   $userName.textContent = "";
 }
@@ -757,7 +761,7 @@ function logout() {
   if (!DATA.auth) return;
   const url = baseUrl();
   const xhr = new XMLHttpRequest();
-  xhr.open("AUTH", url, true, ":");
+  xhr.open("LOGOUT", url, true, DATA.user);
   xhr.onload = () => {
     location.href = url;
   }

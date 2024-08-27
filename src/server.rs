@@ -200,10 +200,13 @@ impl Server {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
 
-        if method.as_str() == "AUTH" {
+        if method.as_str() == "CHECKAUTH" {
             if user.is_none() {
                 self.auth_reject(&mut res)?;
             }
+            return Ok(res);
+        } else if method.as_str() == "LOGOUT" {
+            self.auth_reject(&mut res)?;
             return Ok(res);
         }
 
@@ -1722,7 +1725,9 @@ fn is_hidden(hidden: &[String], file_name: &str, is_dir_type: bool) -> bool {
 fn set_webdav_headers(res: &mut Response) {
     res.headers_mut().insert(
         "Allow",
-        HeaderValue::from_static("GET,HEAD,PUT,OPTIONS,DELETE,PATCH,PROPFIND,COPY,MOVE"),
+        HeaderValue::from_static(
+            "GET,HEAD,PUT,OPTIONS,DELETE,PATCH,PROPFIND,COPY,MOVE,CHECKAUTH,LOGOUT",
+        ),
     );
     res.headers_mut()
         .insert("DAV", HeaderValue::from_static("1, 2, 3"));
