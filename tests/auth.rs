@@ -119,26 +119,38 @@ fn auth_check(
     #[with(&["--auth", "user:pass@/:rw", "--auth", "user2:pass2@/", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
     let url = format!("{}index.html", server.url());
-    let resp = fetch!(b"AUTH", &url).send()?;
+    let resp = fetch!(b"CHECKAUTH", &url).send()?;
     assert_eq!(resp.status(), 401);
-    let resp = send_with_digest_auth(fetch!(b"AUTH", &url), "user", "pass")?;
+    let resp = send_with_digest_auth(fetch!(b"CHECKAUTH", &url), "user", "pass")?;
     assert_eq!(resp.status(), 200);
-    let resp = send_with_digest_auth(fetch!(b"AUTH", &url), "user2", "pass2")?;
+    let resp = send_with_digest_auth(fetch!(b"CHECKAUTH", &url), "user2", "pass2")?;
     assert_eq!(resp.status(), 200);
     Ok(())
 }
 
 #[rstest]
-fn auth_compact_rules(
+fn auth_check2(
     #[with(&["--auth", "user:pass@/:rw|user2:pass2@/", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
     let url = format!("{}index.html", server.url());
-    let resp = fetch!(b"AUTH", &url).send()?;
+    let resp = fetch!(b"CHECKAUTH", &url).send()?;
     assert_eq!(resp.status(), 401);
-    let resp = send_with_digest_auth(fetch!(b"AUTH", &url), "user", "pass")?;
+    let resp = send_with_digest_auth(fetch!(b"CHECKAUTH", &url), "user", "pass")?;
     assert_eq!(resp.status(), 200);
-    let resp = send_with_digest_auth(fetch!(b"AUTH", &url), "user2", "pass2")?;
+    let resp = send_with_digest_auth(fetch!(b"CHECKAUTH", &url), "user2", "pass2")?;
     assert_eq!(resp.status(), 200);
+    Ok(())
+}
+
+#[rstest]
+fn auth_logout(
+    #[with(&["--auth", "user:pass@/:rw", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    let url = format!("{}index.html", server.url());
+    let resp = fetch!(b"LOGOUT", &url).send()?;
+    assert_eq!(resp.status(), 401);
+    let resp = send_with_digest_auth(fetch!(b"LOGOUT", &url), "user", "pass")?;
+    assert_eq!(resp.status(), 401);
     Ok(())
 }
 
