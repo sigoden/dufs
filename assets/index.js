@@ -754,7 +754,7 @@ async function checkAuth() {
   await assertResOK(res);
   $loginBtn.classList.add("hidden");
   $logoutBtn.classList.remove("hidden");
-  $userName.textContent = "";
+  $userName.textContent = await res.text();
 }
 
 function logout() {

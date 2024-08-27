@@ -201,8 +201,11 @@ impl Server {
             .collect();
 
         if method.as_str() == "CHECKAUTH" {
-            if user.is_none() {
-                self.auth_reject(&mut res)?;
+            match user.clone() {
+                Some(user) => {
+                    *res.body_mut() = body_full(user);
+                }
+                None => self.auth_reject(&mut res)?,
             }
             return Ok(res);
         } else if method.as_str() == "LOGOUT" {
