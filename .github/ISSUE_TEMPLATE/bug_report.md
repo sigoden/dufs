@@ -5,20 +5,24 @@ about: Create a report to help us improve
 
 **Problem**
 
-<!-- A clear and concise description of what the bug is. -->
+<!-- Provide a clear and concise description of the bug you're experiencing. What did you expect to happen, and what actually happened? -->
 
 **Configuration**
 
-<!-- The dufs command-line arguments or configuration -->
+<!-- Please specify the Dufs command-line arguments or configuration used. -->
 
-<!-- If the problems are related to auth/perm, please conceal only the user:pass, but do not hide the entire `auth` configuration. -->
+<!-- If the issue is related to authentication/permissions, include auth configurations while concealing sensitive information (e.g., passwords). -->
 
 **Log**
 
-<!-- The dufs log is crucial for locating the problem, so please do not omit it. -->
+<!-- Attach relevant log outputs that can help diagnose the issue. -->
 
-**Environment:**
+**Screenshots/Media**
+
+<!-- If applicable, add screenshots or videos that help illustrate the issue, especially for WebUI problems. -->
+
+**Environment Information**
  - Dufs version:
  - Browser/Webdav info:
  - OS info:
- - Proxy server:  e.g. nginx, cloudflare
+ - Proxy server (if any):  <!-- e.g. nginx, cloudflare -->
