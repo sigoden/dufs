@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.42.0] - 2024-09-01
+
+### Bug Fixes
+
+- Garbled characters caused by atob ([#422](https://github.com/sigoden/dufs/issues/422))
+- Webui unexpected save-btn when file is non-editable ([#429](https://github.com/sigoden/dufs/issues/429))
+- Login succeeded but popup `Forbidden` ([#437](https://github.com/sigoden/dufs/issues/437))
+
+### Features
+
+- Implements remaining http cache conditionalss ([#407](https://github.com/sigoden/dufs/issues/407))
+- Base64 index-data to avoid misencoding ([#421](https://github.com/sigoden/dufs/issues/421))
+- Webui support logout ([#439](https://github.com/sigoden/dufs/issues/439))
+
+### Refactor
+
+- No inline scripts in HTML ([#391](https://github.com/sigoden/dufs/issues/391))
+- Return 400 for propfind request when depth is neither 0 nor 1 ([#403](https://github.com/sigoden/dufs/issues/403))
+- Remove sabredav-partialupdate from DAV res header ([#415](https://github.com/sigoden/dufs/issues/415))
+- Date formatting in cache tests ([#428](https://github.com/sigoden/dufs/issues/428))
+- Some query params work as flag and must not accept a value ([#431](https://github.com/sigoden/dufs/issues/431))
+- Improve logout at asserts/index.js ([#440](https://github.com/sigoden/dufs/issues/440))
+- Make logout works on safari ([#442](https://github.com/sigoden/dufs/issues/442))
+
 ## [0.41.0] - 2024-05-22
 
 ### Bug Fixes
