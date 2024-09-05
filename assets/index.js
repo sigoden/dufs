@@ -477,6 +477,8 @@ function addPath(file, index) {
     ${actionDelete}
     ${actionEdit}
   </td>`;
+  
+  let sizeDisplay = isDir ? "" : formatSize(file.size).join(" ");
 
   $pathsTableBody.insertAdjacentHTML("beforeend", `
 <tr id="addPath${index}">
@@ -487,7 +489,7 @@ function addPath(file, index) {
     <a href="${url}" ${isDir ? "" : `target="_blank"`}>${encodedName}</a>
   </td>
   <td class="cell-mtime">${formatMtime(file.mtime)}</td>
-  <td class="cell-size">${formatSize(file.size).join(" ")}</td>
+  <td class="cell-size">${sizeDisplay}</td>
   ${actionCell}
 </tr>`);
 }
