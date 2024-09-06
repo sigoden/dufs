@@ -307,17 +307,17 @@ pub fn check_auth(
 ) -> Option<()> {
     if let Some(value) = strip_prefix(authorization.as_bytes(), b"Basic ") {
         let value: Vec<u8> = STANDARD.decode(value).ok()?;
-        let parts: Vec<&str> = std::str::from_utf8(&value).ok()?.split(':').collect();
+        let (user, pass) = std::str::from_utf8(&value).ok()?.split_once(':')?;
 
-        if parts[0] != auth_user {
+        if user != auth_user {
             return None;
         }
 
         if auth_pass.starts_with("$6$") {
-            if let Ok(()) = sha_crypt::sha512_check(parts[1], auth_pass) {
+            if let Ok(()) = sha_crypt::sha512_check(pass, auth_pass) {
                 return Some(());
             }
-        } else if parts[1] == auth_pass {
+        } else if pass == auth_pass {
             return Some(());
         }
 
