@@ -247,8 +247,7 @@ DUFS supports the use of sha-512 hashed password.
 Create hashed password
 
 ```
-$ mkpasswd  -m sha-512 -s
-Password: 123456 
+$ mkpasswd -m sha-512 123456
 $6$tWMB51u6Kb2ui3wd$5gVHP92V9kZcMwQeKTjyTRgySsYJu471Jb1I6iHQ8iZ6s07GgCIO69KcPBRuwPE5tDq05xMAzye0NxVKuJdYs/
 ```
 

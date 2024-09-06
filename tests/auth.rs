@@ -57,17 +57,18 @@ fn invalid_auth(
     Ok(())
 }
 
-const HASHED_PASSWORD_AUTH: &str =  "user:$6$gQxZwKyWn/ZmWEA2$4uV7KKMnSUnET2BtWTj/9T5.Jq3h/MdkOlnIl5hdlTxDZ4MZKmJ.kl6C.NL9xnNPqC4lVHC1vuI0E5cLpTJX81@/:rw"; // user:pass
-
 #[rstest]
+#[case(server(&["--auth", "user:$6$gQxZwKyWn/ZmWEA2$4uV7KKMnSUnET2BtWTj/9T5.Jq3h/MdkOlnIl5hdlTxDZ4MZKmJ.kl6C.NL9xnNPqC4lVHC1vuI0E5cLpTJX81@/:rw", "-A"]), "user", "pass")]
+#[case(server(&["--auth", "user:$6$YV1J6OHZAAgbzCbS$V55ZEgvJ6JFdz1nLO4AD696PRHAJYhfQf.Gy2HafrCz5itnbgNTtTgfUSqZrt4BJ7FcpRfSt/QZzAan68pido0@/:rw", "-A"]), "user", "pa:ss@1")]
 fn auth_hashed_password(
-    #[with(&["--auth", HASHED_PASSWORD_AUTH, "-A"])] server: TestServer,
+    #[case] server: TestServer,
+    #[case] user: &str,
+    #[case] pass: &str,
 ) -> Result<(), Error> {
     let url = format!("{}file1", server.url());
     let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
     assert_eq!(resp.status(), 401);
-    if let Err(err) =
-        send_with_digest_auth(fetch!(b"PUT", &url).body(b"abc".to_vec()), "user", "pass")
+    if let Err(err) = send_with_digest_auth(fetch!(b"PUT", &url).body(b"abc".to_vec()), user, pass)
     {
         assert_eq!(
             err.to_string(),
@@ -76,7 +77,7 @@ fn auth_hashed_password(
     }
     let resp = fetch!(b"PUT", &url)
         .body(b"abc".to_vec())
-        .basic_auth("user", Some("pass"))
+        .basic_auth(user, Some(pass))
         .send()?;
     assert_eq!(resp.status(), 201);
     Ok(())
