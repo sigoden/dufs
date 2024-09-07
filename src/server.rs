@@ -682,7 +682,7 @@ impl Server {
                 error!("Failed to zip {}, {}", path.display(), e);
             }
         });
-        let reader_stream = ReaderStream::new(reader);
+        let reader_stream = ReaderStream::with_capacity(reader, BUF_SIZE);
         let stream_body = StreamBody::new(
             reader_stream
                 .map_ok(Frame::data)
@@ -899,7 +899,7 @@ impl Server {
                 return Ok(());
             }
 
-            let reader_stream = ReaderStream::new(file);
+            let reader_stream = ReaderStream::with_capacity(file, BUF_SIZE);
             let stream_body = StreamBody::new(
                 reader_stream
                     .map_ok(Frame::data)
