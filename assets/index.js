@@ -478,7 +478,7 @@ function addPath(file, index) {
     ${actionEdit}
   </td>`;
   
-  let sizeDisplay = isDir ? "" : formatSize(file.size).join(" ");
+  let sizeDisplay = isDir ? `${file.size} ${file.size === 1 ? "item" : "items"}` : formatSize(file.size).join(" ");
 
   $pathsTableBody.insertAdjacentHTML("beforeend", `
 <tr id="addPath${index}">
