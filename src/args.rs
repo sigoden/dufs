@@ -462,6 +462,7 @@ impl Args {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BindAddr {
     IpAddr(IpAddr),
+    #[cfg(unix)]
     SocketPath(String),
 }
 
@@ -475,11 +476,10 @@ impl BindAddr {
                     bind_addrs.push(BindAddr::IpAddr(v));
                 }
                 Err(_) => {
-                    if cfg!(unix) {
-                        bind_addrs.push(BindAddr::SocketPath(addr.to_string()));
-                    } else {
-                        invalid_addrs.push(*addr);
-                    }
+                    #[cfg(unix)]
+                    bind_addrs.push(BindAddr::SocketPath(addr.to_string()));
+                    #[cfg(not(unix))]
+                    invalid_addrs.push(*addr);
                 }
             }
         }

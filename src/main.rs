@@ -140,6 +140,7 @@ fn serve(args: Args, running: Arc<AtomicBool>) -> Result<Vec<JoinHandle<()>>> {
                     }
                 };
             }
+            #[cfg(unix)]
             BindAddr::SocketPath(path) => {
                 let socket_path = if path.starts_with("@")
                     && cfg!(any(target_os = "linux", target_os = "android"))
@@ -152,22 +153,19 @@ fn serve(args: Args, running: Arc<AtomicBool>) -> Result<Vec<JoinHandle<()>>> {
                     let _ = std::fs::remove_file(path);
                     path.into()
                 };
-                #[cfg(unix)]
-                {
-                    let listener = tokio::net::UnixListener::bind(socket_path)
-                        .with_context(|| format!("Failed to bind `{}`", path))?;
-                    let handle = tokio::spawn(async move {
-                        loop {
-                            let Ok((stream, _addr)) = listener.accept().await else {
-                                continue;
-                            };
-                            let stream = TokioIo::new(stream);
-                            tokio::spawn(handle_stream(server_handle.clone(), stream, None));
-                        }
-                    });
+                let listener = tokio::net::UnixListener::bind(socket_path)
+                    .with_context(|| format!("Failed to bind `{}`", path))?;
+                let handle = tokio::spawn(async move {
+                    loop {
+                        let Ok((stream, _addr)) = listener.accept().await else {
+                            continue;
+                        };
+                        let stream = TokioIo::new(stream);
+                        tokio::spawn(handle_stream(server_handle.clone(), stream, None));
+                    }
+                });
 
-                    handles.push(handle);
-                }
+                handles.push(handle);
             }
         }
     }
@@ -237,6 +235,7 @@ fn check_addrs(args: &Args) -> Result<(Vec<BindAddr>, Vec<BindAddr>)> {
                     }
                 }
             },
+            #[cfg(unix)]
             _ => {
                 new_addrs.push(bind_addr.clone());
                 print_addrs.push(bind_addr.clone())
@@ -280,6 +279,7 @@ fn print_listening(args: &Args, print_addrs: &[BindAddr]) -> Result<String> {
                 };
                 format!("{}://{}{}", protocol, addr, args.uri_prefix)
             }
+            #[cfg(unix)]
             BindAddr::SocketPath(path) => path.to_string(),
         })
         .collect::<Vec<_>>();
