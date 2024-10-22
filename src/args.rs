@@ -461,28 +461,30 @@ impl Args {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BindAddr {
-    Address(IpAddr),
-    Path(PathBuf),
+    IpAddr(IpAddr),
+    #[cfg(unix)]
+    SocketPath(String),
 }
 
 impl BindAddr {
     fn parse_addrs(addrs: &[&str]) -> Result<Vec<Self>> {
         let mut bind_addrs = vec![];
+        #[cfg(not(unix))]
         let mut invalid_addrs = vec![];
         for addr in addrs {
             match addr.parse::<IpAddr>() {
                 Ok(v) => {
-                    bind_addrs.push(BindAddr::Address(v));
+                    bind_addrs.push(BindAddr::IpAddr(v));
                 }
                 Err(_) => {
-                    if cfg!(unix) {
-                        bind_addrs.push(BindAddr::Path(PathBuf::from(addr)));
-                    } else {
-                        invalid_addrs.push(*addr);
-                    }
+                    #[cfg(unix)]
+                    bind_addrs.push(BindAddr::SocketPath(addr.to_string()));
+                    #[cfg(not(unix))]
+                    invalid_addrs.push(*addr);
                 }
             }
         }
+        #[cfg(not(unix))]
         if !invalid_addrs.is_empty() {
             bail!("Invalid bind address `{}`", invalid_addrs.join(","));
         }
@@ -710,7 +712,7 @@ hidden: tmp,*.log,*.lock
         assert_eq!(args.serve_path, Args::sanitize_path(&tmpdir).unwrap());
         assert_eq!(
             args.addrs,
-            vec![BindAddr::Address("0.0.0.0".parse().unwrap())]
+            vec![BindAddr::IpAddr("0.0.0.0".parse().unwrap())]
         );
         assert_eq!(args.hidden, ["tmp", "*.log", "*.lock"]);
         assert_eq!(args.port, 3000);
@@ -740,8 +742,8 @@ hidden:
         assert_eq!(
             args.addrs,
             vec![
-                BindAddr::Address("127.0.0.1".parse().unwrap()),
-                BindAddr::Address("192.168.8.10".parse().unwrap())
+                BindAddr::IpAddr("127.0.0.1".parse().unwrap()),
+                BindAddr::IpAddr("192.168.8.10".parse().unwrap())
             ]
         );
         assert_eq!(args.hidden, ["tmp", "*.log", "*.lock"]);
