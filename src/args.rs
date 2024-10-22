@@ -469,6 +469,7 @@ pub enum BindAddr {
 impl BindAddr {
     fn parse_addrs(addrs: &[&str]) -> Result<Vec<Self>> {
         let mut bind_addrs = vec![];
+        #[cfg(not(unix))]
         let mut invalid_addrs = vec![];
         for addr in addrs {
             match addr.parse::<IpAddr>() {
@@ -483,6 +484,7 @@ impl BindAddr {
                 }
             }
         }
+        #[cfg(not(unix))]
         if !invalid_addrs.is_empty() {
             bail!("Invalid bind address `{}`", invalid_addrs.join(","));
         }
