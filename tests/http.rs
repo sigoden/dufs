@@ -4,7 +4,7 @@ mod utils;
 use fixtures::{server, Error, TestServer, BIN_FILE};
 use rstest::rstest;
 use serde_json::Value;
-use utils::retrive_edit_file;
+use utils::retrieve_edit_file;
 
 #[rstest]
 fn get_dir(server: TestServer) -> Result<(), Error> {
@@ -190,6 +190,21 @@ fn head_file(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn hash_file(server: TestServer) -> Result<(), Error> {
+    let resp = reqwest::blocking::get(format!("{}index.html?hash", server.url()))?;
+    assert_eq!(
+        resp.headers().get("content-type").unwrap(),
+        "text/html; charset=utf-8"
+    );
+    assert_eq!(resp.status(), 200);
+    assert_eq!(
+        resp.text()?,
+        "c8dd395e3202674b9512f7b7f956e0d96a8ba8f572e785b0d5413ab83766dbc4"
+    );
+    Ok(())
+}
+
+#[rstest]
 fn get_file_404(server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(format!("{}404", server.url()))?;
     assert_eq!(resp.status(), 404);
@@ -223,7 +238,7 @@ fn get_file_newline_path(server: TestServer) -> Result<(), Error> {
 fn get_file_edit(server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"GET", format!("{}index.html?edit", server.url())).send()?;
     assert_eq!(resp.status(), 200);
-    let editable = retrive_edit_file(&resp.text().unwrap()).unwrap();
+    let editable = retrieve_edit_file(&resp.text().unwrap()).unwrap();
     assert!(editable);
     Ok(())
 }
@@ -232,7 +247,7 @@ fn get_file_edit(server: TestServer) -> Result<(), Error> {
 fn get_file_edit_bin(server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"GET", format!("{}{BIN_FILE}?edit", server.url())).send()?;
     assert_eq!(resp.status(), 200);
-    let editable = retrive_edit_file(&resp.text().unwrap()).unwrap();
+    let editable = retrieve_edit_file(&resp.text().unwrap()).unwrap();
     assert!(!editable);
     Ok(())
 }
@@ -250,12 +265,9 @@ fn options_dir(server: TestServer) -> Result<(), Error> {
     assert_eq!(resp.status(), 200);
     assert_eq!(
         resp.headers().get("allow").unwrap(),
-        "GET,HEAD,PUT,OPTIONS,DELETE,PATCH,PROPFIND,COPY,MOVE"
+        "GET,HEAD,PUT,OPTIONS,DELETE,PATCH,PROPFIND,COPY,MOVE,CHECKAUTH,LOGOUT"
     );
-    assert_eq!(
-        resp.headers().get("dav").unwrap(),
-        "1, 2, 3, sabredav-partialupdate"
-    );
+    assert_eq!(resp.headers().get("dav").unwrap(), "1, 2, 3");
     Ok(())
 }
 

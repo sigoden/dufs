@@ -1,7 +1,7 @@
 use crate::{args::Args, server::Response, utils::unix_now};
 
 use anyhow::{anyhow, bail, Result};
-use base64::{engine::general_purpose, Engine as _};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use headers::HeaderValue;
 use hyper::{header::WWW_AUTHENTICATE, Method};
 use indexmap::IndexMap;
@@ -100,6 +100,7 @@ impl AccessControl {
         path: &str,
         method: &Method,
         authorization: Option<&HeaderValue>,
+        guard_options: bool,
     ) -> (Option<String>, Option<AccessPaths>) {
         if let Some(authorization) = authorization {
             if let Some(user) = get_auth_user(authorization) {
@@ -116,7 +117,7 @@ impl AccessControl {
             return (None, None);
         }
 
-        if method == Method::OPTIONS {
+        if !guard_options && method == Method::OPTIONS {
             return (None, Some(AccessPaths::new(AccessPerm::ReadOnly)));
         }
 
@@ -286,7 +287,7 @@ pub fn www_authenticate(res: &mut Response, args: &Args) -> Result<()> {
 
 pub fn get_auth_user(authorization: &HeaderValue) -> Option<String> {
     if let Some(value) = strip_prefix(authorization.as_bytes(), b"Basic ") {
-        let value: Vec<u8> = general_purpose::STANDARD.decode(value).ok()?;
+        let value: Vec<u8> = STANDARD.decode(value).ok()?;
         let parts: Vec<&str> = std::str::from_utf8(&value).ok()?.split(':').collect();
         Some(parts[0].to_string())
     } else if let Some(value) = strip_prefix(authorization.as_bytes(), b"Digest ") {
@@ -305,18 +306,18 @@ pub fn check_auth(
     auth_pass: &str,
 ) -> Option<()> {
     if let Some(value) = strip_prefix(authorization.as_bytes(), b"Basic ") {
-        let value: Vec<u8> = general_purpose::STANDARD.decode(value).ok()?;
-        let parts: Vec<&str> = std::str::from_utf8(&value).ok()?.split(':').collect();
+        let value: Vec<u8> = STANDARD.decode(value).ok()?;
+        let (user, pass) = std::str::from_utf8(&value).ok()?.split_once(':')?;
 
-        if parts[0] != auth_user {
+        if user != auth_user {
             return None;
         }
 
         if auth_pass.starts_with("$6$") {
-            if let Ok(()) = sha_crypt::sha512_check(parts[1], auth_pass) {
+            if let Ok(()) = sha_crypt::sha512_check(pass, auth_pass) {
                 return Some(());
             }
-        } else if parts[1] == auth_pass {
+        } else if pass == auth_pass {
             return Some(());
         }
 
@@ -428,6 +429,8 @@ fn is_readonly_method(method: &Method) -> bool {
         || method == Method::OPTIONS
         || method == Method::HEAD
         || method.as_str() == "PROPFIND"
+        || method.as_str() == "CHECKAUTH"
+        || method.as_str() == "LOGOUT"
 }
 
 fn strip_prefix<'a>(search: &'a [u8], prefix: &[u8]) -> Option<&'a [u8]> {

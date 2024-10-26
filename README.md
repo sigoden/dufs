@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/sigoden/dufs/actions/workflows/ci.yaml/badge.svg)](https://github.com/sigoden/dufs/actions/workflows/ci.yaml)
 [![Crates](https://img.shields.io/crates/v/dufs.svg)](https://crates.io/crates/dufs)
+[![Docker Pulls](https://img.shields.io/docker/pulls/sigoden/dufs)](https://hub.docker.com/r/sigoden/dufs)
 
 Dufs is a distinctive utility file server that supports static serving, uploading, searching, accessing control, webdav...
 
@@ -30,7 +31,7 @@ cargo install dufs
 ### With docker
 
 ```
-docker run -v `pwd`:/data -p 5000:5000 --rm -it sigoden/dufs /data -A
+docker run -v `pwd`:/data -p 5000:5000 --rm sigoden/dufs /data -A
 ```
 
 ### With [Homebrew](https://brew.sh)
@@ -72,6 +73,7 @@ Options:
       --render-spa           Serve SPA(Single Page Application)
       --assets <path>        Set the path to the assets directory for overriding the built-in assets
       --log-format <format>  Customize http log format
+      --log-file <file>      Specify the file to save logs to, other than stdout/stderr
       --compress <level>     Set zip compress level [default: low] [possible values: none, low, medium, high]
       --completions <shell>  Print shell completion script for <shell> [possible values: bash, elvish, fish, powershell, zsh]
       --tls-cert <path>      Path to an SSL/TLS certificate to serve with HTTPS
@@ -157,7 +159,8 @@ curl -T path-to-file http://127.0.0.1:5000/new-path/path-to-file
 
 Download a file
 ```sh
-curl http://127.0.0.1:5000/path-to-file
+curl http://127.0.0.1:5000/path-to-file           # download the file
+curl http://127.0.0.1:5000/path-to-file?hash      # retrieve the sha256 hash of the file
 ```
 
 Download a folder as zip file
@@ -175,13 +178,13 @@ curl -X DELETE http://127.0.0.1:5000/path-to-file-or-folder
 Create a directory
 
 ```sh
-curl -X MKCOL https://127.0.0.1:5000/path-to-folder
+curl -X MKCOL http://127.0.0.1:5000/path-to-folder
 ```
 
 Move the file/folder to the new path
 
 ```sh
-curl -X MOVE https://127.0.0.1:5000/path -H "Destination: https://127.0.0.1:5000/new-path"
+curl -X MOVE http://127.0.0.1:5000/path -H "Destination: http://127.0.0.1:5000/new-path"
 ```
 
 List/search directory contents
@@ -244,14 +247,13 @@ DUFS supports the use of sha-512 hashed password.
 Create hashed password
 
 ```
-$ mkpasswd  -m sha-512 -s
-Password: 123456 
-$6$qCAVUG7yn7t/hH4d$BWm8r5MoDywNmDP/J3V2S2a6flmKHC1IpblfoqZfuK.LtLBZ0KFXP9QIfJP8RqL8MCw4isdheoAMTuwOz.pAO/
+$ mkpasswd -m sha-512 123456
+$6$tWMB51u6Kb2ui3wd$5gVHP92V9kZcMwQeKTjyTRgySsYJu471Jb1I6iHQ8iZ6s07GgCIO69KcPBRuwPE5tDq05xMAzye0NxVKuJdYs/
 ```
 
 Use hashed password
 ```
-dufs -a 'admin:$6$qCAVUG7yn7t/hH4d$BWm8r5MoDywNmDP/J3V2S2a6flmKHC1IpblfoqZfuK.LtLBZ0KFXP9QIfJP8RqL8MCw4isdheoAMTuwOz.pAO/@/:rw'
+dufs -a 'admin:$6$tWMB51u6Kb2ui3wd$5gVHP92V9kZcMwQeKTjyTRgySsYJu471Jb1I6iHQ8iZ6s07GgCIO69KcPBRuwPE5tDq05xMAzye0NxVKuJdYs/@/:rw'
 ```
 
 Two important things for hashed passwords:
@@ -327,7 +329,7 @@ All options can be set using environment variables prefixed with `DUFS_`.
     --config <file>         DUFS_CONFIG=config.yaml
 -b, --bind <addrs>          DUFS_BIND=0.0.0.0
 -p, --port <port>           DUFS_PORT=5000
-    --path-prefix <path>    DUFS_PATH_PREFIX=/static
+    --path-prefix <path>    DUFS_PATH_PREFIX=/dufs
     --hidden <value>        DUFS_HIDDEN=tmp,*.log,*.lock
 -a, --auth <rules>          DUFS_AUTH="admin:admin@/:rw|@/" 
 -A, --allow-all             DUFS_ALLOW_ALL=true
@@ -340,9 +342,10 @@ All options can be set using environment variables prefixed with `DUFS_`.
     --render-index          DUFS_RENDER_INDEX=true
     --render-try-index      DUFS_RENDER_TRY_INDEX=true
     --render-spa            DUFS_RENDER_SPA=true
-    --assets <path>         DUFS_ASSETS=/assets
+    --assets <path>         DUFS_ASSETS=./assets
     --log-format <format>   DUFS_LOG_FORMAT=""
-    --compress <compress>   DUFS_COMPRESS="low"
+    --log-file <file>       DUFS_LOG_FILE=./dufs.log
+    --compress <compress>   DUFS_COMPRESS=low
     --tls-cert <path>       DUFS_TLS_CERT=cert.pem
     --tls-key <path>        DUFS_TLS_KEY=key.pem
 ```
@@ -378,6 +381,7 @@ render-try-index: true
 render-spa: true
 assets: ./assets/
 log-format: '$remote_addr "$request" $status $http_user_agent'
+log-file: ./dufs.log
 compress: low
 tls-cert: tests/data/cert.pem
 tls-key: tests/data/key_pkcs1.pem

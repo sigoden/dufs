@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use indexmap::IndexSet;
 use serde_json::Value;
 
@@ -26,7 +27,7 @@ macro_rules! fetch {
 
 #[allow(dead_code)]
 pub fn retrieve_index_paths(content: &str) -> IndexSet<String> {
-    let value = retrive_json(content).unwrap();
+    let value = retrieve_json(content).unwrap();
     let paths = value
         .get("paths")
         .unwrap()
@@ -47,8 +48,8 @@ pub fn retrieve_index_paths(content: &str) -> IndexSet<String> {
 }
 
 #[allow(dead_code)]
-pub fn retrive_edit_file(content: &str) -> Option<bool> {
-    let value = retrive_json(content)?;
+pub fn retrieve_edit_file(content: &str) -> Option<bool> {
+    let value = retrieve_json(content).unwrap();
     let value = value.get("editable").unwrap();
     Some(value.as_bool().unwrap())
 }
@@ -60,10 +61,22 @@ pub fn encode_uri(v: &str) -> String {
 }
 
 #[allow(dead_code)]
-pub fn retrive_json(content: &str) -> Option<Value> {
+pub fn retrieve_json(content: &str) -> Option<Value> {
     let lines: Vec<&str> = content.lines().collect();
-    let line = lines.iter().find(|v| v.contains("DATA ="))?;
-    let line_col = line.find("DATA =").unwrap() + 6;
-    let value: Value = line[line_col..].parse().unwrap();
+    let start_tag = "<template id=\"index-data\">";
+    let end_tag = "</template>";
+
+    let line = lines.iter().find(|v| v.contains(start_tag))?;
+
+    let start_index = line.find(start_tag)?;
+    let start_content_index = start_index + start_tag.len();
+
+    let end_index = line[start_content_index..].find(end_tag)?;
+    let end_content_index = start_content_index + end_index;
+
+    let value = &line[start_content_index..end_content_index];
+    let value = STANDARD.decode(value).ok()?;
+    let value = serde_json::from_slice(&value).ok()?;
+
     Some(value)
 }

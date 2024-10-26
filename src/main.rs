@@ -29,13 +29,14 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
+use std::time::Duration;
+use tokio::time::timeout;
 use tokio::{net::TcpListener, task::JoinHandle};
 #[cfg(feature = "tls")]
 use tokio_rustls::{rustls::ServerConfig, TlsAcceptor};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    logger::init().map_err(|e| anyhow!("Failed to init logger, {e}"))?;
     let cmd = build_cli();
     let matches = cmd.get_matches();
     if let Some(generator) = matches.get_one::<Shell>("completions") {
@@ -44,6 +45,7 @@ async fn main() -> Result<()> {
         return Ok(());
     }
     let mut args = Args::parse(matches)?;
+    logger::init(args.log_file.clone()).map_err(|e| anyhow!("Failed to init logger, {e}"))?;
     let (new_addrs, print_addrs) = check_addrs(&args)?;
     args.addrs = new_addrs;
     let running = Arc::new(AtomicBool::new(true));
@@ -76,7 +78,7 @@ fn serve(args: Args, running: Arc<AtomicBool>) -> Result<Vec<JoinHandle<()>>> {
     for bind_addr in addrs.iter() {
         let server_handle = server_handle.clone();
         match bind_addr {
-            BindAddr::Address(ip) => {
+            BindAddr::IpAddr(ip) => {
                 let listener = create_listener(SocketAddr::new(*ip, port))
                     .with_context(|| format!("Failed to bind `{ip}:{port}`"))?;
 
@@ -91,12 +93,19 @@ fn serve(args: Args, running: Arc<AtomicBool>) -> Result<Vec<JoinHandle<()>>> {
                         config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
                         let config = Arc::new(config);
                         let tls_accepter = TlsAcceptor::from(config);
+                        let handshake_timeout = Duration::from_secs(10);
 
                         let handle = tokio::spawn(async move {
                             loop {
-                                let (cnx, addr) = listener.accept().await.unwrap();
-                                let Ok(stream) = tls_accepter.accept(cnx).await else {
-                                    warn!("During cls handshake connection from {}", addr);
+                                let Ok((stream, addr)) = listener.accept().await else {
+                                    continue;
+                                };
+                                let Some(stream) =
+                                    timeout(handshake_timeout, tls_accepter.accept(stream))
+                                        .await
+                                        .ok()
+                                        .and_then(|v| v.ok())
+                                else {
                                     continue;
                                 };
                                 let stream = TokioIo::new(stream);
@@ -113,8 +122,10 @@ fn serve(args: Args, running: Arc<AtomicBool>) -> Result<Vec<JoinHandle<()>>> {
                     (None, None) => {
                         let handle = tokio::spawn(async move {
                             loop {
-                                let (cnx, addr) = listener.accept().await.unwrap();
-                                let stream = TokioIo::new(cnx);
+                                let Ok((stream, addr)) = listener.accept().await else {
+                                    continue;
+                                };
+                                let stream = TokioIo::new(stream);
                                 tokio::spawn(handle_stream(
                                     server_handle.clone(),
                                     stream,
@@ -129,24 +140,32 @@ fn serve(args: Args, running: Arc<AtomicBool>) -> Result<Vec<JoinHandle<()>>> {
                     }
                 };
             }
-            BindAddr::Path(path) => {
-                if path.exists() {
-                    std::fs::remove_file(path)?;
-                }
-                #[cfg(unix)]
+            #[cfg(unix)]
+            BindAddr::SocketPath(path) => {
+                let socket_path = if path.starts_with("@")
+                    && cfg!(any(target_os = "linux", target_os = "android"))
                 {
-                    let listener = tokio::net::UnixListener::bind(path)
-                        .with_context(|| format!("Failed to bind `{}`", path.display()))?;
-                    let handle = tokio::spawn(async move {
-                        loop {
-                            let (cnx, _) = listener.accept().await.unwrap();
-                            let stream = TokioIo::new(cnx);
-                            tokio::spawn(handle_stream(server_handle.clone(), stream, None));
-                        }
-                    });
+                    let mut path_buf = path.as_bytes().to_vec();
+                    path_buf[0] = b'\0';
+                    unsafe { std::ffi::OsStr::from_encoded_bytes_unchecked(&path_buf) }
+                        .to_os_string()
+                } else {
+                    let _ = std::fs::remove_file(path);
+                    path.into()
+                };
+                let listener = tokio::net::UnixListener::bind(socket_path)
+                    .with_context(|| format!("Failed to bind `{}`", path))?;
+                let handle = tokio::spawn(async move {
+                    loop {
+                        let Ok((stream, _addr)) = listener.accept().await else {
+                            continue;
+                        };
+                        let stream = TokioIo::new(stream);
+                        tokio::spawn(handle_stream(server_handle.clone(), stream, None));
+                    }
+                });
 
-                    handles.push(handle);
-                }
+                handles.push(handle);
             }
         }
     }
@@ -160,18 +179,15 @@ where
     let hyper_service =
         service_fn(move |request: Request<Incoming>| handle.clone().call(request, addr));
 
-    let ret = Builder::new(TokioExecutor::new())
+    match Builder::new(TokioExecutor::new())
         .serve_connection_with_upgrades(stream, hyper_service)
-        .await;
-
-    if let Err(err) = ret {
-        let scope = match addr {
-            Some(addr) => format!(" from {}", addr),
-            None => String::new(),
-        };
-        match err.downcast_ref::<std::io::Error>() {
-            Some(err) if err.kind() == std::io::ErrorKind::UnexpectedEof => {}
-            _ => warn!("Serving connection{}: {}", scope, err),
+        .await
+    {
+        Ok(()) => {}
+        Err(_err) => {
+            // This error only appears when the client doesn't send a request and terminate the connection.
+            //
+            // If client sends one request then terminate connection whenever, it doesn't appear.
         }
     }
 }
@@ -197,7 +213,7 @@ fn check_addrs(args: &Args) -> Result<(Vec<BindAddr>, Vec<BindAddr>)> {
     let (ipv4_addrs, ipv6_addrs) = interface_addrs()?;
     for bind_addr in args.addrs.iter() {
         match bind_addr {
-            BindAddr::Address(ip) => match &ip {
+            BindAddr::IpAddr(ip) => match &ip {
                 IpAddr::V4(_) => {
                     if !ipv4_addrs.is_empty() {
                         new_addrs.push(bind_addr.clone());
@@ -219,6 +235,7 @@ fn check_addrs(args: &Args) -> Result<(Vec<BindAddr>, Vec<BindAddr>)> {
                     }
                 }
             },
+            #[cfg(unix)]
             _ => {
                 new_addrs.push(bind_addr.clone());
                 print_addrs.push(bind_addr.clone())
@@ -236,10 +253,10 @@ fn interface_addrs() -> Result<(Vec<BindAddr>, Vec<BindAddr>)> {
     for iface in ifaces.into_iter() {
         let ip = iface.ip();
         if ip.is_ipv4() {
-            ipv4_addrs.push(BindAddr::Address(ip))
+            ipv4_addrs.push(BindAddr::IpAddr(ip))
         }
         if ip.is_ipv6() {
-            ipv6_addrs.push(BindAddr::Address(ip))
+            ipv6_addrs.push(BindAddr::IpAddr(ip))
         }
     }
     Ok((ipv4_addrs, ipv6_addrs))
@@ -250,7 +267,7 @@ fn print_listening(args: &Args, print_addrs: &[BindAddr]) -> Result<String> {
     let urls = print_addrs
         .iter()
         .map(|bind_addr| match bind_addr {
-            BindAddr::Address(addr) => {
+            BindAddr::IpAddr(addr) => {
                 let addr = match addr {
                     IpAddr::V4(_) => format!("{}:{}", addr, args.port),
                     IpAddr::V6(_) => format!("[{}]:{}", addr, args.port),
@@ -262,7 +279,8 @@ fn print_listening(args: &Args, print_addrs: &[BindAddr]) -> Result<String> {
                 };
                 format!("{}://{}{}", protocol, addr, args.uri_prefix)
             }
-            BindAddr::Path(path) => path.display().to_string(),
+            #[cfg(unix)]
+            BindAddr::SocketPath(path) => path.to_string(),
         })
         .collect::<Vec<_>>();
 

@@ -6,7 +6,7 @@ html {
 
 body {
   /* prevent premature breadcrumb wrapping on mobile */
-  min-width: 500px;
+  min-width: 538px;
   margin: 0;
 }
 
@@ -19,14 +19,15 @@ body {
   flex-wrap: wrap;
   align-items: center;
   padding: 0.6em 1em;
-  position: fixed;
-  width: 100%;
+  position: sticky;
+  top: 0;
   background-color: white;
 }
 
 .breadcrumb {
   font-size: 1.25em;
   padding-right: 0.6em;
+  word-break: break-all;
 }
 
 .breadcrumb>a {
@@ -108,7 +109,7 @@ body {
 }
 
 .main {
-  padding: 3.3em 1em 0;
+  padding: 0 1em;
 }
 
 .empty-folder {
@@ -153,18 +154,20 @@ body {
 .paths-table .cell-actions {
   width: 90px;
   display: flex;
-  padding-left: 0.6em;
+  padding-left: 0.5em;
 }
 
 .paths-table .cell-mtime {
   width: 120px;
-  padding-left: 0.6em;
+  padding-left: 0.5em;
+  font-variant-numeric: tabular-nums;
 }
 
 .paths-table .cell-size {
   text-align: right;
   width: 70px;
-  padding-left: 0.6em;
+  padding-left: 0.5em;
+  font-variant-numeric: tabular-nums;
 }
 
 .path svg {
@@ -186,7 +189,9 @@ body {
   display: block;
   text-decoration: none;
   max-width: calc(100vw - 375px);
+
   min-width: 380px;
+
 }
 
 .path a:hover {
@@ -219,15 +224,20 @@ body {
   margin-right: 2em;
 }
 
+.login-btn {
+  cursor: pointer;
+}
+
 .save-btn {
   cursor: pointer;
   -webkit-user-select: none;
   user-select: none;
 }
 
-.user-btn {
-    display: flex;
-    align-items: center;
+.logout-btn {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
 }
 
 .user-name {
