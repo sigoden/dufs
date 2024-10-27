@@ -62,6 +62,7 @@ const INDEX_NAME: &str = "index.html";
 const BUF_SIZE: usize = 65536;
 const EDITABLE_TEXT_MAX_SIZE: u64 = 4194304; // 4M
 const RESUMABLE_UPLOAD_MIN_SIZE: u64 = 20971520; // 20M
+const HEALTH_CHECK_PATH: &str = "__dufs__/health";
 
 pub struct Server {
     args: Args,
@@ -171,7 +172,7 @@ impl Server {
 
         if method == Method::GET
             && self
-                .handle_assets(&relative_path, headers, &mut res)
+                .handle_internal(&relative_path, headers, &mut res)
                 .await?
         {
             return Ok(res);
@@ -738,7 +739,7 @@ impl Server {
         Ok(())
     }
 
-    async fn handle_assets(
+    async fn handle_internal(
         &self,
         req_path: &str,
         headers: &HeaderMap<HeaderValue>,
@@ -788,6 +789,12 @@ impl Server {
                 "x-content-type-options",
                 HeaderValue::from_static("nosniff"),
             );
+            Ok(true)
+        } else if req_path == HEALTH_CHECK_PATH {
+            res.headers_mut()
+                .typed_insert(ContentType::from(mime_guess::mime::APPLICATION_JSON));
+
+            *res.body_mut() = body_full(r#"{"status":"OK"}"#);
             Ok(true)
         } else {
             Ok(false)
