@@ -216,8 +216,14 @@ dd skip=$upload_offset if=file status=none ibs=1 | \
   curl -X PATCH -H "X-Update-Range: append" --data-binary @- http://127.0.0.1:5000/file
 ```
 
+Health checks
+
+```sh
+curl http://127.0.0.1:5000/__dufs__/health
+```
+
 <details>
-<summary><h2>Advanced topics</h2></summary>
+<summary><h2>Advanced Topics</h2></summary>
 
 ### Access Control
 
@@ -394,6 +400,8 @@ Dufs allows users to customize the UI with your own assets.
 ```
 dufs --assets my-assets-dir/
 ```
+
+> If you only need to make slight adjustments to the current UI, you copy dufs's [assets](https://github.com/sigoden/dufs/tree/main/assets) directory and modify it accordingly. The current UI doesn't use any frameworks, just plain HTML/JS/CSS. As long as you have some basic knowledge of web development, it shouldn't be difficult to modify.
 
 Your assets folder must contains a `index.html` file.
 
