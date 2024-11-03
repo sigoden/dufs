@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.43.0] - 2024-11-04
+
+### Bug Fixes
+
+- Auth failed if password contains `:` ([#449](https://github.com/sigoden/dufs/issues/449))
+- Resolve speed bottleneck in 10G network ([#451](https://github.com/sigoden/dufs/issues/451))
+
+### Features
+
+- Webui displays subdirectory items ([#457](https://github.com/sigoden/dufs/issues/457))
+- Support binding abstract unix socket ([#468](https://github.com/sigoden/dufs/issues/468))
+- Provide healthcheck API ([#474](https://github.com/sigoden/dufs/issues/474))
+
+### Refactor
+
+- Do not show size for Dir ([#447](https://github.com/sigoden/dufs/issues/447))
+
 ## [0.42.0] - 2024-09-01
 
 ### Bug Fixes
