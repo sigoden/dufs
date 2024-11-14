@@ -612,6 +612,14 @@ async function setupEditorPage() {
       const $saveBtn = document.querySelector(".save-btn");
       $saveBtn.classList.remove("hidden");
       $saveBtn.addEventListener("click", saveChange);
+      document.addEventListener('keydown', function(event) {
+        // Check if 'Ctrl' and 'S' are pressed simultaneously
+        if (event.ctrlKey && event.key === 's') {
+          // Prevent the default save action
+          event.preventDefault();
+          saveChange();
+        }
+      });
     }
   } else if (DATA.kind == "View") {
     $editor.readonly = true;
