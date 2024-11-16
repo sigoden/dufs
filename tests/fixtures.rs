@@ -146,14 +146,14 @@ where
     TestServer::new(port, tmpdir, child, is_tls)
 }
 
-/// Wait a max of 1s for the port to become available.
+/// Wait a max of 2s for the port to become available.
 pub fn wait_for_port(port: u16) {
     let start_wait = Instant::now();
 
     while !port_check::is_port_reachable(format!("localhost:{port}")) {
-        sleep(Duration::from_millis(100));
+        sleep(Duration::from_millis(250));
 
-        if start_wait.elapsed().as_secs() > 1 {
+        if start_wait.elapsed().as_secs() > 2 {
             panic!("timeout waiting for port {port}");
         }
     }

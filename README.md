@@ -250,21 +250,26 @@ dufs -a user:pass@/:rw,/dir1 -a @/
 
 DUFS supports the use of sha-512 hashed password.
 
-Create hashed password
+Create hashed password:
 
 ```sh
 $ openssl passwd -6 123456 # or `mkpasswd -m sha-512 123456`
 $6$tWMB51u6Kb2ui3wd$5gVHP92V9kZcMwQeKTjyTRgySsYJu471Jb1I6iHQ8iZ6s07GgCIO69KcPBRuwPE5tDq05xMAzye0NxVKuJdYs/
 ```
 
-Use hashed password
+Use hashed password:
+
 ```sh
-dufs -a "admin:$(openssl passwd -6 123456)@/:rw"
-dufs -a "admin:$(mkpasswd -m sha-512 123456)@/:rw"
 dufs -a 'admin:$6$tWMB51u6Kb2ui3wd$5gVHP92V9kZcMwQeKTjyTRgySsYJu471Jb1I6iHQ8iZ6s07GgCIO69KcPBRuwPE5tDq05xMAzye0NxVKuJdYs/@/:rw'
 ```
-
 > The hashed password contains `$6`, which can expand to a variable in some shells, so you have to use **single quotes** to wrap it.
+
+Or embed a command to dynamically generate a hashed password:
+
+```sh
+dufs -a admin:$(openssl passwd -6 123456)@/:rw
+dufs -a admin:$(mkpasswd -m sha-512 123456)@/:rw
+```
 
 Two important things for hashed passwords:
 
