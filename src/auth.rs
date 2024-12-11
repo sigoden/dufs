@@ -102,6 +102,9 @@ impl AccessControl {
         authorization: Option<&HeaderValue>,
         guard_options: bool,
     ) -> (Option<String>, Option<AccessPaths>) {
+        if self.users.is_empty() {
+            return (None, Some(AccessPaths::new(AccessPerm::ReadWrite)));
+        }
         if let Some(authorization) = authorization {
             if let Some(user) = get_auth_user(authorization) {
                 if let Some((pass, paths)) = self.users.get(&user) {

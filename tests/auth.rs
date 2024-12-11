@@ -116,6 +116,16 @@ fn auth_skip_on_options_method(
 }
 
 #[rstest]
+fn auth_skip_if_no_auth_user(server: TestServer) -> Result<(), Error> {
+    let url = format!("{}index.html", server.url());
+    let resp = fetch!(b"GET", &url)
+        .basic_auth("user", Some("pass"))
+        .send()?;
+    assert_eq!(resp.status(), 200);
+    Ok(())
+}
+
+#[rstest]
 fn auth_check(
     #[with(&["--auth", "user:pass@/:rw", "--auth", "user2:pass2@/", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
