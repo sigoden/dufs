@@ -244,7 +244,7 @@ dufs -a user:pass@/:rw,/dir1 -a @/
 - `-a user:pass@/:rw,/dir1`: `user` has read-write permissions for `/*`, has read-only permissions for `/dir1/*`.
 - `-a @/`: All paths is publicly accessible, everyone can view/download it.
 
-> There are no restrictions on using ':' and '@' characters in a password. For example, `user:pa:ss@1@/:rw` is valid, the password is `pa:ss@1`.
+**Auth permissions are restricted by dufs global permissions.** If dufs does not enable upload permissions via `--allow-upload`, then the account will not have upload permissions even if it is granted `read-write`(`:rw`) permissions.
 
 #### Hashed Password
 
@@ -263,13 +263,6 @@ Use hashed password:
 dufs -a 'admin:$6$tWMB51u6Kb2ui3wd$5gVHP92V9kZcMwQeKTjyTRgySsYJu471Jb1I6iHQ8iZ6s07GgCIO69KcPBRuwPE5tDq05xMAzye0NxVKuJdYs/@/:rw'
 ```
 > The hashed password contains `$6`, which can expand to a variable in some shells, so you have to use **single quotes** to wrap it.
-
-Or embed a command to dynamically generate a hashed password:
-
-```sh
-dufs -a admin:$(openssl passwd -6 123456)@/:rw
-dufs -a admin:$(mkpasswd -m sha-512 123456)@/:rw
-```
 
 Two important things for hashed passwords:
 
