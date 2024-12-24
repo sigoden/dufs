@@ -66,7 +66,7 @@ Options:
       --allow-delete         Allow delete files/folders
       --allow-search         Allow search files/folders
       --allow-symlink        Allow symlink to files/folders outside root directory
-      --allow-archive        Allow zip archive generation
+      --allow-archive        Allow download folders as archive file
       --enable-cors          Enable CORS, sets `Access-Control-Allow-Origin: *`
       --render-index         Serve index.html when requesting a directory, returns 404 if not found index.html
       --render-try-index     Serve index.html when requesting a directory, returns directory listing if not found index.html

@@ -146,7 +146,7 @@ pub fn build_cli() -> Command {
 				.hide_env(true)
                 .long("allow-archive")
                 .action(ArgAction::SetTrue)
-                .help("Allow zip archive generation"),
+                .help("Allow download folders as archive file"),
         )
         .arg(
             Arg::new("enable-cors")
