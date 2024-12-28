@@ -833,7 +833,7 @@ function newUrl(name) {
 }
 
 function baseUrl() {
-  return location.href.split('?')[0];
+  return location.href.split(/[?#]/)[0];
 }
 
 function baseName(url) {
