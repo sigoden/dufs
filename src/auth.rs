@@ -69,15 +69,20 @@ impl AccessControl {
         let mut anonymous = None;
         if let Some(paths) = annoy_paths {
             let mut access_paths = AccessPaths::default();
-            access_paths.merge(paths);
+            access_paths
+                .merge(paths)
+                .ok_or_else(|| anyhow!("Invalid auth value `@{paths}"))?;
             anonymous = Some(access_paths);
         }
         let mut users = IndexMap::new();
         for (user, pass, paths) in account_paths_pairs.into_iter() {
-            let mut access_paths = anonymous.clone().unwrap_or_default();
+            let mut access_paths = AccessPaths::default();
             access_paths
                 .merge(paths)
-                .ok_or_else(|| anyhow!("Invalid auth `{user}:{pass}@{paths}"))?;
+                .ok_or_else(|| anyhow!("Invalid auth value `{user}:{pass}@{paths}"))?;
+            if let Some(paths) = annoy_paths {
+                access_paths.merge(paths);
+            }
             if pass.starts_with("$6$") {
                 use_hashed_password = true;
             }
@@ -107,12 +112,12 @@ impl AccessControl {
         }
         if let Some(authorization) = authorization {
             if let Some(user) = get_auth_user(authorization) {
-                if let Some((pass, paths)) = self.users.get(&user) {
+                if let Some((pass, ap)) = self.users.get(&user) {
                     if method == Method::OPTIONS {
                         return (Some(user), Some(AccessPaths::new(AccessPerm::ReadOnly)));
                     }
                     if check_auth(authorization, method.as_str(), &user, pass).is_some() {
-                        return (Some(user), paths.find(path, !is_readonly_method(method)));
+                        return (Some(user), ap.guard(path, method));
                     }
                 }
             }
@@ -124,8 +129,8 @@ impl AccessControl {
             return (None, Some(AccessPaths::new(AccessPerm::ReadOnly)));
         }
 
-        if let Some(paths) = self.anonymous.as_ref() {
-            return (None, paths.find(path, !is_readonly_method(method)));
+        if let Some(ap) = self.anonymous.as_ref() {
+            return (None, ap.guard(path, method));
         }
 
         (None, None)
@@ -151,8 +156,9 @@ impl AccessPaths {
     }
 
     pub fn set_perm(&mut self, perm: AccessPerm) {
-        if !perm.indexonly() {
+        if self.perm < perm {
             self.perm = perm;
+            self.recursively_purge_children(perm);
         }
     }
 
@@ -167,6 +173,25 @@ impl AccessPaths {
             self.add(path, perm);
         }
         Some(())
+    }
+
+    pub fn guard(&self, path: &str, method: &Method) -> Option<Self> {
+        let target = self.find(path)?;
+        if !is_readonly_method(method) && !target.perm().readwrite() {
+            return None;
+        }
+        Some(target)
+    }
+
+    fn recursively_purge_children(&mut self, perm: AccessPerm) {
+        self.children.retain(|_, child| {
+            if child.perm <= perm {
+                false
+            } else {
+                child.recursively_purge_children(perm);
+                true
+            }
+        });
     }
 
     fn add(&mut self, path: &str, perm: AccessPerm) {
@@ -185,21 +210,20 @@ impl AccessPaths {
             self.set_perm(perm);
             return;
         }
+        if self.perm >= perm {
+            return;
+        }
         let child = self.children.entry(parts[0].to_string()).or_default();
         child.add_impl(&parts[1..], perm)
     }
 
-    pub fn find(&self, path: &str, writable: bool) -> Option<AccessPaths> {
+    pub fn find(&self, path: &str) -> Option<AccessPaths> {
         let parts: Vec<&str> = path
             .trim_matches('/')
             .split('/')
             .filter(|v| !v.is_empty())
             .collect();
-        let target = self.find_impl(&parts, self.perm)?;
-        if writable && !target.perm().readwrite() {
-            return None;
-        }
-        Some(target)
+        self.find_impl(&parts, self.perm)
     }
 
     fn find_impl(&self, parts: &[&str], perm: AccessPerm) -> Option<AccessPaths> {
@@ -232,20 +256,20 @@ impl AccessPaths {
         self.children.keys().collect()
     }
 
-    pub fn child_paths(&self, base: &Path) -> Vec<PathBuf> {
+    pub fn entry_paths(&self, base: &Path) -> Vec<PathBuf> {
         if !self.perm().indexonly() {
             return vec![base.to_path_buf()];
         }
         let mut output = vec![];
-        self.child_paths_impl(&mut output, base);
+        self.entry_paths_impl(&mut output, base);
         output
     }
 
-    fn child_paths_impl(&self, output: &mut Vec<PathBuf>, base: &Path) {
+    fn entry_paths_impl(&self, output: &mut Vec<PathBuf>, base: &Path) {
         for (name, child) in self.children.iter() {
             let base = base.join(name);
             if child.perm().indexonly() {
-                child.child_paths_impl(output, &base);
+                child.entry_paths_impl(output, &base);
             } else {
                 output.push(base)
             }
@@ -577,7 +601,7 @@ mod tests {
         paths.add("/dir2/dir22/dir221", AccessPerm::ReadWrite);
         paths.add("/dir2/dir23/dir231", AccessPerm::ReadWrite);
         assert_eq!(
-            paths.child_paths(Path::new("/tmp")),
+            paths.entry_paths(Path::new("/tmp")),
             [
                 "/tmp/dir1",
                 "/tmp/dir2/dir21",
@@ -590,8 +614,8 @@ mod tests {
         );
         assert_eq!(
             paths
-                .find("dir2", false)
-                .map(|v| v.child_paths(Path::new("/tmp/dir2"))),
+                .find("dir2")
+                .map(|v| v.entry_paths(Path::new("/tmp/dir2"))),
             Some(
                 [
                     "/tmp/dir2/dir21",
@@ -603,19 +627,30 @@ mod tests {
                 .collect::<Vec<_>>()
             )
         );
-        assert_eq!(paths.find("dir2", true), None);
         assert_eq!(
-            paths.find("dir1/file", true),
+            paths.find("dir1/file"),
             Some(AccessPaths::new(AccessPerm::ReadWrite))
         );
         assert_eq!(
-            paths.find("dir2/dir21/file", true),
+            paths.find("dir2/dir21/file"),
             Some(AccessPaths::new(AccessPerm::ReadWrite))
         );
         assert_eq!(
-            paths.find("dir2/dir21/dir211/file", false),
+            paths.find("dir2/dir21/dir211/file"),
+            Some(AccessPaths::new(AccessPerm::ReadWrite))
+        );
+        assert_eq!(
+            paths.find("dir2/dir22/file"),
             Some(AccessPaths::new(AccessPerm::ReadOnly))
         );
-        assert_eq!(paths.find("dir2/dir21/dir211/file", true), None);
+        assert_eq!(
+            paths.find("dir2/dir22/dir221/file"),
+            Some(AccessPaths::new(AccessPerm::ReadWrite))
+        );
+        assert_eq!(paths.find("dir2/dir23/file"), None);
+        assert_eq!(
+            paths.find("dir2/dir23//dir231/file"),
+            Some(AccessPaths::new(AccessPerm::ReadWrite))
+        );
     }
 }
