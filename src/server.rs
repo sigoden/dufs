@@ -838,6 +838,8 @@ impl Server {
                 }
             }
 
+            res.headers_mut()
+                .typed_insert(CacheControl::new().with_no_cache());
             res.headers_mut().typed_insert(last_modified);
             res.headers_mut().typed_insert(etag.clone());
 
@@ -957,7 +959,9 @@ impl Server {
             )
             .replace("__INDEX_DATA__", &index_data);
         res.headers_mut()
-            .typed_insert(ContentLength(output.as_bytes().len() as u64));
+            .typed_insert(ContentLength(output.len() as u64));
+        res.headers_mut()
+            .typed_insert(CacheControl::new().with_no_cache());
         if head_only {
             return Ok(());
         }
@@ -975,7 +979,7 @@ impl Server {
         res.headers_mut()
             .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
         res.headers_mut()
-            .typed_insert(ContentLength(output.as_bytes().len() as u64));
+            .typed_insert(ContentLength(output.len() as u64));
         if head_only {
             return Ok(());
         }
@@ -1165,7 +1169,7 @@ impl Server {
             res.headers_mut()
                 .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
             res.headers_mut()
-                .typed_insert(ContentLength(output.as_bytes().len() as u64));
+                .typed_insert(ContentLength(output.len() as u64));
             *res.body_mut() = body_full(output);
             if head_only {
                 return Ok(());
@@ -1207,7 +1211,7 @@ impl Server {
                 .replace("__INDEX_DATA__", &index_data)
         };
         res.headers_mut()
-            .typed_insert(ContentLength(output.as_bytes().len() as u64));
+            .typed_insert(ContentLength(output.len() as u64));
         res.headers_mut()
             .typed_insert(CacheControl::new().with_no_cache());
         res.headers_mut().insert(
