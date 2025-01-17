@@ -605,20 +605,9 @@ impl Server {
                         }
                         let entry_path = entry.path();
                         let base_name = get_file_name(entry_path);
-                        let file_type = entry.file_type();
-                        let mut is_dir_type: bool = file_type.is_dir();
-                        if file_type.is_symlink() {
-                            match std::fs::symlink_metadata(entry_path) {
-                                Ok(meta) => {
-                                    is_dir_type = meta.is_dir();
-                                }
-                                Err(_) => {
-                                    continue;
-                                }
-                            }
-                        }
-                        if is_hidden(&hidden, base_name, is_dir_type) {
-                            if file_type.is_dir() {
+                        let is_dir = entry.file_type().is_dir();
+                        if is_hidden(&hidden, base_name, is_dir) {
+                            if is_dir {
                                 it.skip_current_dir();
                             }
                             continue;
@@ -1377,7 +1366,17 @@ impl Server {
             PathType::Dir | PathType::SymlinkDir => {
                 let mut count = 0;
                 let mut entries = tokio::fs::read_dir(&path).await?;
-                while entries.next_entry().await?.is_some() {
+                while let Some(entry) = entries.next_entry().await? {
+                    let entry_path = entry.path();
+                    let base_name = get_file_name(&entry_path);
+                    let is_dir = entry
+                        .file_type()
+                        .await
+                        .map(|v| v.is_dir())
+                        .unwrap_or_default();
+                    if is_hidden(&self.args.hidden, base_name, is_dir) {
+                        continue;
+                    }
                     count += 1;
                 }
                 count
@@ -1618,18 +1617,7 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
                 let entry_path = entry.path();
                 let base_name = get_file_name(entry_path);
                 let file_type = entry.file_type();
-                let mut is_dir_type: bool = file_type.is_dir();
-                if file_type.is_symlink() {
-                    match std::fs::symlink_metadata(entry_path) {
-                        Ok(meta) => {
-                            is_dir_type = meta.is_dir();
-                        }
-                        Err(_) => {
-                            continue;
-                        }
-                    }
-                }
-                if is_hidden(&hidden, base_name, is_dir_type) {
+                if is_hidden(&hidden, base_name, file_type.is_dir()) {
                     if file_type.is_dir() {
                         it.skip_current_dir();
                     }
@@ -1720,9 +1708,9 @@ fn set_content_disposition(res: &mut Response, inline: bool, filename: &str) -> 
     Ok(())
 }
 
-fn is_hidden(hidden: &[String], file_name: &str, is_dir_type: bool) -> bool {
+fn is_hidden(hidden: &[String], file_name: &str, is_dir: bool) -> bool {
     hidden.iter().any(|v| {
-        if is_dir_type {
+        if is_dir {
             if let Some(x) = v.strip_suffix('/') {
                 return glob(x, file_name);
             }
