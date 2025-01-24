@@ -53,6 +53,7 @@ http-body-util = "0.1"
 bytes = "1.5"
 pin-project-lite = "0.2"
 sha2 = "0.10.8"
+regex = "1"
 
 [features]
 default = ["tls"]

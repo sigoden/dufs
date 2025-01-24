@@ -52,6 +52,14 @@ pub fn try_get_file_name(path: &Path) -> Result<&str> {
         .ok_or_else(|| anyhow!("Failed to get file name of `{}`", path.display()))
 }
 
+pub fn regx(pattern: &str, target: &str) -> bool {
+    let rex = match regex::Regex::new(pattern) {
+        Ok(rex) => rex,
+        Err(_) => return false,
+    };
+    rex.is_match(target)
+}
+
 pub fn glob(pattern: &str, target: &str) -> bool {
     let pat = match ::glob::Pattern::new(pattern) {
         Ok(pat) => pat,

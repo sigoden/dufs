@@ -4,7 +4,7 @@ use crate::auth::{www_authenticate, AccessPaths, AccessPerm};
 use crate::http_utils::{body_full, IncomingStream, LengthLimitedStream};
 use crate::utils::{
     decode_uri, encode_uri, get_file_mtime_and_mode, get_file_name, glob, parse_range,
-    try_get_file_name,
+    try_get_file_name, regx
 };
 use crate::Args;
 
@@ -592,6 +592,8 @@ impl Server {
             let path_buf = path.to_path_buf();
             let hidden = Arc::new(self.args.hidden.to_vec());
             let hidden = hidden.clone();
+            let hidden_path = Arc::new(self.args.hidden_path.to_vec());
+            let hidden_path = hidden_path.clone();
             let running = self.running.clone();
             let access_paths = access_paths.clone();
             let search_paths = tokio::task::spawn_blocking(move || {
@@ -606,7 +608,8 @@ impl Server {
                         let entry_path = entry.path();
                         let base_name = get_file_name(entry_path);
                         let is_dir = entry.file_type().is_dir();
-                        if is_hidden(&hidden, base_name, is_dir) {
+                        if is_hidden(&hidden, base_name, is_dir)
+                            || is_hidden_path(&hidden_path, entry_path, is_dir) {
                             if is_dir {
                                 it.skip_current_dir();
                             }
@@ -656,6 +659,7 @@ impl Server {
         }
         let path = path.to_owned();
         let hidden = self.args.hidden.clone();
+        let hidden_path = self.args.hidden_path.clone();
         let running = self.running.clone();
         let compression = self.args.compress.to_compression();
         tokio::spawn(async move {
@@ -664,6 +668,7 @@ impl Server {
                 &path,
                 access_paths,
                 &hidden,
+                &hidden_path,
                 compression,
                 running,
             )
@@ -1339,7 +1344,8 @@ impl Server {
     async fn add_pathitem(&self, paths: &mut Vec<PathItem>, base_path: &Path, entry_path: &Path) {
         let base_name = get_file_name(entry_path);
         if let Ok(Some(item)) = self.to_pathitem(entry_path, base_path).await {
-            if is_hidden(&self.args.hidden, base_name, item.is_dir()) {
+            if is_hidden(&self.args.hidden, base_name, item.is_dir())
+                || is_hidden_path(&self.args.hidden_path, entry_path, item.is_dir()) {
                 return;
             }
             paths.push(item);
@@ -1374,7 +1380,8 @@ impl Server {
                         .await
                         .map(|v| v.is_dir())
                         .unwrap_or_default();
-                    if is_hidden(&self.args.hidden, base_name, is_dir) {
+                    if is_hidden(&self.args.hidden, base_name, is_dir)
+                        || is_hidden_path(&self.args.hidden_path, &entry_path, is_dir) {
                         continue;
                     }
                     count += 1;
@@ -1599,11 +1606,13 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
     dir: &Path,
     access_paths: AccessPaths,
     hidden: &[String],
+    hidden_path: &[String],
     compression: Compression,
     running: Arc<AtomicBool>,
 ) -> Result<()> {
     let mut writer = ZipFileWriter::with_tokio(writer);
     let hidden = Arc::new(hidden.to_vec());
+    let hidden_path = Arc::new(hidden_path.to_vec());
     let dir_clone = dir.to_path_buf();
     let zip_paths = tokio::task::spawn_blocking(move || {
         let mut paths: Vec<PathBuf> = vec![];
@@ -1617,7 +1626,8 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
                 let entry_path = entry.path();
                 let base_name = get_file_name(entry_path);
                 let file_type = entry.file_type();
-                if is_hidden(&hidden, base_name, file_type.is_dir()) {
+                if is_hidden(&hidden, base_name, file_type.is_dir())
+                    || is_hidden_path(&hidden_path, entry_path, file_type.is_dir()) {
                     if file_type.is_dir() {
                         it.skip_current_dir();
                     }
@@ -1706,6 +1716,18 @@ fn set_content_disposition(res: &mut Response, inline: bool, filename: &str) -> 
     };
     res.headers_mut().insert(CONTENT_DISPOSITION, value);
     Ok(())
+}
+
+pub fn is_hidden_path(hidden: &[String], entry_path: &std::path::Path, is_dir_type: bool) -> bool {
+    let file_name = entry_path.to_str().unwrap_or_default();
+    hidden.iter().any(|v| {
+        if is_dir_type {
+            if let Some(x) = v.strip_suffix('/') {
+                return regx(x, file_name);
+            }
+        }
+        regx(v, file_name)
+    })
 }
 
 fn is_hidden(hidden: &[String], file_name: &str, is_dir: bool) -> bool {

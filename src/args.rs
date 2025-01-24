@@ -75,7 +75,17 @@ pub fn build_cli() -> Command {
                 .long("hidden")
                 .action(ArgAction::Append)
                 .value_delimiter(',')
-                .help("Hide paths from directory listings, e.g. tmp,*.log,*.lock")
+                .help("Hide files from directory listings, by glob e.g. tmp,*.log,*.lock")
+                .value_name("value"),
+        )
+        .arg(
+            Arg::new("hidden-path")
+                .env("DUFS_HIDDEN_PATH")
+                .hide_env(true)
+                .long("hidden-path")
+                .action(ArgAction::Append)
+                .value_delimiter(',')
+                .help("Hide paths from directory listings, by regex e.g. ^tmp$,.+\\.log,\\\\hid(?:e|den)-subdir\\\\ unlike \"hidden\" processes full system paths")
                 .value_name("value"),
         )
         .arg(
@@ -273,6 +283,8 @@ pub struct Args {
     pub uri_prefix: String,
     #[serde(deserialize_with = "deserialize_string_or_vec")]
     pub hidden: Vec<String>,
+    #[serde(deserialize_with = "deserialize_string_or_vec")]
+    pub hidden_path: Vec<String>,
     #[serde(deserialize_with = "deserialize_access_control")]
     pub auth: AccessControl,
     pub allow_all: bool,
