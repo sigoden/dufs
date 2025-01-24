@@ -85,7 +85,7 @@ pub fn build_cli() -> Command {
                 .long("hidden-path")
                 .action(ArgAction::Append)
                 .value_delimiter(',')
-                .help("Hide paths from directory listings, by regex e.g. ^tmp$,.+\\.log,\\\\hid(?:e|den)-subdir\\\\ unlike \"hidden\" processes full system paths")
+                .help("Hide paths from directory listings, by regex e.g. .+\\.log,(?i)\\\\hid(?:e|den)-Subdir\\\\ Unlike \"--hidden\" processes full system paths")
                 .value_name("value"),
         )
         .arg(
