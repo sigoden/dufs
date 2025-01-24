@@ -360,6 +360,17 @@ impl Args {
                 .collect();
         }
 
+        if let Some(hidden_path) = matches.get_many::<String>("hidden-path") {
+            args.hidden_path = hidden_path.cloned().collect();
+        } else {
+            let mut hidden_path = vec![];
+            std::mem::swap(&mut args.hidden_path, &mut hidden_path);
+            args.hidden_path = hidden_path
+                .into_iter()
+                .flat_map(|v| v.split(',').map(|v| v.to_string()).collect::<Vec<String>>())
+                .collect();
+        }
+
         if !args.enable_cors {
             args.enable_cors = matches.get_flag("enable-cors");
         }
