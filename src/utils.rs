@@ -100,36 +100,42 @@ pub fn load_private_key<T: AsRef<Path>>(filename: T) -> Result<PrivateKeyDer<'st
     anyhow::bail!("No supported private key in file");
 }
 
-pub fn parse_range(range: &str, size: u64) -> Option<(u64, u64)> {
-    let (unit, range) = range.split_once('=')?;
-    if unit != "bytes" || range.contains(',') {
+pub fn parse_range(range: &str, size: u64) -> Option<Vec<(u64, u64)>> {
+    let (unit, ranges) = range.split_once('=')?;
+    if unit != "bytes" {
         return None;
     }
-    let (start, end) = range.split_once('-')?;
-    if start.is_empty() {
-        let offset = end.parse::<u64>().ok()?;
-        if offset <= size {
-            Some((size - offset, size - 1))
-        } else {
-            None
-        }
-    } else {
-        let start = start.parse::<u64>().ok()?;
-        if start < size {
-            if end.is_empty() {
-                Some((start, size - 1))
+
+    let mut result = Vec::new();
+    for range in ranges.split(',') {
+        let (start, end) = range.trim().split_once('-')?;
+        if start.is_empty() {
+            let offset = end.parse::<u64>().ok()?;
+            if offset <= size {
+                result.push((size - offset, size - 1));
             } else {
-                let end = end.parse::<u64>().ok()?;
-                if end < size {
-                    Some((start, end))
-                } else {
-                    None
-                }
+                return None;
             }
         } else {
-            None
+            let start = start.parse::<u64>().ok()?;
+            if start < size {
+                if end.is_empty() {
+                    result.push((start, size - 1));
+                } else {
+                    let end = end.parse::<u64>().ok()?;
+                    if end < size {
+                        result.push((start, end));
+                    } else {
+                        return None;
+                    }
+                }
+            } else {
+                return None;
+            }
         }
     }
+
+    Some(result)
 }
 
 #[cfg(test)]
@@ -162,13 +168,19 @@ mod tests {
 
     #[test]
     fn test_parse_range() {
-        assert_eq!(parse_range("bytes=0-499", 500), Some((0, 499)));
-        assert_eq!(parse_range("bytes=0-", 500), Some((0, 499)));
-        assert_eq!(parse_range("bytes=299-", 500), Some((299, 499)));
-        assert_eq!(parse_range("bytes=-500", 500), Some((0, 499)));
-        assert_eq!(parse_range("bytes=-300", 500), Some((200, 499)));
+        assert_eq!(parse_range("bytes=0-499", 500), Some(vec![(0, 499)]));
+        assert_eq!(parse_range("bytes=0-", 500), Some(vec![(0, 499)]));
+        assert_eq!(parse_range("bytes=299-", 500), Some(vec![(299, 499)]));
+        assert_eq!(parse_range("bytes=-500", 500), Some(vec![(0, 499)]));
+        assert_eq!(parse_range("bytes=-300", 500), Some(vec![(200, 499)]));
+        assert_eq!(
+            parse_range("bytes=0-199, 100-399, 400-, -200", 500),
+            Some(vec![(0, 199), (100, 399), (400, 499), (300, 499)])
+        );
         assert_eq!(parse_range("bytes=500-", 500), None);
         assert_eq!(parse_range("bytes=-501", 500), None);
         assert_eq!(parse_range("bytes=0-500", 500), None);
+        assert_eq!(parse_range("bytes=0-199,", 500), None);
+        assert_eq!(parse_range("bytes=0-199, 500-", 500), None);
     }
 }
