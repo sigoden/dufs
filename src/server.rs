@@ -843,7 +843,7 @@ impl Server {
             }
         }
 
-        let range = if use_range {
+        let ranges = if use_range {
             headers.get(RANGE).map(|range| {
                 range
                     .to_str()
@@ -864,27 +864,59 @@ impl Server {
 
         res.headers_mut().typed_insert(AcceptRanges::bytes());
 
-        if let Some(range) = range {
-            if let Some((start, end)) = range {
-                file.seek(SeekFrom::Start(start)).await?;
-                let range_size = end - start + 1;
-                *res.status_mut() = StatusCode::PARTIAL_CONTENT;
-                let content_range = format!("bytes {}-{}/{}", start, end, size);
-                res.headers_mut()
-                    .insert(CONTENT_RANGE, content_range.parse()?);
-                res.headers_mut()
-                    .insert(CONTENT_LENGTH, format!("{range_size}").parse()?);
-                if head_only {
-                    return Ok(());
-                }
+        if let Some(ranges) = ranges {
+            if let Some(ranges) = ranges {
+                if ranges.len() == 1 {
+                    let (start, end) = ranges[0];
+                    file.seek(SeekFrom::Start(start)).await?;
+                    let range_size = end - start + 1;
+                    *res.status_mut() = StatusCode::PARTIAL_CONTENT;
+                    let content_range = format!("bytes {}-{}/{}", start, end, size);
+                    res.headers_mut()
+                        .insert(CONTENT_RANGE, content_range.parse()?);
+                    res.headers_mut()
+                        .insert(CONTENT_LENGTH, format!("{range_size}").parse()?);
+                    if head_only {
+                        return Ok(());
+                    }
 
-                let stream_body = StreamBody::new(
-                    LengthLimitedStream::new(file, range_size as usize)
-                        .map_ok(Frame::data)
-                        .map_err(|err| anyhow!("{err}")),
-                );
-                let boxed_body = stream_body.boxed();
-                *res.body_mut() = boxed_body;
+                    let stream_body = StreamBody::new(
+                        LengthLimitedStream::new(file, range_size as usize)
+                            .map_ok(Frame::data)
+                            .map_err(|err| anyhow!("{err}")),
+                    );
+                    let boxed_body = stream_body.boxed();
+                    *res.body_mut() = boxed_body;
+                } else {
+                    *res.status_mut() = StatusCode::PARTIAL_CONTENT;
+                    let boundary = Uuid::new_v4();
+                    let mut body = Vec::new();
+                    let content_type = get_content_type(path).await?;
+                    for (start, end) in ranges {
+                        file.seek(SeekFrom::Start(start)).await?;
+                        let range_size = end - start + 1;
+                        let content_range = format!("bytes {}-{}/{}", start, end, size);
+                        let part_header = format!(
+                            "--{boundary}\r\nContent-Type: {content_type}\r\nContent-Range: {content_range}\r\n\r\n",
+                        );
+                        body.extend_from_slice(part_header.as_bytes());
+                        let mut buffer = vec![0; range_size as usize];
+                        file.read_exact(&mut buffer).await?;
+                        body.extend_from_slice(&buffer);
+                        body.extend_from_slice(b"\r\n");
+                    }
+                    body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+                    res.headers_mut().insert(
+                        CONTENT_TYPE,
+                        format!("multipart/byteranges; boundary={boundary}").parse()?,
+                    );
+                    res.headers_mut()
+                        .insert(CONTENT_LENGTH, format!("{}", body.len()).parse()?);
+                    if head_only {
+                        return Ok(());
+                    }
+                    *res.body_mut() = body_full(body);
+                }
             } else {
                 *res.status_mut() = StatusCode::RANGE_NOT_SATISFIABLE;
                 res.headers_mut()
@@ -1771,8 +1803,10 @@ fn parse_upload_offset(headers: &HeaderMap<HeaderValue>, size: u64) -> Result<Op
     if value == "append" {
         return Ok(Some(size));
     }
-    let (start, _) = parse_range(value, size).ok_or_else(err)?;
-    Ok(Some(start))
+    // use the first range
+    let ranges = parse_range(value, size).ok_or_else(err)?;
+    let (start, _) = ranges.first().ok_or_else(err)?;
+    Ok(Some(*start))
 }
 
 async fn sha256_file(path: &Path) -> Result<String> {
