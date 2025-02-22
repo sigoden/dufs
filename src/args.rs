@@ -215,14 +215,6 @@ pub fn build_cli() -> Command {
                 .value_name("level")
                 .help("Set zip compress level [default: low]")
         )
-		.arg(
-            Arg::new("enable-hsts")
-                .env("DUFS_ENABLE_HSTS")
-				.hide_env(true) 
-                .long("enable-hsts")
-                .action(ArgAction::SetTrue)
-                .help("Enable HTTP Strict Transport Security (HSTS) headers"),
-        )
         .arg(
             Arg::new("completions")
                 .long("completions")
@@ -252,6 +244,14 @@ pub fn build_cli() -> Command {
                 .value_name("path")
                 .value_parser(value_parser!(PathBuf))
                 .help("Path to the SSL/TLS certificate's private key"),
+        )
+		.arg(
+            Arg::new("enable-hsts")
+                .env("DUFS_ENABLE_HSTS")
+				.hide_env(true) 
+                .long("enable-hsts")
+                .action(ArgAction::SetTrue)
+                .help("Enable HTTP Strict Transport Security (HSTS) headers"),
         );
 
     app
