@@ -215,6 +215,14 @@ pub fn build_cli() -> Command {
                 .value_name("level")
                 .help("Set zip compress level [default: low]")
         )
+		.arg(
+            Arg::new("enable-hsts")
+                .env("DUFS_ENABLE_HSTS")
+				.hide_env(true) 
+                .long("enable-hsts")
+                .action(ArgAction::SetTrue)
+                .help("Enable HTTP Strict Transport Security (HSTS) headers"),
+        )
         .arg(
             Arg::new("completions")
                 .long("completions")
@@ -222,6 +230,8 @@ pub fn build_cli() -> Command {
                 .value_parser(value_parser!(Shell))
                 .help("Print shell completion script for <shell>"),
         );
+
+
 
     #[cfg(feature = "tls")]
     let app = app
@@ -291,6 +301,7 @@ pub struct Args {
     pub http_logger: HttpLogger,
     pub log_file: Option<PathBuf>,
     pub compress: Compress,
+	pub enable_hsts: bool,
     pub tls_cert: Option<PathBuf>,
     pub tls_key: Option<PathBuf>,
 }
@@ -404,6 +415,10 @@ impl Args {
 
         if let Some(log_file) = matches.get_one::<PathBuf>("log-file") {
             args.log_file = Some(log_file.clone());
+        }
+		
+		if !args.enable_hsts {
+            args.enable_hsts = matches.get_flag("enable-hsts");
         }
 
         if let Some(compress) = matches.get_one::<Compress>("compress") {

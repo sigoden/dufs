@@ -778,6 +778,12 @@ impl Server {
                 "x-content-type-options",
                 HeaderValue::from_static("nosniff"),
             );
+		if self.args.enable_hsts {
+			res.headers_mut().insert(
+				"strict-transport-security",
+				HeaderValue::from_static("max-age=31536000"),
+			);
+		}
             Ok(true)
         } else if req_path == HEALTH_CHECK_PATH {
             res.headers_mut()
@@ -1239,6 +1245,12 @@ impl Server {
             "x-content-type-options",
             HeaderValue::from_static("nosniff"),
         );
+		if self.args.enable_hsts {
+			res.headers_mut().insert(
+				"strict-transport-security",
+				HeaderValue::from_static("max-age=31536000"),
+			);
+		}
         if head_only {
             return Ok(());
         }

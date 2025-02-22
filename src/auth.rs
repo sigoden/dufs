@@ -296,6 +296,12 @@ impl AccessPerm {
 }
 
 pub fn www_authenticate(res: &mut Response, args: &Args) -> Result<()> {
+	if args.enable_hsts {
+		res.headers_mut().insert(
+			"strict-transport-security",
+			HeaderValue::from_static("max-age=31536000"),
+			);
+	}
     if args.auth.use_hashed_password {
         let basic = HeaderValue::from_str(&format!("Basic realm=\"{}\"", REALM))?;
         res.headers_mut().insert(WWW_AUTHENTICATE, basic);
