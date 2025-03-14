@@ -50,6 +50,8 @@ const IFRAME_FORMATS = [
   ".mp3", ".ogg", ".wav", ".m4a",
 ];
 
+const MAX_SUBPATHS_COUNT = 1000;
+
 const ICONS = {
   dir: `<svg height="16" viewBox="0 0 14 16" width="14"><path fill-rule="evenodd" d="M13 4H7V3c0-.66-.31-1-1-1H1c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1V5c0-.55-.45-1-1-1zM6 4H1V3h5v1z"></path></svg>`,
   symlinkFile: `<svg height="16" viewBox="0 0 12 16" width="12"><path fill-rule="evenodd" d="M8.5 1H1c-.55 0-1 .45-1 1v12c0 .55.45 1 1 1h10c.55 0 1-.45 1-1V4.5L8.5 1zM11 14H1V2h7l3 3v9zM6 4.5l4 3-4 3v-2c-.98-.02-1.84.22-2.55.7-.71.48-1.19 1.25-1.45 2.3.02-1.64.39-2.88 1.13-3.73.73-.84 1.69-1.27 2.88-1.27v-2H6z"></path></svg>`,
@@ -248,7 +250,7 @@ class Uploader {
   progress(event) {
     const now = Date.now();
     const speed = (event.loaded - this.uploaded) / (now - this.lastUptime) * 1000;
-    const [speedValue, speedUnit] = formatSize(speed);
+    const [speedValue, speedUnit] = formatFileSize(speed);
     const speedText = `${speedValue} ${speedUnit}/s`;
     const progress = formatPercent(((event.loaded + this.uploadOffset) / this.file.size) * 100);
     const duration = formatDuration((event.total - event.loaded) / speed);
@@ -477,8 +479,8 @@ function addPath(file, index) {
     ${actionDelete}
     ${actionEdit}
   </td>`;
-  
-  let sizeDisplay = isDir ? `${file.size} ${file.size === 1 ? "item" : "items"}` : formatSize(file.size).join(" ");
+
+  let sizeDisplay = isDir ? formatDirSize(file.size) : formatFileSize(file.size).join(" ");
 
   $pathsTableBody.insertAdjacentHTML("beforeend", `
 <tr id="addPath${index}">
@@ -878,7 +880,13 @@ function padZero(value, size) {
   return ("0".repeat(size) + value).slice(-1 * size);
 }
 
-function formatSize(size) {
+function formatDirSize(size) {
+  const unit = file.size === 1 ? "item" : "items";
+  const num = size >= MAX_SUBPATHS_COUNT ? `>${MAX_SUBPATHS_COUNT - 1}` : `${file.size}`;
+  return ` ${num} ${unit}`;
+}
+
+function formatFileSize(size) {
   if (size == null) return [0, "B"];
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   if (size == 0) return [0, "B"];
@@ -938,9 +946,9 @@ function decodeBase64(base64String) {
   let i = 0;
   for (; i < arr.length; i++) {
     arr[i] = binString.charCodeAt(i * 4) |
-             (binString.charCodeAt(i * 4 + 1) << 8) |
-             (binString.charCodeAt(i * 4 + 2) << 16) |
-             (binString.charCodeAt(i * 4 + 3) << 24);
+      (binString.charCodeAt(i * 4 + 1) << 8) |
+      (binString.charCodeAt(i * 4 + 2) << 16) |
+      (binString.charCodeAt(i * 4 + 3) << 24);
   }
   for (i = i * 4; i < len; i++) {
     bytes[i] = binString.charCodeAt(i);

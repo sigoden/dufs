@@ -63,6 +63,7 @@ const BUF_SIZE: usize = 65536;
 const EDITABLE_TEXT_MAX_SIZE: u64 = 4194304; // 4M
 const RESUMABLE_UPLOAD_MIN_SIZE: u64 = 20971520; // 20M
 const HEALTH_CHECK_PATH: &str = "__dufs__/health";
+const MAX_SUBPATHS_COUNT: u64 = 1000;
 
 pub struct Server {
     args: Args,
@@ -1410,6 +1411,9 @@ impl Server {
                         continue;
                     }
                     count += 1;
+                    if count >= MAX_SUBPATHS_COUNT {
+                        break;
+                    }
                 }
                 count
             }
