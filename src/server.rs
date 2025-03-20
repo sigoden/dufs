@@ -1394,7 +1394,10 @@ impl Server {
             (true, false) => PathType::SymlinkFile,
             (false, false) => PathType::File,
         };
-        let mtime = to_timestamp(&meta.modified()?);
+        let mtime = match meta.modified().ok().or_else(|| meta.created().ok()) {
+            Some(v) => to_timestamp(&v),
+            None => 0,
+        };
         let size = match path_type {
             PathType::Dir | PathType::SymlinkDir => {
                 let mut count = 0;
@@ -1690,7 +1693,7 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
 }
 
 fn extract_cache_headers(meta: &Metadata) -> Option<(ETag, LastModified)> {
-    let mtime = meta.modified().ok()?;
+    let mtime = meta.modified().ok().or_else(|| meta.created().ok())?;
     let timestamp = to_timestamp(&mtime);
     let size = meta.len();
     let etag = format!(r#""{timestamp}-{size}""#).parse::<ETag>().ok()?;
