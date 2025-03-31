@@ -243,6 +243,7 @@ fn check_addrs(args: &Args) -> Result<(Vec<BindAddr>, Vec<BindAddr>)> {
         }
     }
     print_addrs.sort_unstable();
+    print_addrs.dedup();
     Ok((new_addrs, print_addrs))
 }
 
