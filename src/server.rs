@@ -594,11 +594,12 @@ impl Server {
             let hidden = Arc::new(self.args.hidden.to_vec());
             let hidden = hidden.clone();
             let running = self.running.clone();
+            let search_symlinks = self.args.follow_symlinks;
             let access_paths = access_paths.clone();
             let search_paths = tokio::task::spawn_blocking(move || {
                 let mut paths: Vec<PathBuf> = vec![];
                 for dir in access_paths.entry_paths(&path_buf) {
-                    let mut it = WalkDir::new(&dir).into_iter();
+                    let mut it = WalkDir::new(&dir).follow_links(search_symlinks).into_iter();
                     it.next();
                     while let Some(Ok(entry)) = it.next() {
                         if !running.load(atomic::Ordering::SeqCst) {
@@ -659,6 +660,7 @@ impl Server {
         let hidden = self.args.hidden.clone();
         let running = self.running.clone();
         let compression = self.args.compress.to_compression();
+        let follow_symlinks = self.args.follow_symlinks;
         tokio::spawn(async move {
             if let Err(e) = zip_dir(
                 &mut writer,
@@ -666,6 +668,7 @@ impl Server {
                 access_paths,
                 &hidden,
                 compression,
+                follow_symlinks,
                 running,
             )
             .await
@@ -1639,6 +1642,7 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
     access_paths: AccessPaths,
     hidden: &[String],
     compression: Compression,
+    follow_symlinks: bool,
     running: Arc<AtomicBool>,
 ) -> Result<()> {
     let mut writer = ZipFileWriter::with_tokio(writer);
@@ -1647,7 +1651,7 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
     let zip_paths = tokio::task::spawn_blocking(move || {
         let mut paths: Vec<PathBuf> = vec![];
         for dir in access_paths.entry_paths(&dir_clone) {
-            let mut it = WalkDir::new(&dir).into_iter();
+            let mut it = WalkDir::new(&dir).follow_links(follow_symlinks).into_iter();
             it.next();
             while let Some(Ok(entry)) = it.next() {
                 if !running.load(atomic::Ordering::SeqCst) {

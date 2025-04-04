@@ -149,6 +149,14 @@ pub fn build_cli() -> Command {
                 .help("Allow download folders as archive file"),
         )
         .arg(
+            Arg::new("follow-symlinks")
+                .env("DUFS_FOLLOW_SYMLINKS")
+				.hide_env(true)
+                .long("follow-symlinks")
+                .action(ArgAction::SetTrue)
+                .help("When searching files/folders or when archiving folders, also search/archive symlinked targets"),
+        )
+        .arg(
             Arg::new("enable-cors")
                 .env("DUFS_ENABLE_CORS")
 				.hide_env(true)
@@ -281,6 +289,7 @@ pub struct Args {
     pub allow_search: bool,
     pub allow_symlink: bool,
     pub allow_archive: bool,
+    pub follow_symlinks: bool,
     pub render_index: bool,
     pub render_spa: bool,
     pub render_try_index: bool,
@@ -371,6 +380,9 @@ impl Args {
         }
         if !args.allow_search {
             args.allow_search = allow_all || matches.get_flag("allow-search");
+        }
+        if !args.follow_symlinks {
+            args.follow_symlinks = matches.get_flag("follow-symlinks");
         }
         if !args.allow_symlink {
             args.allow_symlink = allow_all || matches.get_flag("allow-symlink");
