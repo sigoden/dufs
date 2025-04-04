@@ -148,6 +148,16 @@ pub fn build_cli() -> Command {
                 .action(ArgAction::SetTrue)
                 .help("Allow download folders as archive file"),
         )
+
+        .arg(
+            Arg::new("max-archive-size")
+                .env("DUFS_MAX_ARCHIVE_SIZE")
+				.hide_env(true)
+                .long("max-archive-size")
+                .value_parser(value_parser!(u64))
+                .help("Maximum (uncompressed) total size in bytes of files/directories to be archived [default: no maximum]")
+                .value_name("max_archive_size"),
+        )
         .arg(
             Arg::new("follow-symlinks")
                 .env("DUFS_FOLLOW_SYMLINKS")
@@ -289,6 +299,7 @@ pub struct Args {
     pub allow_search: bool,
     pub allow_symlink: bool,
     pub allow_archive: bool,
+    pub max_archive_size: Option<u64>,
     pub follow_symlinks: bool,
     pub render_index: bool,
     pub render_spa: bool,
@@ -392,6 +403,10 @@ impl Args {
         }
         if !args.render_index {
             args.render_index = matches.get_flag("render-index");
+        }
+
+        if let Some(max_archive_size) = matches.get_one::<u64>("max-archive-size") {
+            args.max_archive_size = Some(*max_archive_size);
         }
 
         if !args.render_try_index {

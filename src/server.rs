@@ -8,7 +8,7 @@ use crate::utils::{
 };
 use crate::Args;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use async_zip::{tokio::write::ZipFileWriter, Compression, ZipDateTime, ZipEntryBuilder};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use bytes::Bytes;
@@ -37,6 +37,7 @@ use std::collections::HashMap;
 use std::fs::Metadata;
 use std::io::SeekFrom;
 use std::net::SocketAddr;
+use std::os::unix::fs::MetadataExt;
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{self, AtomicBool};
 use std::sync::Arc;
@@ -661,19 +662,36 @@ impl Server {
         let running = self.running.clone();
         let compression = self.args.compress.to_compression();
         let follow_symlinks = self.args.follow_symlinks;
+        let max_archive_size = self.args.max_archive_size;
+        // We collect the paths first to ensure their size doesn't exceed the configured maximum.
+        let zip_paths = collect_zip_paths(
+            &path,
+            access_paths,
+            &hidden,
+            follow_symlinks,
+            max_archive_size,
+            running,
+        )
+        .await;
+        let zip_paths = match zip_paths {
+            Ok(z) => z,
+            Err(e) => {
+                let msg = format!("Cannot archive directory: {e}");
+                res.headers_mut().clear();
+                status_bad_request(res, &msg);
+                return Ok(())
+            }
+        };
         tokio::spawn(async move {
             if let Err(e) = zip_dir(
                 &mut writer,
+                zip_paths,
                 &path,
-                access_paths,
-                &hidden,
                 compression,
-                follow_symlinks,
-                running,
             )
             .await
             {
-                error!("Failed to zip {}, {}", path.display(), e);
+                error!("Failed to zip {}, {e}", path.display());
             }
         });
         let reader_stream = ReaderStream::with_capacity(reader, BUF_SIZE);
@@ -1636,20 +1654,19 @@ fn res_multistatus(res: &mut Response, content: &str) {
     ));
 }
 
-async fn zip_dir<W: AsyncWrite + Unpin>(
-    writer: &mut W,
+async fn collect_zip_paths(
     dir: &Path,
     access_paths: AccessPaths,
     hidden: &[String],
-    compression: Compression,
     follow_symlinks: bool,
+    max_size: Option<u64>,
     running: Arc<AtomicBool>,
-) -> Result<()> {
-    let mut writer = ZipFileWriter::with_tokio(writer);
+) -> Result<Vec<PathBuf>> {
     let hidden = Arc::new(hidden.to_vec());
     let dir_clone = dir.to_path_buf();
-    let zip_paths = tokio::task::spawn_blocking(move || {
+    tokio::task::spawn_blocking(move || {
         let mut paths: Vec<PathBuf> = vec![];
+        let mut total_size = 0u64;
         for dir in access_paths.entry_paths(&dir_clone) {
             let mut it = WalkDir::new(&dir).follow_links(follow_symlinks).into_iter();
             it.next();
@@ -1666,7 +1683,13 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
                     }
                     continue;
                 }
-                if entry.path().symlink_metadata().is_err() {
+                if let Ok(metadata) = entry.path().symlink_metadata() {
+                    total_size += metadata.size();
+
+                if let Some(max_size) = max_size.filter(|max| total_size > *max) {
+                    bail!("Sorry, but this would exceed the maximum archive size of {max_size} bytes.");
+                };
+                } else {
                     continue;
                 }
                 if !file_type.is_file() {
@@ -1675,9 +1698,18 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
                 paths.push(entry_path.to_path_buf());
             }
         }
-        paths
+        Ok(paths)
     })
-    .await?;
+    .await?
+}
+
+async fn zip_dir<W: AsyncWrite + Unpin>(
+    writer: &mut W,
+    zip_paths: Vec<PathBuf>,
+    dir: &Path,
+    compression: Compression,
+) -> Result<()> {
+    let mut writer = ZipFileWriter::with_tokio(writer);
     for zip_path in zip_paths.into_iter() {
         let filename = match zip_path.strip_prefix(dir).ok().and_then(|v| v.to_str()) {
             Some(v) => v,
