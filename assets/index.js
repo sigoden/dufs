@@ -348,6 +348,11 @@ async function setupIndexPage() {
     $download.href = baseUrl() + "?zip";
     $download.title = "Download folder as a .zip file";
     $download.classList.remove("hidden");
+
+    if (PARAMS.q) {
+      $download.href += "&q=" + PARAMS.q;
+      $download.title = "Download search results as a .zip file";
+    }
   }
 
   if (DATA.allow_upload) {

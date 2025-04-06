@@ -267,8 +267,14 @@ impl Server {
                                 status_not_found(&mut res);
                                 return Ok(res);
                             }
-                            self.handle_zip_dir(path, head_only, access_paths, &mut res)
-                                .await?;
+
+                            if allow_search && query_params.contains_key("q") {
+                                self.handle_search_zip(path, &query_params, head_only, access_paths, &mut res)
+                                    .await?;
+                            } else {
+                                self.handle_zip_dir(path, head_only, access_paths, &mut res)
+                                    .await?;
+                            }
                         } else if allow_search && query_params.contains_key("q") {
                             self.handle_search_dir(
                                 path,
@@ -307,8 +313,14 @@ impl Server {
                             status_not_found(&mut res);
                             return Ok(res);
                         }
-                        self.handle_zip_dir(path, head_only, access_paths, &mut res)
-                            .await?;
+
+                        if allow_search && query_params.contains_key("q") {
+                            self.handle_search_zip(path, &query_params, head_only, access_paths, &mut res)
+                                .await?;
+                        } else {
+                            self.handle_zip_dir(path, head_only, access_paths, &mut res)
+                                .await?;
+                        }
                     } else if allow_search && query_params.contains_key("q") {
                         self.handle_search_dir(
                             path,
@@ -681,6 +693,116 @@ impl Server {
         );
         let boxed_body = stream_body.boxed();
         *res.body_mut() = boxed_body;
+        Ok(())
+    }
+
+    async fn handle_search_zip(
+        &self,
+        path: &Path,
+        query_params: &HashMap<String, String>,
+        head_only: bool,
+        access_paths: AccessPaths,
+        res: &mut Response,
+    ) -> Result<()> {
+        let search = query_params
+            .get("q")
+            .ok_or_else(|| anyhow!("missing 'q' parameter"))?
+            .to_lowercase();
+
+        if search.is_empty() {
+            return Err(anyhow!("search term is empty"));
+        }
+
+        let (mut writer, reader) = tokio::io::duplex(BUF_SIZE);
+        let safe_name = search.replace(|c: char| !c.is_ascii_alphanumeric(), "_");
+        let filename = format!("search-{}.zip", safe_name);
+        set_content_disposition(res, false, &filename)?;
+        res.headers_mut()
+            .insert("content-type", HeaderValue::from_static("application/zip"));
+        if head_only {
+            return Ok(());
+        }
+
+        let path = path.to_owned();
+        let hidden = self.args.hidden.clone();
+        let running = self.running.clone();
+        let compression = self.args.compress.to_compression();
+
+        let access_paths = access_paths.clone();
+        let search = search.to_lowercase();
+
+        tokio::spawn(async move {
+            let mut zip_writer = ZipFileWriter::with_tokio(&mut writer);
+            let hidden = Arc::new(hidden);
+
+            let path_clone = path.clone();
+            let search_paths = tokio::task::spawn_blocking(move || {
+                let mut paths = vec![];
+                for dir in access_paths.entry_paths(&path_clone) {
+                    let mut it = WalkDir::new(&dir).into_iter();
+                    it.next();
+                    while let Some(Ok(entry)) = it.next() {
+                        if !running.load(atomic::Ordering::SeqCst) {
+                            break;
+                        }
+                        let entry_path = entry.path();
+                        let base_name = get_file_name(entry_path);
+                        let file_type = entry.file_type();
+
+                        if is_hidden(&hidden, base_name, file_type.is_dir()) {
+                            if file_type.is_dir() {
+                                it.skip_current_dir();
+                            }
+                            continue;
+                        }
+                        if !file_type.is_file() {
+                            continue;
+                        }
+                        if base_name.to_lowercase().contains(&search) {
+                            paths.push(entry_path.to_path_buf());
+                        }
+                    }
+                }
+                paths
+            })
+            .await;
+
+            let paths = match search_paths {
+                Ok(p) => p,
+                Err(e) => {
+                    error!("Search failed: {}", e);
+                    return Ok::<(), anyhow::Error>(());
+                }
+            };
+
+            for zip_path in paths {
+                let filename = match zip_path.strip_prefix(&path).ok().and_then(|v| v.to_str()) {
+                    Some(v) => v,
+                    None => continue,
+                };
+
+                let (datetime, mode) = get_file_mtime_and_mode(&zip_path).await?;
+                let builder = ZipEntryBuilder::new(filename.into(), compression)
+                    .unix_permissions(mode)
+                    .last_modification_date(ZipDateTime::from_chrono(&datetime));
+
+                let mut file = File::open(&zip_path).await?;
+                let mut file_writer = zip_writer.write_entry_stream(builder).await?.compat_write();
+                io::copy(&mut file, &mut file_writer).await?;
+                file_writer.into_inner().close().await?;
+            }
+
+            let _ = zip_writer.close().await;
+            Ok(())
+        });
+
+        let reader_stream = ReaderStream::with_capacity(reader, BUF_SIZE);
+        let stream_body = StreamBody::new(
+            reader_stream
+                .map_ok(Frame::data)
+                .map_err(|err| anyhow!("{err}")),
+        );
+        *res.body_mut() = stream_body.boxed();
         Ok(())
     }
 
