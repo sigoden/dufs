@@ -881,8 +881,8 @@ function padZero(value, size) {
 }
 
 function formatDirSize(size) {
-  const unit = file.size === 1 ? "item" : "items";
-  const num = size >= MAX_SUBPATHS_COUNT ? `>${MAX_SUBPATHS_COUNT - 1}` : `${file.size}`;
+  const unit = size === 1 ? "item" : "items";
+  const num = size >= MAX_SUBPATHS_COUNT ? `>${MAX_SUBPATHS_COUNT - 1}` : `${size}`;
   return ` ${num} ${unit}`;
 }
 
