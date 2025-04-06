@@ -1523,7 +1523,7 @@ impl PathItem {
     }
 
     pub fn base_name(&self) -> &str {
-        self.name.split('/').last().unwrap_or_default()
+        self.name.split('/').next_back().unwrap_or_default()
     }
 
     pub fn sort_by_name(&self, other: &Self) -> Ordering {
