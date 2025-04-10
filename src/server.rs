@@ -48,7 +48,7 @@ use tokio::{fs, io};
 use tokio_util::compat::FuturesAsyncWriteCompatExt;
 use tokio_util::io::{ReaderStream, StreamReader};
 use uuid::Uuid;
-use walkdir::WalkDir;
+use walkdir::{DirEntry, WalkDir};
 use xml::escape::escape_str_pcdata;
 
 pub type Request = hyper::Request<Incoming>;
@@ -592,36 +592,20 @@ impl Server {
         } else {
             let path_buf = path.to_path_buf();
             let hidden = Arc::new(self.args.hidden.to_vec());
-            let hidden = hidden.clone();
-            let running = self.running.clone();
+            let search = search.clone();
+
             let access_paths = access_paths.clone();
-            let search_paths = tokio::task::spawn_blocking(move || {
-                let mut paths: Vec<PathBuf> = vec![];
-                for dir in access_paths.entry_paths(&path_buf) {
-                    let mut it = WalkDir::new(&dir).into_iter();
-                    it.next();
-                    while let Some(Ok(entry)) = it.next() {
-                        if !running.load(atomic::Ordering::SeqCst) {
-                            break;
-                        }
-                        let entry_path = entry.path();
-                        let base_name = get_file_name(entry_path);
-                        let is_dir = entry.file_type().is_dir();
-                        if is_hidden(&hidden, base_name, is_dir) {
-                            if is_dir {
-                                it.skip_current_dir();
-                            }
-                            continue;
-                        }
-                        if !base_name.to_lowercase().contains(&search) {
-                            continue;
-                        }
-                        paths.push(entry_path.to_path_buf());
-                    }
-                }
-                paths
-            })
+            let search_paths = tokio::spawn(collect_dir_entries(
+                access_paths,
+                self.running.clone(),
+                path_buf,
+                hidden,
+                self.args.allow_symlink,
+                self.args.serve_path.clone(),
+                move |x| get_file_name(x.path()).to_lowercase().contains(&search),
+            ))
             .await?;
+
             for search_path in search_paths.into_iter() {
                 if let Ok(Some(item)) = self.to_pathitem(search_path, path.to_path_buf()).await {
                     paths.push(item);
@@ -659,6 +643,8 @@ impl Server {
         let hidden = self.args.hidden.clone();
         let running = self.running.clone();
         let compression = self.args.compress.to_compression();
+        let follow_symlinks = self.args.allow_symlink;
+        let serve_path = self.args.serve_path.clone();
         tokio::spawn(async move {
             if let Err(e) = zip_dir(
                 &mut writer,
@@ -666,11 +652,13 @@ impl Server {
                 access_paths,
                 &hidden,
                 compression,
+                follow_symlinks,
+                serve_path,
                 running,
             )
             .await
             {
-                error!("Failed to zip {}, {}", path.display(), e);
+                error!("Failed to zip {}, {e}", path.display());
             }
         });
         let reader_stream = ReaderStream::with_capacity(reader, BUF_SIZE);
@@ -1639,40 +1627,21 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
     access_paths: AccessPaths,
     hidden: &[String],
     compression: Compression,
+    follow_symlinks: bool,
+    serve_path: PathBuf,
     running: Arc<AtomicBool>,
 ) -> Result<()> {
     let mut writer = ZipFileWriter::with_tokio(writer);
     let hidden = Arc::new(hidden.to_vec());
-    let dir_clone = dir.to_path_buf();
-    let zip_paths = tokio::task::spawn_blocking(move || {
-        let mut paths: Vec<PathBuf> = vec![];
-        for dir in access_paths.entry_paths(&dir_clone) {
-            let mut it = WalkDir::new(&dir).into_iter();
-            it.next();
-            while let Some(Ok(entry)) = it.next() {
-                if !running.load(atomic::Ordering::SeqCst) {
-                    break;
-                }
-                let entry_path = entry.path();
-                let base_name = get_file_name(entry_path);
-                let file_type = entry.file_type();
-                if is_hidden(&hidden, base_name, file_type.is_dir()) {
-                    if file_type.is_dir() {
-                        it.skip_current_dir();
-                    }
-                    continue;
-                }
-                if entry.path().symlink_metadata().is_err() {
-                    continue;
-                }
-                if !file_type.is_file() {
-                    continue;
-                }
-                paths.push(entry_path.to_path_buf());
-            }
-        }
-        paths
-    })
+    let zip_paths = tokio::task::spawn(collect_dir_entries(
+        access_paths,
+        running,
+        dir.to_path_buf(),
+        hidden,
+        follow_symlinks,
+        serve_path,
+        move |x| x.path().symlink_metadata().is_ok() && x.file_type().is_file(),
+    ))
     .await?;
     for zip_path in zip_paths.into_iter() {
         let filename = match zip_path.strip_prefix(dir).ok().and_then(|v| v.to_str()) {
@@ -1838,4 +1807,58 @@ fn has_query_flag(query_params: &HashMap<String, String>, name: &str) -> bool {
         .get(name)
         .map(|v| v.is_empty())
         .unwrap_or_default()
+}
+
+async fn collect_dir_entries<F>(
+    access_paths: AccessPaths,
+    running: Arc<AtomicBool>,
+    path: PathBuf,
+    hidden: Arc<Vec<String>>,
+    follow_symlinks: bool,
+    serve_path: PathBuf,
+    include_entry: F,
+) -> Vec<PathBuf>
+where
+    F: Fn(&DirEntry) -> bool,
+{
+    let mut paths: Vec<PathBuf> = vec![];
+    for dir in access_paths.entry_paths(&path) {
+        let mut it = WalkDir::new(&dir).follow_links(true).into_iter();
+        it.next();
+        while let Some(Ok(entry)) = it.next() {
+            if !running.load(atomic::Ordering::SeqCst) {
+                break;
+            }
+            let entry_path = entry.path();
+            let base_name = get_file_name(entry_path);
+            let is_dir = entry.file_type().is_dir();
+            if is_hidden(&hidden, base_name, is_dir) {
+                if is_dir {
+                    it.skip_current_dir();
+                }
+                continue;
+            }
+
+            if !follow_symlinks
+                && !fs::canonicalize(entry_path)
+                    .await
+                    .ok()
+                    .map(|v| v.starts_with(&serve_path))
+                    .unwrap_or_default()
+            {
+                // We walked outside the server's root. This could only have
+                // happened if we followed a symlink, and hence we only allow it
+                // if allow_symlink is enabled, otherwise we skip this entry.
+                if is_dir {
+                    it.skip_current_dir();
+                }
+                continue;
+            }
+            if !include_entry(&entry) {
+                continue;
+            }
+            paths.push(entry_path.to_path_buf());
+        }
+    }
+    paths
 }
