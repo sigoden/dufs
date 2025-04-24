@@ -37,7 +37,7 @@ use std::collections::HashMap;
 use std::fs::Metadata;
 use std::io::SeekFrom;
 use std::net::SocketAddr;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Component, Path, PathBuf, MAIN_SEPARATOR};
 use std::sync::atomic::{self, AtomicBool};
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -1644,7 +1644,12 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
     ))
     .await?;
     for zip_path in zip_paths.into_iter() {
-        let filename = match zip_path.strip_prefix(dir).ok().and_then(|v| v.to_str()) {
+        let filename = match zip_path
+            .strip_prefix(dir)
+            .ok()
+            .and_then(|v| v.to_str())
+            .map(|v| v.replace(MAIN_SEPARATOR, "/"))
+        {
             Some(v) => v,
             None => continue,
         };
