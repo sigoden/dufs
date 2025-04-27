@@ -63,6 +63,7 @@ const ICONS = {
   delete: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M6.854 7.146a.5.5 0 1 0-.708.708L7.293 9l-1.147 1.146a.5.5 0 0 0 .708.708L8 9.707l1.146 1.147a.5.5 0 0 0 .708-.708L8.707 9l1.147-1.146a.5.5 0 0 0-.708-.708L8 8.293 6.854 7.146z"/><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/></svg>`,
   view: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2zm0 1h8a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1"/></svg>`,
   copyLink: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M4.715 6.542 3.343 7.914a3 3 0 1 0 4.243 4.243l1.828-1.829A3 3 0 0 0 8.586 5.5L8 6.086a1 1 0 0 0-.154.199 2 2 0 0 1 .861 3.337L6.88 11.45a2 2 0 1 1-2.83-2.83l.793-.792a4 4 0 0 1-.128-1.287z"/><path d="M6.586 4.672A3 3 0 0 0 7.414 9.5l.775-.776a2 2 0 0 1-.896-3.346L9.12 3.55a2 2 0 1 1 2.83 2.83l-.793.792c.112.42.155.855.128 1.287l1.372-1.372a3 3 0 1 0-4.243-4.243z"/></svg>`,
+  copyLinkCheckmark: `<svg width="16" height="16" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M10.854 7.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 9.793l2.646-2.647a.5.5 0 0 1 .708 0"/><path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1z"/><path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0z"/></svg>`,
 }
 
 /**
@@ -474,7 +475,7 @@ function addPath(file, index) {
     actionView = `<a class="action-btn" title="View file" target="_blank" href="${url}?view">${ICONS.view}</a>`;
   }
   if (!isDir) {
-    actionCopyLink = `<div onclick="copyLink('${url}')" class="action-btn" title="Copy link to clipboard">${ICONS.copyLink}</div>`;
+    actionCopyLink = `<div onclick="copyLink(this, '${url}')" class="action-btn" title="Copy link to clipboard">${ICONS.copyLink}</div>`;
   }
   let actionCell = `
   <td class="cell-actions">
@@ -658,12 +659,18 @@ async function setupEditorPage() {
 
 /**
  * Copy url to clipboard
+ * @param {HTMLElement} element - The clicked element
  * @param {string} url
  * @returns
  */
-async function copyLink(url) {
+async function copyLink(element, url) {
   try {
     await navigator.clipboard.writeText(url);
+    // show checkmark for 1 second
+    element.innerHTML = ICONS.copyLinkCheckmark;
+    setTimeout(() => {
+      element.innerHTML = ICONS.copyLink;
+    }, 1000);
   } catch (err) {
     alert(`Failed to copy link, ${err.message}`);
   }
