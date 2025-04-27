@@ -62,6 +62,7 @@ const ICONS = {
   edit: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/></svg>`,
   delete: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M6.854 7.146a.5.5 0 1 0-.708.708L7.293 9l-1.147 1.146a.5.5 0 0 0 .708.708L8 9.707l1.146 1.147a.5.5 0 0 0 .708-.708L8.707 9l1.147-1.146a.5.5 0 0 0-.708-.708L8 8.293 6.854 7.146z"/><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/></svg>`,
   view: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2zm0 1h8a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1"/></svg>`,
+  copyLink: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M4.715 6.542 3.343 7.914a3 3 0 1 0 4.243 4.243l1.828-1.829A3 3 0 0 0 8.586 5.5L8 6.086a1 1 0 0 0-.154.199 2 2 0 0 1 .861 3.337L6.88 11.45a2 2 0 1 1-2.83-2.83l.793-.792a4 4 0 0 1-.128-1.287z"/><path d="M6.586 4.672A3 3 0 0 0 7.414 9.5l.775-.776a2 2 0 0 1-.896-3.346L9.12 3.55a2 2 0 1 1 2.83 2.83l-.793.792c.112.42.155.855.128 1.287l1.372-1.372a3 3 0 1 0-4.243-4.243z"/></svg>`,
 }
 
 /**
@@ -440,6 +441,7 @@ function addPath(file, index) {
   let url = newUrl(file.name);
   let actionDelete = "";
   let actionDownload = "";
+  let actionCopyLink = "";
   let actionMove = "";
   let actionEdit = "";
   let actionView = "";
@@ -471,10 +473,14 @@ function addPath(file, index) {
   if (!actionEdit && !isDir) {
     actionView = `<a class="action-btn" title="View file" target="_blank" href="${url}?view">${ICONS.view}</a>`;
   }
+  if (!isDir) {
+    actionCopyLink = `<div onclick="copyLink('${url}')" class="action-btn" title="Copy link to clipboard">${ICONS.copyLink}</div>`;
+  }
   let actionCell = `
   <td class="cell-actions">
     ${actionDownload}
     ${actionView}
+    ${actionCopyLink}
     ${actionMove}
     ${actionDelete}
     ${actionEdit}
@@ -647,6 +653,19 @@ async function setupEditorPage() {
     }
   } catch (err) {
     alert(`Failed get file, ${err.message}`);
+  }
+}
+
+/**
+ * Copy url to clipboard
+ * @param {string} url
+ * @returns
+ */
+async function copyLink(url) {
+  try {
+    await navigator.clipboard.writeText(url);
+  } catch (err) {
+    alert(`Failed to copy link, ${err.message}`);
   }
 }
 
