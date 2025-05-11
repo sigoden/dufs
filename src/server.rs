@@ -203,12 +203,7 @@ impl Server {
             .collect();
 
         if method.as_str() == "CHECKAUTH" {
-            match user.clone() {
-                Some(user) => {
-                    *res.body_mut() = body_full(user);
-                }
-                None => self.auth_reject(&mut res)?,
-            }
+            *res.body_mut() = body_full(user.clone().unwrap_or_default());
             return Ok(res);
         } else if method.as_str() == "LOGOUT" {
             self.auth_reject(&mut res)?;
