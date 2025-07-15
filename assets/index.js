@@ -18,6 +18,7 @@
  * @property {boolean} allow_archive
  * @property {boolean} auth
  * @property {string} user
+ * @property {string} token
  * @property {boolean} dir_exists
  * @property {string} editable
  */
@@ -417,12 +418,13 @@ function renderPathsTableHead() {
  */
 function renderPathsTableBody() {
   if (DATA.paths && DATA.paths.length > 0) {
+    const token = DATA.token || "";
     const len = DATA.paths.length;
     if (len > 0) {
       $pathsTable.classList.remove("hidden");
     }
     for (let i = 0; i < len; i++) {
-      addPath(DATA.paths[i], i);
+      addPath(DATA.paths[i], i, token);
     }
   } else {
     $emptyFolder.textContent = DIR_EMPTY_NOTE;
@@ -434,8 +436,9 @@ function renderPathsTableBody() {
  * Add pathitem
  * @param {PathItem} file
  * @param {number} index
+ * @param {string} token
  */
-function addPath(file, index) {
+function addPath(file, index, token) {
   const encodedName = encodedStr(file.name);
   let url = newUrl(file.name);
   let actionDelete = "";
@@ -449,27 +452,27 @@ function addPath(file, index) {
     if (DATA.allow_archive) {
       actionDownload = `
       <div class="action-btn">
-        <a href="${url}?zip" title="Download folder as a .zip file">${ICONS.download}</a>
+        <a href="${url}?token=${token}&zip" title="Download folder as a .zip file">${ICONS.download}</a>
       </div>`;
     }
   } else {
     actionDownload = `
     <div class="action-btn" >
-      <a href="${url}" title="Download file" download>${ICONS.download}</a>
+      <a href="${url}?token=${token}" title="Download file" download>${ICONS.download}</a>
     </div>`;
   }
   if (DATA.allow_delete) {
     if (DATA.allow_upload) {
       actionMove = `<div onclick="movePath(${index})" class="action-btn" id="moveBtn${index}" title="Move to new path">${ICONS.move}</div>`;
       if (!isDir) {
-        actionEdit = `<a class="action-btn" title="Edit file" target="_blank" href="${url}?edit">${ICONS.edit}</a>`;
+        actionEdit = `<a class="action-btn" title="Edit file" target="_blank" href="${url}?token=${token}&edit">${ICONS.edit}</a>`;
       }
     }
     actionDelete = `
     <div onclick="deletePath(${index})" class="action-btn" id="deleteBtn${index}" title="Delete">${ICONS.delete}</div>`;
   }
   if (!actionEdit && !isDir) {
-    actionView = `<a class="action-btn" title="View file" target="_blank" href="${url}?view">${ICONS.view}</a>`;
+    actionView = `<a class="action-btn" title="View file" target="_blank" href="${url}?token=${token}&view">${ICONS.view}</a>`;
   }
   let actionCell = `
   <td class="cell-actions">
@@ -488,7 +491,7 @@ function addPath(file, index) {
     ${getPathSvg(file.path_type)}
   </td>
   <td class="path cell-name">
-    <a href="${url}" ${isDir ? "" : `target="_blank"`}>${encodedName}</a>
+    <a href="${url}?token=${token}" ${isDir ? "" : `target="_blank"`}>${encodedName}</a>
   </td>
   <td class="cell-mtime">${formatMtime(file.mtime)}</td>
   <td class="cell-size">${sizeDisplay}</td>
@@ -530,7 +533,7 @@ async function setupAuth() {
     $loginBtn.addEventListener("click", async () => {
       try {
         await checkAuth();
-      } catch {}
+      } catch { }
       location.reload();
     });
   }

@@ -10,11 +10,13 @@ use md5::Context;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
 };
 use uuid::Uuid;
 
 const REALM: &str = "DUFS";
 const DIGEST_AUTH_TIMEOUT: u32 = 604800; // 7 days
+const TOKEN_LENGTH: usize = 32;
 
 lazy_static! {
     static ref NONCESTARTHASH: Context = {
@@ -28,7 +30,8 @@ lazy_static! {
 #[derive(Debug, Clone, PartialEq)]
 pub struct AccessControl {
     use_hashed_password: bool,
-    users: IndexMap<String, (String, AccessPaths)>,
+    users: IndexMap<String, (String, UserToken, AccessPaths)>,
+    tokens: IndexMap<UserToken, String>,
     anonymous: Option<AccessPaths>,
 }
 
@@ -37,7 +40,49 @@ impl Default for AccessControl {
         AccessControl {
             use_hashed_password: false,
             users: IndexMap::new(),
+            tokens: IndexMap::new(),
             anonymous: Some(AccessPaths::new(AccessPerm::ReadWrite)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub struct UserToken {
+    token: String,
+}
+
+impl UserToken {
+    pub fn new() -> Self {
+        let mut token_seq = [0; TOKEN_LENGTH];
+        rand::fill(&mut token_seq);
+
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_nanos();
+
+        // To avoid collisions, we XOR the current timestamp with the last 8 bytes of a randomly token.
+        token_seq[TOKEN_LENGTH - 8..]
+            .iter_mut()
+            .zip(ts.to_be_bytes().iter())
+            .for_each(|(dst, src)| *dst ^= *src);
+
+        Self {
+            token: hex::encode(token_seq),
+        }
+    }
+}
+
+impl std::fmt::Display for UserToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.token)
+    }
+}
+
+impl From<&String> for UserToken {
+    fn from(token: &String) -> Self {
+        Self {
+            token: token.to_string(),
         }
     }
 }
@@ -86,12 +131,20 @@ impl AccessControl {
             if pass.starts_with("$6$") {
                 use_hashed_password = true;
             }
-            users.insert(user.to_string(), (pass.to_string(), access_paths));
+            users.insert(
+                user.to_string(),
+                (pass.to_string(), UserToken::new(), access_paths),
+            );
         }
+        let mut tokens = IndexMap::new();
+        users.iter().for_each(|(user, (_, token, _))| {
+            tokens.insert(token.clone(), user.clone());
+        });
 
         Ok(Self {
             use_hashed_password,
             users,
+            tokens,
             anonymous,
         })
     }
@@ -100,19 +153,40 @@ impl AccessControl {
         !self.users.is_empty()
     }
 
+    pub fn user_token(&self, user: &str) -> Option<&UserToken> {
+        self.users.get(user).map(|(_, token, _)| token)
+    }
+
     pub fn guard(
         &self,
         path: &str,
         method: &Method,
         authorization: Option<&HeaderValue>,
+        query_token: Option<&String>,
         guard_options: bool,
     ) -> (Option<String>, Option<AccessPaths>) {
         if self.users.is_empty() {
             return (None, Some(AccessPaths::new(AccessPerm::ReadWrite)));
         }
+
+        if let Some(token_str) = query_token {
+            let token: UserToken = token_str.into();
+            if let Some(user) = self.tokens.get(&token) {
+                if let Some((_, _, ap)) = self.users.get(user) {
+                    if method == Method::OPTIONS {
+                        return (
+                            Some(user.clone()),
+                            Some(AccessPaths::new(AccessPerm::ReadOnly)),
+                        );
+                    }
+                    return (Some(user.clone()), ap.guard(path, method));
+                }
+            }
+        }
+
         if let Some(authorization) = authorization {
             if let Some(user) = get_auth_user(authorization) {
-                if let Some((pass, ap)) = self.users.get(&user) {
+                if let Some((pass, _, ap)) = self.users.get(&user) {
                     if method == Method::OPTIONS {
                         return (Some(user), Some(AccessPaths::new(AccessPerm::ReadOnly)));
                     }

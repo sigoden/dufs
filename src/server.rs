@@ -163,6 +163,13 @@ impl Server {
         let headers = req.headers();
         let method = req.method().clone();
 
+        let query = req.uri().query().unwrap_or_default();
+        let query_params: HashMap<String, String> = form_urlencoded::parse(query.as_bytes())
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+
+        let query_token = query_params.get("token");
+
         let relative_path = match self.resolve_path(req_path) {
             Some(v) => v,
             None => {
@@ -180,10 +187,14 @@ impl Server {
         }
 
         let authorization = headers.get(AUTHORIZATION);
-        let guard =
-            self.args
-                .auth
-                .guard(&relative_path, &method, authorization, is_microsoft_webdav);
+
+        let guard = self.args.auth.guard(
+            &relative_path,
+            &method,
+            authorization,
+            query_token,
+            is_microsoft_webdav,
+        );
 
         let (user, access_paths) = match guard {
             (None, None) => {
@@ -196,11 +207,6 @@ impl Server {
             }
             (x, Some(y)) => (x, y),
         };
-
-        let query = req.uri().query().unwrap_or_default();
-        let query_params: HashMap<String, String> = form_urlencoded::parse(query.as_bytes())
-            .map(|(k, v)| (k.to_string(), v.to_string()))
-            .collect();
 
         if method.as_str() == "CHECKAUTH" {
             *res.body_mut() = body_full(user.clone().unwrap_or_default());
@@ -1186,6 +1192,12 @@ impl Server {
             normalize_path(path.strip_prefix(&self.args.serve_path)?)
         );
         let readwrite = access_paths.perm().readwrite();
+
+        let token = match &user {
+            Some(user) => self.args.auth.user_token(user).map(|v| v.to_string()),
+            None => None,
+        };
+
         let data = IndexData {
             kind: DataKind::Index,
             href,
@@ -1197,6 +1209,7 @@ impl Server {
             dir_exists: exist,
             auth: self.args.auth.exist(),
             user,
+            token,
             paths,
         };
         let output = if has_query_flag(query_params, "json") {
@@ -1259,11 +1272,18 @@ impl Server {
             }
         };
 
+        let query = req.uri().query().unwrap_or_default();
+        let query_params: HashMap<String, String> = form_urlencoded::parse(query.as_bytes())
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+
+        let query_token = query_params.get("token");
+
         let authorization = headers.get(AUTHORIZATION);
-        let guard = self
-            .args
-            .auth
-            .guard(&dest_path, req.method(), authorization, false);
+        let guard =
+            self.args
+                .auth
+                .guard(&dest_path, req.method(), authorization, query_token, false);
 
         match guard {
             (_, Some(_)) => {}
@@ -1435,6 +1455,7 @@ struct IndexData {
     dir_exists: bool,
     auth: bool,
     user: Option<String>,
+    token: Option<String>,
     paths: Vec<PathItem>,
 }
 
