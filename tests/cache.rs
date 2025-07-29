@@ -49,7 +49,7 @@ fn same_etag(etag: &str) -> String {
 }
 
 fn different_etag(etag: &str) -> String {
-    format!("{}1234", etag)
+    format!("{etag}1234")
 }
 
 #[rstest]

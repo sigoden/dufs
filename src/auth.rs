@@ -297,15 +297,14 @@ impl AccessPerm {
 
 pub fn www_authenticate(res: &mut Response, args: &Args) -> Result<()> {
     if args.auth.use_hashed_password {
-        let basic = HeaderValue::from_str(&format!("Basic realm=\"{}\"", REALM))?;
+        let basic = HeaderValue::from_str(&format!("Basic realm=\"{REALM}\""))?;
         res.headers_mut().insert(WWW_AUTHENTICATE, basic);
     } else {
         let nonce = create_nonce()?;
         let digest = HeaderValue::from_str(&format!(
-            "Digest realm=\"{}\", nonce=\"{}\", qop=\"auth\"",
-            REALM, nonce
+            "Digest realm=\"{REALM}\", nonce=\"{nonce}\", qop=\"auth\""
         ))?;
-        let basic = HeaderValue::from_str(&format!("Basic realm=\"{}\"", REALM))?;
+        let basic = HeaderValue::from_str(&format!("Basic realm=\"{REALM}\""))?;
         res.headers_mut().append(WWW_AUTHENTICATE, digest);
         res.headers_mut().append(WWW_AUTHENTICATE, basic);
     }
@@ -367,7 +366,7 @@ pub fn check_auth(
             }
 
             let mut h = Context::new();
-            h.consume(format!("{}:{}:{}", auth_user, REALM, auth_pass).as_bytes());
+            h.consume(format!("{auth_user}:{REALM}:{auth_pass}").as_bytes());
             let auth_pass = format!("{:x}", h.compute());
 
             let mut ha = Context::new();
