@@ -64,8 +64,8 @@ impl HttpLogger {
             }
         }
         match err {
-            Some(err) => error!("{} {}", output, err),
-            None => info!("{}", output),
+            Some(err) => error!("{output} {err}"),
+            None => info!("{output}"),
         }
     }
 }

@@ -57,7 +57,7 @@ async fn main() -> Result<()> {
         ret = join_all(handles) => {
             for r in ret {
                 if let Err(e) = r {
-                    error!("{}", e);
+                    error!("{e}");
                 }
             }
             Ok(())
@@ -154,7 +154,7 @@ fn serve(args: Args, running: Arc<AtomicBool>) -> Result<Vec<JoinHandle<()>>> {
                     path.into()
                 };
                 let listener = tokio::net::UnixListener::bind(socket_path)
-                    .with_context(|| format!("Failed to bind `{}`", path))?;
+                    .with_context(|| format!("Failed to bind `{path}`"))?;
                 let handle = tokio::spawn(async move {
                     loop {
                         let Ok((stream, _addr)) = listener.accept().await else {

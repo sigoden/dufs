@@ -41,7 +41,7 @@ fn get_file_range_invalid(server: TestServer) -> Result<(), Error> {
 }
 
 fn parse_multipart_body<'a>(body: &'a str, boundary: &str) -> Vec<(HeaderMap, &'a str)> {
-    body.split(&format!("--{}", boundary))
+    body.split(&format!("--{boundary}"))
         .filter(|part| !part.is_empty() && *part != "--\r\n")
         .map(|part| {
             let (head, body) = part.trim_ascii().split_once("\r\n\r\n").unwrap();
