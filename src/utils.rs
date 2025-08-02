@@ -8,10 +8,10 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-pub fn unix_now() -> Result<Duration> {
+pub fn unix_now() -> Duration {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .with_context(|| "Invalid system time")
+        .expect("Unable to get unix epoch time")
 }
 
 pub fn encode_uri(v: &str) -> String {
