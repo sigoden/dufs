@@ -423,7 +423,7 @@ pub fn check_auth(
 
             let mut h = Context::new();
             h.consume(format!("{auth_user}:{REALM}:{auth_pass}").as_bytes());
-            let auth_pass = format!("{:x}", h.compute());
+            let auth_pass = format!("{:x}", h.finalize());
 
             let mut ha = Context::new();
             ha.consume(method);
@@ -431,7 +431,7 @@ pub fn check_auth(
             if let Some(uri) = digest_map.get(b"uri".as_ref()) {
                 ha.consume(uri);
             }
-            let ha = format!("{:x}", ha.compute());
+            let ha = format!("{:x}", ha.finalize());
             let mut correct_response = None;
             if let Some(qop) = digest_map.get(b"qop".as_ref()) {
                 if qop == &b"auth".as_ref() || qop == &b"auth-int".as_ref() {
@@ -452,7 +452,7 @@ pub fn check_auth(
                         c.consume(qop);
                         c.consume(b":");
                         c.consume(&*ha);
-                        format!("{:x}", c.compute())
+                        format!("{:x}", c.finalize())
                     });
                 }
             }
@@ -465,7 +465,7 @@ pub fn check_auth(
                     c.consume(nonce);
                     c.consume(b":");
                     c.consume(&*ha);
-                    format!("{:x}", c.compute())
+                    format!("{:x}", c.finalize())
                 }
             };
             if correct_response.as_bytes() == *user_response {
@@ -503,7 +503,7 @@ fn validate_nonce(nonce: &[u8]) -> Result<bool> {
                 //check hash
                 let mut h = NONCESTARTHASH.clone();
                 h.consume(secs_nonce.to_be_bytes());
-                let h = format!("{:x}", h.compute());
+                let h = format!("{:x}", h.finalize());
                 if h[..26] == n[8..34] {
                     return Ok(dur < DIGEST_AUTH_TIMEOUT);
                 }
@@ -581,7 +581,7 @@ fn create_nonce() -> Result<String> {
     let mut h = NONCESTARTHASH.clone();
     h.consume(secs.to_be_bytes());
 
-    let n = format!("{:08x}{:032x}", secs, h.compute());
+    let n = format!("{:08x}{:032x}", secs, h.finalize());
     Ok(n[..34].to_string())
 }
 
