@@ -3,6 +3,7 @@ mod auth;
 mod http_logger;
 mod http_utils;
 mod logger;
+mod noscript;
 mod server;
 mod utils;
 

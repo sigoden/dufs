@@ -83,6 +83,19 @@ fn get_dir_simple(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn get_dir_noscript(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let resp = reqwest::blocking::get(format!("{}?noscript", server.url()))?;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(
+        resp.headers().get("content-type").unwrap(),
+        "text/html; charset=utf-8"
+    );
+    let text = resp.text().unwrap();
+    assert!(text.contains(r#"<td><a href="index.html">index.html</a></td>"#));
+    Ok(())
+}
+
+#[rstest]
 fn head_dir_zip(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"HEAD", format!("{}?zip", server.url())).send()?;
     assert_eq!(resp.status(), 200);

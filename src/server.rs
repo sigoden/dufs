@@ -2,6 +2,7 @@
 
 use crate::auth::{www_authenticate, AccessPaths, AccessPerm};
 use crate::http_utils::{body_full, IncomingStream, LengthLimitedStream};
+use crate::noscript::{detect_noscript, generate_noscript_html};
 use crate::utils::{
     decode_uri, encode_uri, get_file_mtime_and_mode, get_file_name, glob, parse_range,
     try_get_file_name,
@@ -63,7 +64,7 @@ const BUF_SIZE: usize = 65536;
 const EDITABLE_TEXT_MAX_SIZE: u64 = 4194304; // 4M
 const RESUMABLE_UPLOAD_MIN_SIZE: u64 = 20971520; // 20M
 const HEALTH_CHECK_PATH: &str = "__dufs__/health";
-const MAX_SUBPATHS_COUNT: u64 = 1000;
+pub const MAX_SUBPATHS_COUNT: u64 = 1000;
 
 pub struct Server {
     args: Args,
@@ -110,18 +111,12 @@ impl Server {
         let uri = req.uri().clone();
         let assets_prefix = &self.assets_prefix;
         let enable_cors = self.args.enable_cors;
-        let is_microsoft_webdav = req
-            .headers()
-            .get("user-agent")
-            .and_then(|v| v.to_str().ok())
-            .map(|v| v.starts_with("Microsoft-WebDAV-MiniRedir/"))
-            .unwrap_or_default();
         let mut http_log_data = self.args.http_logger.data(&req);
         if let Some(addr) = addr {
             http_log_data.insert("remote_addr".to_string(), addr.ip().to_string());
         }
 
-        let mut res = match self.clone().handle(req, is_microsoft_webdav).await {
+        let mut res = match self.clone().handle(req).await {
             Ok(res) => {
                 http_log_data.insert("status".to_string(), res.status().as_u16().to_string());
                 if !uri.path().starts_with(assets_prefix) {
@@ -141,27 +136,32 @@ impl Server {
             }
         };
 
-        if is_microsoft_webdav {
-            // microsoft webdav requires this.
-            res.headers_mut()
-                .insert(CONNECTION, HeaderValue::from_static("close"));
-        }
         if enable_cors {
             add_cors(&mut res);
         }
         Ok(res)
     }
 
-    pub async fn handle(
-        self: Arc<Self>,
-        req: Request,
-        is_microsoft_webdav: bool,
-    ) -> Result<Response> {
+    pub async fn handle(self: Arc<Self>, req: Request) -> Result<Response> {
         let mut res = Response::default();
 
         let req_path = req.uri().path();
         let headers = req.headers();
         let method = req.method().clone();
+
+        let user_agent = headers
+            .get("user-agent")
+            .and_then(|v| v.to_str().ok())
+            .map(|v| v.to_lowercase())
+            .unwrap_or_default();
+
+        let is_microsoft_webdav = user_agent.starts_with("microsoft-webdav-miniredir/");
+
+        if is_microsoft_webdav {
+            // microsoft webdav requires this.
+            res.headers_mut()
+                .insert(CONNECTION, HeaderValue::from_static("close"));
+        }
 
         let relative_path = match self.resolve_path(req_path) {
             Some(v) => v,
@@ -198,9 +198,13 @@ impl Server {
         };
 
         let query = req.uri().query().unwrap_or_default();
-        let query_params: HashMap<String, String> = form_urlencoded::parse(query.as_bytes())
+        let mut query_params: HashMap<String, String> = form_urlencoded::parse(query.as_bytes())
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
+
+        if detect_noscript(&user_agent) {
+            query_params.insert("noscript".to_string(), String::new());
+        }
 
         if method.as_str() == "CHECKAUTH" {
             *res.body_mut() = body_full(user.clone().unwrap_or_default());
@@ -1203,6 +1207,10 @@ impl Server {
             res.headers_mut()
                 .typed_insert(ContentType::from(mime_guess::mime::APPLICATION_JSON));
             serde_json::to_string_pretty(&data)?
+        } else if has_query_flag(query_params, "noscript") {
+            res.headers_mut()
+                .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
+            generate_noscript_html(&data)?
         } else {
             res.headers_mut()
                 .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
@@ -1417,45 +1425,33 @@ impl Server {
 }
 
 #[derive(Debug, Serialize, PartialEq)]
-enum DataKind {
+pub enum DataKind {
     Index,
     Edit,
     View,
 }
 
 #[derive(Debug, Serialize)]
-struct IndexData {
-    href: String,
-    kind: DataKind,
-    uri_prefix: String,
-    allow_upload: bool,
-    allow_delete: bool,
-    allow_search: bool,
-    allow_archive: bool,
-    dir_exists: bool,
-    auth: bool,
-    user: Option<String>,
-    paths: Vec<PathItem>,
-}
-
-#[derive(Debug, Serialize)]
-struct EditData {
-    href: String,
-    kind: DataKind,
-    uri_prefix: String,
-    allow_upload: bool,
-    allow_delete: bool,
-    auth: bool,
-    user: Option<String>,
-    editable: bool,
+pub struct IndexData {
+    pub href: String,
+    pub kind: DataKind,
+    pub uri_prefix: String,
+    pub allow_upload: bool,
+    pub allow_delete: bool,
+    pub allow_search: bool,
+    pub allow_archive: bool,
+    pub dir_exists: bool,
+    pub auth: bool,
+    pub user: Option<String>,
+    pub paths: Vec<PathItem>,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq, Ord, PartialOrd)]
-struct PathItem {
-    path_type: PathType,
-    name: String,
-    mtime: u64,
-    size: u64,
+pub struct PathItem {
+    pub path_type: PathType,
+    pub name: String,
+    pub mtime: u64,
+    pub size: u64,
 }
 
 impl PathItem {
@@ -1533,12 +1529,18 @@ impl PathItem {
     }
 }
 
-#[derive(Debug, Serialize, Eq, PartialEq)]
-enum PathType {
+#[derive(Debug, Serialize, Clone, Copy, Eq, PartialEq)]
+pub enum PathType {
     Dir,
     SymlinkDir,
     File,
     SymlinkFile,
+}
+
+impl PathType {
+    pub fn is_dir(&self) -> bool {
+        matches!(self, Self::Dir | Self::SymlinkDir)
+    }
 }
 
 impl Ord for PathType {
@@ -1557,6 +1559,18 @@ impl PartialOrd for PathType {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
+}
+
+#[derive(Debug, Serialize)]
+struct EditData {
+    href: String,
+    kind: DataKind,
+    uri_prefix: String,
+    allow_upload: bool,
+    allow_delete: bool,
+    auth: bool,
+    user: Option<String>,
+    editable: bool,
 }
 
 fn to_timestamp(time: &SystemTime) -> u64 {
