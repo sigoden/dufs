@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.44.0] - 2025-08-02
+
+### Bug Fixes
+
+- No authentication check if no auth users ([#497](https://github.com/sigoden/dufs/issues/497))
+- Webui can't handle hash property of URL well ([#515](https://github.com/sigoden/dufs/issues/515))
+- Incorrect dir size due to hidden files ([#529](https://github.com/sigoden/dufs/issues/529))
+- Webui formatDirSize ([#568](https://github.com/sigoden/dufs/issues/568))
+- Follow symlinks when searching/archiving ([#572](https://github.com/sigoden/dufs/issues/572))
+- Incorrect separator for zip archives under windows ([#577](https://github.com/sigoden/dufs/issues/577))
+- Unexpected public auth asking for login info ([#583](https://github.com/sigoden/dufs/issues/583))
+
+### Features
+
+- Higher perm auth path shadows lower one ([#521](https://github.com/sigoden/dufs/issues/521))
+- Add cache-control:no-cache while sending file and index ([#528](https://github.com/sigoden/dufs/issues/528))
+- Support multipart ranges ([#535](https://github.com/sigoden/dufs/issues/535))
+- Limit sub directory item counting ([#556](https://github.com/sigoden/dufs/issues/556))
+- Tolerate the absence of mtime ([#559](https://github.com/sigoden/dufs/issues/559))
+- Support noscript fallback ([#602](https://github.com/sigoden/dufs/issues/602))
+- Support  downloading via token auth ([#603](https://github.com/sigoden/dufs/issues/603))
+
+### Refactor
+
+- Change description for `--allow-archive` ([#511](https://github.com/sigoden/dufs/issues/511))
+- Removes clippy warnings ([#601](https://github.com/sigoden/dufs/issues/601))
+- Update deps ([#604](https://github.com/sigoden/dufs/issues/604))
+- Fix typos ([#605](https://github.com/sigoden/dufs/issues/605))
+
 ## [0.43.0] - 2024-11-04
 
 ### Bug Fixes
