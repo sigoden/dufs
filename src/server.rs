@@ -149,20 +149,6 @@ impl Server {
         let headers = req.headers();
         let method = req.method().clone();
 
-        let user_agent = headers
-            .get("user-agent")
-            .and_then(|v| v.to_str().ok())
-            .map(|v| v.to_lowercase())
-            .unwrap_or_default();
-
-        let is_microsoft_webdav = user_agent.starts_with("microsoft-webdav-miniredir/");
-
-        if is_microsoft_webdav {
-            // microsoft webdav requires this.
-            res.headers_mut()
-                .insert(CONNECTION, HeaderValue::from_static("close"));
-        }
-
         let relative_path = match self.resolve_path(req_path) {
             Some(v) => v,
             None => {
@@ -179,11 +165,34 @@ impl Server {
             return Ok(res);
         }
 
+        let user_agent = headers
+            .get("user-agent")
+            .and_then(|v| v.to_str().ok())
+            .map(|v| v.to_lowercase())
+            .unwrap_or_default();
+
+        let is_microsoft_webdav = user_agent.starts_with("microsoft-webdav-miniredir/");
+
+        if is_microsoft_webdav {
+            // microsoft webdav requires this.
+            res.headers_mut()
+                .insert(CONNECTION, HeaderValue::from_static("close"));
+        }
+
         let authorization = headers.get(AUTHORIZATION);
-        let guard =
-            self.args
-                .auth
-                .guard(&relative_path, &method, authorization, is_microsoft_webdav);
+
+        let query = req.uri().query().unwrap_or_default();
+        let mut query_params: HashMap<String, String> = form_urlencoded::parse(query.as_bytes())
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+
+        let guard = self.args.auth.guard(
+            &relative_path,
+            &method,
+            authorization,
+            query_params.get("token"),
+            is_microsoft_webdav,
+        );
 
         let (user, access_paths) = match guard {
             (None, None) => {
@@ -197,11 +206,6 @@ impl Server {
             (x, Some(y)) => (x, y),
         };
 
-        let query = req.uri().query().unwrap_or_default();
-        let mut query_params: HashMap<String, String> = form_urlencoded::parse(query.as_bytes())
-            .map(|(k, v)| (k.to_string(), v.to_string()))
-            .collect();
-
         if detect_noscript(&user_agent) {
             query_params.insert("noscript".to_string(), String::new());
         }
@@ -211,6 +215,11 @@ impl Server {
             return Ok(res);
         } else if method.as_str() == "LOGOUT" {
             self.auth_reject(&mut res)?;
+            return Ok(res);
+        }
+
+        if has_query_flag(&query_params, "tokengen") {
+            self.handle_tokengen(&relative_path, user, &mut res).await?;
             return Ok(res);
         }
 
@@ -996,6 +1005,24 @@ impl Server {
         Ok(())
     }
 
+    async fn handle_tokengen(
+        &self,
+        relative_path: &str,
+        user: Option<String>,
+        res: &mut Response,
+    ) -> Result<()> {
+        let output = self
+            .args
+            .auth
+            .generate_token(relative_path, &user.unwrap_or_default())?;
+        res.headers_mut()
+            .typed_insert(ContentType::from(mime_guess::mime::TEXT_PLAIN_UTF_8));
+        res.headers_mut()
+            .typed_insert(ContentLength(output.len() as u64));
+        *res.body_mut() = body_full(output);
+        Ok(())
+    }
+
     async fn handle_propfind_dir(
         &self,
         path: &Path,
@@ -1271,7 +1298,7 @@ impl Server {
         let guard = self
             .args
             .auth
-            .guard(&dest_path, req.method(), authorization, false);
+            .guard(&dest_path, req.method(), authorization, None, false);
 
         match guard {
             (_, Some(_)) => {}

@@ -347,6 +347,7 @@ async function setupIndexPage() {
     const $download = document.querySelector(".download");
     $download.href = baseUrl() + "?zip";
     $download.title = "Download folder as a .zip file";
+    $download.classList.add("dlwt");
     $download.classList.remove("hidden");
   }
 
@@ -367,6 +368,10 @@ async function setupIndexPage() {
 
   renderPathsTableHead();
   renderPathsTableBody();
+
+  if (DATA.user) {
+    setupDownloadWithToken();
+  }
 }
 
 /**
@@ -449,13 +454,13 @@ function addPath(file, index) {
     if (DATA.allow_archive) {
       actionDownload = `
       <div class="action-btn">
-        <a href="${url}?zip" title="Download folder as a .zip file">${ICONS.download}</a>
+        <a class="dlwt" href="${url}?zip" title="Download folder as a .zip file" download>${ICONS.download}</a>
       </div>`;
     }
   } else {
     actionDownload = `
     <div class="action-btn" >
-      <a href="${url}" title="Download file" download>${ICONS.download}</a>
+      <a class="dlwt" href="${url}" title="Download file" download>${ICONS.download}</a>
     </div>`;
   }
   if (DATA.allow_delete) {
@@ -530,10 +535,37 @@ async function setupAuth() {
     $loginBtn.addEventListener("click", async () => {
       try {
         await checkAuth();
-      } catch {}
+      } catch { }
       location.reload();
     });
   }
+}
+
+function setupDownloadWithToken() {
+  document.querySelectorAll("a.dlwt").forEach(link => {
+    link.addEventListener("click", async e => {
+      e.preventDefault();
+      try {
+        const link = e.currentTarget || e.target;
+        const originalHref = link.getAttribute("href");
+        const tokengenUrl = new URL(originalHref);
+        tokengenUrl.searchParams.set("tokengen", "");
+        const res = await fetch(tokengenUrl);
+        if (!res.ok) throw new Error("Failed to fetch token");
+        const token = await res.text();
+        const downloadUrl = new URL(originalHref);
+        downloadUrl.searchParams.set("token", token);
+        const tempA = document.createElement("a");
+        tempA.href = downloadUrl.toString();
+        tempA.download = "";
+        document.body.appendChild(tempA);
+        tempA.click();
+        document.body.removeChild(tempA);
+      } catch (err) {
+        alert(`Failed to download, ${err.message}`);
+      }
+    });
+  });
 }
 
 function setupSearch() {
@@ -646,7 +678,7 @@ async function setupEditorPage() {
       $editor.value = decoder.decode(dataView);
     }
   } catch (err) {
-    alert(`Failed get file, ${err.message}`);
+    alert(`Failed to get file, ${err.message}`);
   }
 }
 
