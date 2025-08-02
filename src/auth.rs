@@ -117,7 +117,7 @@ impl AccessControl {
 
         if method == Method::GET {
             if let Some(token) = token {
-                if let Ok((user, ap)) = self.verifty_token(token, path) {
+                if let Ok((user, ap)) = self.verify_token(token, path) {
                     return (Some(user), ap.guard(path, method));
                 }
             }
@@ -167,7 +167,7 @@ impl AccessControl {
         Ok(hex::encode(raw))
     }
 
-    fn verifty_token<'a>(&'a self, token: &str, path: &str) -> Result<(String, &'a AccessPaths)> {
+    fn verify_token<'a>(&'a self, token: &str, path: &str) -> Result<(String, &'a AccessPaths)> {
         let raw = hex::decode(token)?;
 
         let sig_bytes = &raw[..64];
