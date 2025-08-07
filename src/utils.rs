@@ -19,7 +19,7 @@ pub fn encode_uri(v: &str) -> String {
     parts.join("/")
 }
 
-pub fn decode_uri(v: &str) -> Option<Cow<str>> {
+pub fn decode_uri(v: &str) -> Option<Cow<'_, str>> {
     percent_encoding::percent_decode(v.as_bytes())
         .decode_utf8()
         .ok()
