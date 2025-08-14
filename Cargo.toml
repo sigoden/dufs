@@ -1,6 +1,6 @@
 [package]
 name = "dufs"
-version = "0.43.0"
+version = "0.44.0"
 edition = "2021"
 authors = ["sigoden <sigoden@gmail.com>"]
 description = "Dufs is a distinctive utility file server"
@@ -21,7 +21,7 @@ percent-encoding = "2.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
-async_zip = { version = "0.0.17", default-features = false, features = ["deflate", "bzip2", "xz", "chrono", "tokio"] }
+async_zip = { version = "0.0.18", default-features = false, features = ["deflate", "bzip2", "xz", "chrono", "tokio"] }
 headers = "0.4"
 mime_guess = "2.0"
 if-addrs = "0.14"
@@ -64,7 +64,7 @@ tls = ["rustls-pemfile", "tokio-rustls"]
 assert_cmd = "2"
 reqwest = { version = "0.12", features = ["blocking", "multipart", "rustls-tls"], default-features = false }
 assert_fs = "1"
-port_check = "0.2"
+port_check = "0.3"
 rstest = "0.26.1"
 regex = "1"
 url = "2"
