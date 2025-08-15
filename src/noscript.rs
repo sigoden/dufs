@@ -55,17 +55,20 @@ pub fn generate_noscript_html(data: &IndexData) -> Result<String> {
 
 fn render_parent() -> String {
     let value = "../";
-    format!("<tr><td><a href=\"{value}\">{value}</a></td><td></td><td></td></tr>")
+    format!("<tr><td><a href=\"{value}?noscript\">{value}</a></td><td></td><td></td></tr>")
 }
 
 fn render_path_item(path: &PathItem) -> String {
-    let href = encode_uri(&path.name);
-    let suffix = if path.path_type.is_dir() { "/" } else { "" };
-    let name = escape_str_pcdata(&path.name);
+    let mut href = encode_uri(&path.name);
+    let mut name = escape_str_pcdata(&path.name).to_string();
+    if path.path_type.is_dir() {
+        href.push_str("/?noscript");
+        name.push('/');
+    };
     let mtime = format_mtime(path.mtime).unwrap_or_default();
     let size = format_size(path.size, path.path_type);
 
-    format!("<tr><td><a href=\"{href}{suffix}\">{name}{suffix}</a></td><td>{mtime}</td><td>{size}</td></tr>")
+    format!("<tr><td><a href=\"{href}\">{name}</a></td><td>{mtime}</td><td>{size}</td></tr>")
 }
 
 fn format_mtime(mtime: u64) -> Option<String> {
