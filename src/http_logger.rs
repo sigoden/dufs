@@ -1,6 +1,6 @@
 use std::{collections::HashMap, str::FromStr};
 
-use crate::{auth::get_auth_user, server::Request};
+use crate::{auth::get_auth_user, server::Request, utils::decode_uri};
 
 pub const DEFAULT_LOG_FORMAT: &str = r#"$remote_addr "$request" $status"#;
 
@@ -29,7 +29,9 @@ impl HttpLogger {
             match element {
                 LogElement::Variable(name) => match name.as_str() {
                     "request" => {
-                        data.insert(name.to_string(), format!("{} {}", req.method(), req.uri()));
+                        let uri = req.uri().to_string();
+                        let uri = decode_uri(&uri).map(|s| s.to_string()).unwrap_or(uri);
+                        data.insert(name.to_string(), format!("{} {uri}", req.method()));
                     }
                     "remote_user" => {
                         if let Some(user) =
@@ -50,6 +52,7 @@ impl HttpLogger {
         }
         data
     }
+
     pub fn log(&self, data: &HashMap<String, String>, err: Option<String>) {
         if self.elements.is_empty() {
             return;
