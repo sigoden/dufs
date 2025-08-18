@@ -126,6 +126,24 @@ fn auth_skip_if_no_auth_user(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn auth_no_skip_if_anonymous(
+    #[with(&["--auth", "@/:ro"])] server: TestServer,
+) -> Result<(), Error> {
+    let url = format!("{}index.html", server.url());
+    let resp = fetch!(b"GET", &url)
+        .basic_auth("user", Some("pass"))
+        .send()?;
+    assert_eq!(resp.status(), 401);
+    let resp = fetch!(b"GET", &url).send()?;
+    assert_eq!(resp.status(), 200);
+    let resp = fetch!(b"DELETE", &url)
+        .basic_auth("user", Some("pass"))
+        .send()?;
+    assert_eq!(resp.status(), 401);
+    Ok(())
+}
+
+#[rstest]
 fn auth_check(
     #[with(&["--auth", "user:pass@/:rw", "--auth", "user2:pass2@/", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
