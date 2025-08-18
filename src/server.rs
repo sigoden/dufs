@@ -962,7 +962,7 @@ impl Server {
             uri_prefix: self.args.uri_prefix.clone(),
             allow_upload: self.args.allow_upload,
             allow_delete: self.args.allow_delete,
-            auth: self.args.auth.exist(),
+            auth: self.args.auth.has_users(),
             user,
             editable,
         };
@@ -1226,7 +1226,7 @@ impl Server {
             allow_search: self.args.allow_search,
             allow_archive: self.args.allow_archive,
             dir_exists: exist,
-            auth: self.args.auth.exist(),
+            auth: self.args.auth.has_users(),
             user,
             paths,
         };

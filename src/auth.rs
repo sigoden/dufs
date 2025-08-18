@@ -30,6 +30,7 @@ lazy_static! {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct AccessControl {
+    empty: bool,
     use_hashed_password: bool,
     users: IndexMap<String, (String, AccessPaths)>,
     anonymous: Option<AccessPaths>,
@@ -38,6 +39,7 @@ pub struct AccessControl {
 impl Default for AccessControl {
     fn default() -> Self {
         AccessControl {
+            empty: true,
             use_hashed_password: false,
             users: IndexMap::new(),
             anonymous: Some(AccessPaths::new(AccessPerm::ReadWrite)),
@@ -48,7 +50,7 @@ impl Default for AccessControl {
 impl AccessControl {
     pub fn new(raw_rules: &[&str]) -> Result<Self> {
         if raw_rules.is_empty() {
-            return Ok(Default::default());
+            return Ok(Self::default());
         }
         let new_raw_rules = split_rules(raw_rules);
         let mut use_hashed_password = false;
@@ -93,13 +95,14 @@ impl AccessControl {
         }
 
         Ok(Self {
+            empty: false,
             use_hashed_password,
             users,
             anonymous,
         })
     }
 
-    pub fn exist(&self) -> bool {
+    pub fn has_users(&self) -> bool {
         !self.users.is_empty()
     }
 
@@ -111,7 +114,7 @@ impl AccessControl {
         token: Option<&String>,
         guard_options: bool,
     ) -> (Option<String>, Option<AccessPaths>) {
-        if self.users.is_empty() {
+        if self.empty {
             return (None, Some(AccessPaths::new(AccessPerm::ReadWrite)));
         }
 
