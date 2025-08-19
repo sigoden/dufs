@@ -534,7 +534,7 @@ async function setupAuth() {
     $loginBtn.classList.remove("hidden");
     $loginBtn.addEventListener("click", async () => {
       try {
-        await checkAuth();
+        await checkAuth("login");
       } catch { }
       location.reload();
     });
@@ -782,9 +782,10 @@ async function saveChange() {
   }
 }
 
-async function checkAuth() {
+async function checkAuth(variant) {
   if (!DATA.auth) return;
-  const res = await fetch(baseUrl(), {
+  const qs = variant ? `?${variant}` : "";
+  const res = await fetch(baseUrl() + qs, {
     method: "CHECKAUTH",
   });
   await assertResOK(res);
