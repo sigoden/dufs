@@ -211,7 +211,18 @@ impl Server {
         }
 
         if method.as_str() == "CHECKAUTH" {
-            *res.body_mut() = body_full(user.clone().unwrap_or_default());
+            match user.clone() {
+                Some(user) => {
+                    *res.body_mut() = body_full(user);
+                }
+                None => {
+                    if has_query_flag(&query_params, "login") || !access_paths.perm().readwrite() {
+                        self.auth_reject(&mut res)?
+                    } else {
+                        *res.body_mut() = body_full("");
+                    }
+                }
+            }
             return Ok(res);
         } else if method.as_str() == "LOGOUT" {
             self.auth_reject(&mut res)?;
