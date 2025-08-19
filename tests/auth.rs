@@ -147,7 +147,7 @@ fn auth_no_skip_if_anonymous(
 fn auth_check(
     #[with(&["--auth", "user:pass@/:rw", "--auth", "user2:pass2@/", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
-    let url = format!("{}index.html", server.url());
+    let url = format!("{}", server.url());
     let resp = fetch!(b"CHECKAUTH", &url).send()?;
     assert_eq!(resp.status(), 401);
     let resp = send_with_digest_auth(fetch!(b"CHECKAUTH", &url), "user", "pass")?;
@@ -161,13 +161,25 @@ fn auth_check(
 fn auth_check2(
     #[with(&["--auth", "user:pass@/:rw|user2:pass2@/", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
-    let url = format!("{}index.html", server.url());
+    let url = format!("{}", server.url());
     let resp = fetch!(b"CHECKAUTH", &url).send()?;
     assert_eq!(resp.status(), 401);
     let resp = send_with_digest_auth(fetch!(b"CHECKAUTH", &url), "user", "pass")?;
     assert_eq!(resp.status(), 200);
     let resp = send_with_digest_auth(fetch!(b"CHECKAUTH", &url), "user2", "pass2")?;
     assert_eq!(resp.status(), 200);
+    Ok(())
+}
+
+#[rstest]
+fn auth_check3(
+    #[with(&["--auth", "user:pass@/:rw", "--auth", "@/dir1:rw", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    let url = format!("{}dir1/", server.url());
+    let resp = fetch!(b"CHECKAUTH", &url).send()?;
+    assert_eq!(resp.status(), 200);
+    let resp = fetch!(b"CHECKAUTH", format!("{url}?login")).send()?;
+    assert_eq!(resp.status(), 401);
     Ok(())
 }
 
