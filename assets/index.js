@@ -906,7 +906,8 @@ function formatMtime(mtime) {
   const day = padZero(date.getDate(), 2);
   const hours = padZero(date.getHours(), 2);
   const minutes = padZero(date.getMinutes(), 2);
-  return `${year}-${month}-${day} ${hours}:${minutes}`;
+  const seconds = padZero(date.getSeconds(), 2);
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
 function padZero(value, size) {
