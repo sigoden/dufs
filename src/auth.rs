@@ -173,6 +173,10 @@ impl AccessControl {
     fn verify_token<'a>(&'a self, token: &str, path: &str) -> Result<(String, &'a AccessPaths)> {
         let raw = hex::decode(token)?;
 
+        if raw.len() < 72 {
+            bail!("Invalid token");
+        }
+
         let sig_bytes = &raw[..64];
         let exp_bytes = &raw[64..72];
         let user_bytes = &raw[72..];
