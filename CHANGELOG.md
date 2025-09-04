@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.45.0] - 2025-09-03
+
+### Bug Fixes
+
+- Perms on `dufs -A -a @/:ro` ([#619](https://github.com/sigoden/dufs/issues/619))
+- Login btn does not work for readonly anonymous ([#620](https://github.com/sigoden/dufs/issues/620))
+- Verify token length ([#627](https://github.com/sigoden/dufs/issues/627))
+
+### Features
+
+- Make dir urls inherit `?noscript` params ([#614](https://github.com/sigoden/dufs/issues/614))
+- Log decoded uri ([#615](https://github.com/sigoden/dufs/issues/615))
+
 ## [0.44.0] - 2025-08-02
 
 ### Bug Fixes

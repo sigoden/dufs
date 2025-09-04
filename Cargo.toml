@@ -1,6 +1,6 @@
 [package]
 name = "dufs"
-version = "0.44.0"
+version = "0.45.0"
 edition = "2021"
 authors = ["sigoden <sigoden@gmail.com>"]
 description = "Dufs is a distinctive utility file server"
@@ -31,7 +31,7 @@ md5 = "0.8"
 lazy_static = "1.4"
 uuid = { version = "1.7", features = ["v4", "fast-rng"] }
 urlencoding = "2.1"
-xml-rs = "0.8"
+xml-rs = "1.0.0"
 log = { version = "0.4", features = ["std"] }
 socket2 = "0.6"
 async-stream = "0.3"
