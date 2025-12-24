@@ -40,3 +40,6 @@ jobs:
 
     - name: Format
       run: cargo fmt --all --check
+      
+    - name: Upload
+      uses: actions/upload-artifact@v4
