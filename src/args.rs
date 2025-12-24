@@ -494,6 +494,7 @@ impl BindAddr {
 
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum Compress {
     None,
 	#[default]
