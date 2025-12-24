@@ -497,7 +497,7 @@ impl BindAddr {
 #[derive(Default)]
 pub enum Compress {
     None,
-	#[default]
+    #[default]
     Low,
     Medium,
     High,
