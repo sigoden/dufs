@@ -18,14 +18,14 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  padding: 0.6em 1em;
+  padding: 0.8em 1.2em;
   position: sticky;
   top: 0;
   background-color: white;
 }
 
 .breadcrumb {
-  font-size: 1.25em;
+  font-size: 1.5em;
   padding-right: 0.6em;
   word-break: break-all;
 }
@@ -46,7 +46,7 @@ body {
 
 .breadcrumb>.separator {
   color: #586069;
-  padding: 0 0.25em;
+  padding: 0 0.5em;
 }
 
 .breadcrumb svg {
@@ -67,7 +67,7 @@ body {
 
 .toolbox .control {
   cursor: pointer;
-  padding-left: 0.25em;
+  padding-left: 0.5em;
 }
 
 .upload-file input {
@@ -81,21 +81,21 @@ body {
 .searchbar {
   display: flex;
   flex-wrap: nowrap;
-  width: 246px;
-  height: 22px;
+  width: 346px;
+  height: 28px;
   background-color: #fafafa;
   transition: all .15s;
   border: 1px #ddd solid;
   border-radius: 15px;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
 }
 
 .searchbar #search {
   box-sizing: border-box;
   width: 100%;
   height: 100%;
-  font-size: 16px;
-  line-height: 16px;
+  font-size: 18px;
+  line-height: 18px;
   padding: 1px;
   background-color: transparent;
   border: none;
@@ -104,12 +104,12 @@ body {
 
 .searchbar .icon {
   color: #9a9a9a;
-  padding: 3px 3px;
+  padding: 4px 4px;
   cursor: pointer;
 }
 
 .main {
-  padding: 0 1em;
+  padding: 0 1.2em;
 }
 
 .empty-folder {
@@ -131,7 +131,7 @@ body {
 
 .uploaders-table .cell-status {
   width: 80px;
-  padding-left: 0.6em;
+  padding-left: 0.8em;
 }
 
 .cell-status span {
@@ -144,7 +144,7 @@ body {
 }
 
 .paths-table thead a>span {
-  padding-left: 2px;
+  padding-left: 3px;
 }
 
 .paths-table tbody tr:hover {
@@ -152,28 +152,28 @@ body {
 }
 
 .paths-table .cell-actions {
-  width: 90px;
+  width: 120px;
   display: flex;
-  padding-left: 0.5em;
+  padding-left: 0.6em;
 }
 
 .paths-table .cell-mtime {
-  width: 120px;
-  padding-left: 0.5em;
+  width: 150px;
+  padding-left: 0.6em;
   font-variant-numeric: tabular-nums;
 }
 
 .paths-table .cell-size {
   text-align: right;
-  width: 70px;
-  padding-left: 0.5em;
+  width: 90px;
+  padding-left: 0.6em;
   font-variant-numeric: tabular-nums;
 }
 
 .path svg {
   height: 16px;
   fill: rgba(3, 47, 98, 0.5);
-  padding-right: 0.5em;
+  padding-right: 0.6em;
   vertical-align: text-top;
 }
 
@@ -197,16 +197,16 @@ body {
 }
 
 .action-btn {
-  padding-right: 0.3em;
+  padding-right: 0.4em;
   cursor: pointer;
 }
 
 .uploaders-table {
-  padding: 0.5em 0;
+  padding: 0.6em 0;
 }
 
 .uploader {
-  padding-right: 1em;
+  padding-right: 1.2em;
 }
 
 .editor {
@@ -214,12 +214,12 @@ body {
   height: calc(100vh - 5rem);
   border: 1px solid #ced4da;
   outline: none;
-  padding: 5px;
+  padding: 6px;
 }
 
 .toolbox-right {
   margin-left: auto;
-  margin-right: 2em;
+  margin-right: 2.4em;
 }
 
 .login-btn {
@@ -239,7 +239,7 @@ body {
 }
 
 .user-name {
-  padding-left: 3px;
+  padding-left: 4px;
 }
 
 .not-editable {
