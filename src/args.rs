@@ -496,15 +496,10 @@ impl BindAddr {
 #[serde(rename_all = "lowercase")]
 pub enum Compress {
     None,
+	#[default]
     Low,
     Medium,
     High,
-}
-
-impl Default for Compress {
-    fn default() -> Self {
-        Self::Low
-    }
 }
 
 impl ValueEnum for Compress {
