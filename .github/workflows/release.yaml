@@ -104,7 +104,7 @@ jobs:
       
     - name: Build
       shell: bash
-      run: $BUILD_CMD build --locked --release --target=${{ matrix.target }} ${{ matrix.cargo-flags }}
+      run: $BUILD_CMD build --offline --release --target=${{ matrix.target }} ${{ matrix.cargo-flags }}
 
     - name: Build Archive
       shell: bash
