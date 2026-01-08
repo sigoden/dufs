@@ -1,4 +1,3 @@
-use assert_cmd::prelude::*;
 use assert_fs::fixture::TempDir;
 use assert_fs::prelude::*;
 use port_check::free_local_port;
@@ -129,8 +128,7 @@ where
 {
     let port = port();
     let tmpdir = tmpdir();
-    let child = Command::cargo_bin("dufs")
-        .expect("Couldn't find test binary")
+    let child = Command::new(assert_cmd::cargo::cargo_bin!())
         .arg(tmpdir.path())
         .arg("-p")
         .arg(port.to_string())

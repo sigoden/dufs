@@ -1,7 +1,6 @@
 mod fixtures;
 mod utils;
 
-use assert_cmd::Command;
 use fixtures::{server, Error, TestServer};
 use predicates::str::contains;
 use reqwest::blocking::ClientBuilder;
@@ -25,7 +24,7 @@ use crate::fixtures::port;
 ]))]
 fn tls_works(#[case] server: TestServer) -> Result<(), Error> {
     let client = ClientBuilder::new()
-        .danger_accept_invalid_certs(true)
+        .tls_danger_accept_invalid_certs(true)
         .build()?;
     let resp = client.get(server.url()).send()?.error_for_status()?;
     assert_resp_paths!(resp);
@@ -36,7 +35,7 @@ fn tls_works(#[case] server: TestServer) -> Result<(), Error> {
 #[rstest]
 fn wrong_path_cert() -> Result<(), Error> {
     let port = port().to_string();
-    Command::cargo_bin("dufs")?
+    assert_cmd::cargo::cargo_bin_cmd!()
         .args([
             "--tls-cert",
             "wrong",
@@ -47,7 +46,7 @@ fn wrong_path_cert() -> Result<(), Error> {
         ])
         .assert()
         .failure()
-        .stderr(contains("Failed to access `wrong`"));
+        .stderr(contains("Failed to load cert file at `wrong`"));
 
     Ok(())
 }
@@ -56,7 +55,7 @@ fn wrong_path_cert() -> Result<(), Error> {
 #[rstest]
 fn wrong_path_key() -> Result<(), Error> {
     let port = port().to_string();
-    Command::cargo_bin("dufs")?
+    assert_cmd::cargo::cargo_bin_cmd!()
         .args([
             "--tls-cert",
             "tests/data/cert.pem",
@@ -67,7 +66,7 @@ fn wrong_path_key() -> Result<(), Error> {
         ])
         .assert()
         .failure()
-        .stderr(contains("Failed to access `wrong`"));
+        .stderr(contains("Failed to load key file at `wrong`"));
 
     Ok(())
 }

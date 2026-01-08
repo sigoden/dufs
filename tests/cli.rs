@@ -11,7 +11,10 @@ use std::process::Command;
 #[test]
 /// Show help and exit.
 fn help_shows() -> Result<(), Error> {
-    Command::cargo_bin("dufs")?.arg("-h").assert().success();
+    Command::new(assert_cmd::cargo::cargo_bin!())
+        .arg("-h")
+        .assert()
+        .success();
 
     Ok(())
 }
@@ -21,7 +24,7 @@ fn help_shows() -> Result<(), Error> {
 fn print_completions() -> Result<(), Error> {
     // let shell_enums = EnumValueParser::<Shell>::new();
     for shell in Shell::value_variants() {
-        Command::cargo_bin("dufs")?
+        Command::new(assert_cmd::cargo::cargo_bin!())
             .arg("--completions")
             .arg(shell.to_string())
             .assert()
