@@ -2,7 +2,6 @@ mod digest_auth_util;
 mod fixtures;
 mod utils;
 
-use assert_cmd::prelude::*;
 use assert_fs::TempDir;
 use digest_auth_util::send_with_digest_auth;
 use fixtures::{port, tmpdir, wait_for_port, Error};
@@ -13,7 +12,7 @@ use std::process::{Command, Stdio};
 #[rstest]
 fn use_config_file(tmpdir: TempDir, port: u16) -> Result<(), Error> {
     let config_path = get_config_path().display().to_string();
-    let mut child = Command::cargo_bin("dufs")?
+    let mut child = Command::new(assert_cmd::cargo::cargo_bin!())
         .arg(tmpdir.path())
         .arg("-p")
         .arg(port.to_string())

@@ -492,19 +492,14 @@ impl BindAddr {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Compress {
     None,
+    #[default]
     Low,
     Medium,
     High,
-}
-
-impl Default for Compress {
-    fn default() -> Self {
-        Self::Low
-    }
 }
 
 impl ValueEnum for Compress {

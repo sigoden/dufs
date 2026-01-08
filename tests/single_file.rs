@@ -3,7 +3,6 @@
 mod fixtures;
 mod utils;
 
-use assert_cmd::prelude::*;
 use assert_fs::fixture::TempDir;
 use fixtures::{port, tmpdir, wait_for_port, Error};
 use rstest::rstest;
@@ -12,7 +11,7 @@ use std::process::{Command, Stdio};
 #[rstest]
 #[case("index.html")]
 fn single_file(tmpdir: TempDir, port: u16, #[case] file: &str) -> Result<(), Error> {
-    let mut child = Command::cargo_bin("dufs")?
+    let mut child = Command::new(assert_cmd::cargo::cargo_bin!())
         .arg(tmpdir.path().join(file))
         .arg("-p")
         .arg(port.to_string())
@@ -35,7 +34,7 @@ fn single_file(tmpdir: TempDir, port: u16, #[case] file: &str) -> Result<(), Err
 #[rstest]
 #[case("index.html")]
 fn path_prefix_single_file(tmpdir: TempDir, port: u16, #[case] file: &str) -> Result<(), Error> {
-    let mut child = Command::cargo_bin("dufs")?
+    let mut child = Command::new(assert_cmd::cargo::cargo_bin!())
         .arg(tmpdir.path().join(file))
         .arg("-p")
         .arg(port.to_string())

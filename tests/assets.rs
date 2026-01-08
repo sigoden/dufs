@@ -1,7 +1,6 @@
 mod fixtures;
 mod utils;
 
-use assert_cmd::prelude::*;
 use assert_fs::fixture::TempDir;
 use fixtures::{port, server, tmpdir, wait_for_port, Error, TestServer, DIR_ASSETS};
 use rstest::rstest;
@@ -101,7 +100,7 @@ fn asset_js_with_prefix(
 
 #[rstest]
 fn assets_override(tmpdir: TempDir, port: u16) -> Result<(), Error> {
-    let mut child = Command::cargo_bin("dufs")?
+    let mut child = Command::new(assert_cmd::cargo::cargo_bin!())
         .arg(tmpdir.path())
         .arg("-p")
         .arg(port.to_string())
