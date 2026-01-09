@@ -67,6 +67,7 @@ Options:
       --allow-search         Allow search files/folders
       --allow-symlink        Allow symlink to files/folders outside root directory
       --allow-archive        Allow download folders as archive file
+      --allow-hash           Allow ?hash query to get file sha256 hash
       --enable-cors          Enable CORS, sets `Access-Control-Allow-Origin: *`
       --render-index         Serve index.html when requesting a directory, returns 404 if not found index.html
       --render-try-index     Serve index.html when requesting a directory, returns directory listing if not found index.html
@@ -346,6 +347,7 @@ All options can be set using environment variables prefixed with `DUFS_`.
     --allow-search          DUFS_ALLOW_SEARCH=true
     --allow-symlink         DUFS_ALLOW_SYMLINK=true
     --allow-archive         DUFS_ALLOW_ARCHIVE=true
+    --allow-hash            DUFS_ALLOW_HASH=true
     --enable-cors           DUFS_ENABLE_CORS=true
     --render-index          DUFS_RENDER_INDEX=true
     --render-try-index      DUFS_RENDER_TRY_INDEX=true
@@ -383,6 +385,7 @@ allow-delete: true
 allow-search: true
 allow-symlink: true
 allow-archive: true
+allow-hash: true
 enable-cors: true
 render-index: true
 render-try-index: true
