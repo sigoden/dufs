@@ -203,7 +203,7 @@ fn head_file(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
-fn hash_file(server: TestServer) -> Result<(), Error> {
+fn hash_file(#[with(&["--allow-hash"])] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(format!("{}index.html?hash", server.url()))?;
     assert_eq!(
         resp.headers().get("content-type").unwrap(),
@@ -214,6 +214,13 @@ fn hash_file(server: TestServer) -> Result<(), Error> {
         resp.text()?,
         "c8dd395e3202674b9512f7b7f956e0d96a8ba8f572e785b0d5413ab83766dbc4"
     );
+    Ok(())
+}
+
+#[rstest]
+fn no_hash_file(server: TestServer) -> Result<(), Error> {
+    let resp = reqwest::blocking::get(format!("{}index.html?hash", server.url()))?;
+    assert_eq!(resp.status(), 403);
     Ok(())
 }
 

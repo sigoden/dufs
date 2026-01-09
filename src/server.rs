@@ -358,7 +358,11 @@ impl Server {
                         self.handle_edit_file(path, DataKind::View, head_only, user, &mut res)
                             .await?;
                     } else if has_query_flag(&query_params, "hash") {
-                        self.handle_hash_file(path, head_only, &mut res).await?;
+                        if self.args.allow_hash {
+                            self.handle_hash_file(path, head_only, &mut res).await?;
+                        } else {
+                            status_forbid(&mut res);
+                        }
                     } else {
                         self.handle_send_file(path, headers, head_only, &mut res)
                             .await?;

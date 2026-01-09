@@ -149,6 +149,14 @@ pub fn build_cli() -> Command {
                 .help("Allow download folders as archive file"),
         )
         .arg(
+            Arg::new("allow-hash")
+                .env("DUFS_ALLOW_HASH")
+                .hide_env(true)
+                .long("allow-hash")
+                .action(ArgAction::SetTrue)
+                .help("Allow ?hash query to get file sha256 hash"),
+        )
+        .arg(
             Arg::new("enable-cors")
                 .env("DUFS_ENABLE_CORS")
 				.hide_env(true)
@@ -281,6 +289,7 @@ pub struct Args {
     pub allow_search: bool,
     pub allow_symlink: bool,
     pub allow_archive: bool,
+    pub allow_hash: bool,
     pub render_index: bool,
     pub render_spa: bool,
     pub render_try_index: bool,
@@ -374,6 +383,9 @@ impl Args {
         }
         if !args.allow_symlink {
             args.allow_symlink = allow_all || matches.get_flag("allow-symlink");
+        }
+        if !args.allow_hash {
+            args.allow_hash = allow_all || matches.get_flag("allow-hash");
         }
         if !args.allow_archive {
             args.allow_archive = allow_all || matches.get_flag("allow-archive");
