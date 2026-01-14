@@ -37,6 +37,7 @@ body {
   margin: 0;
   background: var(--surface);
   min-width: 320px;
+  overflow-x: hidden;
 }
 
 .hidden {
@@ -206,6 +207,7 @@ body {
   padding: 1rem 1.5rem;
   width: 100%;
   margin: 0;
+  overflow-x: auto;
 }
 
 .empty-folder {
@@ -225,9 +227,11 @@ body {
   background: var(--background);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: visible;
   border: 1px solid var(--border);
   width: 100%;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Tables */
@@ -236,6 +240,7 @@ body {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9375rem;
+  background: #ffffff;
 }
 
 .uploaders-table th,
@@ -243,7 +248,7 @@ body {
   text-align: left;
   font-weight: 600;
   color: var(--text-secondary);
-  background: var(--surface);
+  background: #ffffff;
   padding: 0.5rem 0.75rem;
   border-bottom: 2px solid var(--border);
   font-size: 0.8125rem;
@@ -259,6 +264,7 @@ body {
   white-space: nowrap;
   vertical-align: middle;
   font-size: 0.875rem;
+  background: #ffffff;
 }
 
 .uploaders-table tbody tr:last-child td,
@@ -506,41 +512,128 @@ body {
 /* Responsive Design */
 @media (max-width: 768px) {
   .head {
-    padding: 0.75rem 1rem;
-    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    gap: 0.5rem;
   }
 
   .breadcrumb {
-    font-size: 1rem;
-    min-width: 150px;
+    font-size: 0.875rem;
+    min-width: 100px;
+    order: 1;
   }
 
   .searchbar {
-    min-width: 100%;
+    width: 100%;
     order: 10;
   }
 
+  .toolbox {
+    order: 2;
+    gap: 0.25rem;
+  }
+
+  .toolbox-right {
+    order: 3;
+  }
+
   .main {
-    padding: 1rem;
+    padding: 0.5rem;
   }
 
   .path a {
-    min-width: 150px;
-    max-width: calc(100vw - 250px);
+    min-width: 100px;
+    max-width: calc(100vw - 200px);
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .paths-table .cell-mtime {
+  /* Hide date and time ago columns on mobile */
+  .paths-table .cell-mtime,
+  .paths-table .cell-timeago {
     display: none;
   }
 
-  .toolbox {
-    gap: 0.25rem;
+  /* Make size column smaller on mobile */
+  .paths-table .cell-size {
+    font-size: 0.75rem;
+    width: 60px;
+  }
+
+  /* Reduce padding on mobile */
+  .uploaders-table th,
+  .paths-table th,
+  .uploaders-table td,
+  .paths-table td {
+    padding: 0.5rem 0.5rem;
+    font-size: 0.8125rem;
+  }
+
+  .paths-table th {
+    font-size: 0.75rem;
+  }
+
+  /* Make action buttons touch-friendly */
+  .cell-actions {
+    width: auto;
+  }
+
+  .action-btn {
+    padding: 0.5rem;
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Control buttons */
+  .control {
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Hide actions text, show only icons */
+  .paths-table .cell-actions {
+    white-space: nowrap;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+  .head {
+    padding: 0.5rem;
+  }
+
+  .breadcrumb {
+    font-size: 0.8125rem;
+  }
+
+  .main {
+    padding: 0.25rem;
+  }
+
+  .paths-table .cell-name {
+    min-width: 120px;
+    max-width: calc(100vw - 120px);
+  }
+
+  .path a {
+    max-width: calc(100vw - 150px);
+  }
 
   .uploaders-table th,
   .paths-table th,
   .uploaders-table td,
   .paths-table td {
-    padding: 0.75rem 1rem;
+    padding: 0.375rem 0.25rem;
+  }
+
+  /* Stack actions vertically if needed */
+  .cell-actions .action-btn {
+    padding: 0.375rem;
   }
 }
 
