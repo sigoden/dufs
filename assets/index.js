@@ -381,7 +381,7 @@ function renderPathsTableHead() {
   const headerItems = [
     {
       name: "name",
-      props: `colspan="2"`,
+      props: ``,
       text: "Name",
     },
     {
@@ -489,10 +489,8 @@ function addPath(file, index) {
 
   $pathsTableBody.insertAdjacentHTML("beforeend", `
 <tr id="addPath${index}">
-  <td class="path cell-icon">
-    ${getPathSvg(file.path_type)}
-  </td>
   <td class="path cell-name">
+    ${getPathSvg(file.path_type)}
     <a href="${url}" ${isDir ? "" : `target="_blank"`}>${encodedName}</a>
   </td>
   <td class="cell-mtime">${formatMtime(file.mtime)}</td>
