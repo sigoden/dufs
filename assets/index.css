@@ -298,10 +298,12 @@ body {
 }
 
 .paths-table .cell-mtime {
-  width: 180px;
+  width: 240px;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
   font-size: 0.875rem;
+  white-space: normal;
+  line-height: 1.4;
 }
 
 .paths-table .cell-size {
