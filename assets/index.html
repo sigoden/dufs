@@ -3,7 +3,8 @@
 
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Dufs - A distinctive utility file server" />
   <noscript>
     <meta http-equiv="refresh" content="0; url=?noscript">
   </noscript>
@@ -12,9 +13,9 @@
 </head>
 
 <body>
-  <div class="head">
-    <div class="breadcrumb"></div>
-    <div class="toolbox">
+  <header class="head">
+    <nav class="breadcrumb" aria-label="Breadcrumb navigation"></nav>
+    <div class="toolbox" role="toolbar" aria-label="File operations">
       <a href="" class="control download hidden" title="Download file" download="">
         <svg width="16" height="16" viewBox="0 0 16 16">
           <path
@@ -66,18 +67,18 @@
         </svg>
       </div>
     </div>
-    <form class="searchbar hidden">
-      <div class="icon">
-        <svg width="16" height="16" viewBox="0 0 16 16">
+    <form class="searchbar hidden" role="search">
+      <button type="button" class="search-icon" aria-label="Search">
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
           <path
             d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z" />
         </svg>
-      </div>
-      <input id="search" title="Searching for folders or files" name="q" type="text" maxlength="128" autocomplete="off"
-        tabindex="1">
+      </button>
+      <input id="search" placeholder="Search files and folders..." title="Searching for folders or files" name="q" type="text" maxlength="128" autocomplete="off"
+        tabindex="1" aria-label="Search input">
       <input type="submit" hidden />
     </form>
-    <div class="toolbox-right">
+    <div class="toolbox-right" role="toolbar" aria-label="User actions">
       <div class="login-btn hidden" title="Login">
         <svg width="16" height="16" viewBox="0 0 16 16">
           <path fill-rule="evenodd"
@@ -101,8 +102,8 @@
         </svg>
       </div>
     </div>
-  </div>
-  <div class="main">
+  </header>
+  <main class="main">
     <div class="index-page hidden">
       <div class="empty-folder hidden"></div>
       <table class="uploaders-table hidden">
@@ -121,10 +122,10 @@
       </table>
     </div>
     <div class="editor-page hidden">
-      <div class="not-editable hidden"></div>
-      <textarea id="editor" class="editor hidden" aria-label="Editor" cols="10"></textarea>
+      <div class="not-editable hidden" role="alert"></div>
+      <textarea id="editor" class="editor hidden" aria-label="Code editor" cols="10" spellcheck="false"></textarea>
     </div>
-  </div>
+  </main>
   <template id="index-data">__INDEX_DATA__</template>
   <script src="__ASSETS_PREFIX__index.js"></script>
 </body>
