@@ -289,7 +289,7 @@ body {
 }
 
 .paths-table tbody tr:hover {
-  background: var(--surface-hover);
+  background: #ffffff;
   box-shadow: inset 0 0 0 1px var(--border);
 }
 
@@ -304,6 +304,13 @@ body {
   font-size: 0.8125rem;
   white-space: normal;
   line-height: 1.3;
+}
+
+.paths-table .cell-timeago {
+  width: 120px;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  text-align: left;
 }
 
 .paths-table .cell-size {

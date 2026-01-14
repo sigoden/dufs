@@ -390,6 +390,11 @@ function renderPathsTableHead() {
       text: "Last Modified",
     },
     {
+      name: "timeago",
+      props: `style="width: 120px;"`,
+      text: "Time Ago",
+    },
+    {
       name: "size",
       props: ``,
       text: "Size",
@@ -486,6 +491,7 @@ function addPath(file, index) {
   </td>`;
 
   let sizeDisplay = isDir ? formatDirSize(file.size) : formatFileSize(file.size).join(" ");
+  const mtimeData = formatMtime(file.mtime);
 
   $pathsTableBody.insertAdjacentHTML("beforeend", `
 <tr id="addPath${index}">
@@ -493,7 +499,8 @@ function addPath(file, index) {
     ${getPathSvg(file.path_type)}
     <a href="${url}" ${isDir ? "" : `target="_blank"`}>${encodedName}</a>
   </td>
-  <td class="cell-mtime">${formatMtime(file.mtime)}</td>
+  <td class="cell-mtime">${mtimeData.datetime}</td>
+  <td class="cell-timeago">${mtimeData.timeago}</td>
   <td class="cell-size">${sizeDisplay}</td>
   ${actionCell}
 </tr>`);
@@ -897,7 +904,7 @@ function getPathSvg(path_type) {
 }
 
 function formatMtime(mtime) {
-  if (!mtime) return "";
+  if (!mtime) return { datetime: "", timeago: "" };
   const date = new Date(mtime);
   const year = date.getFullYear();
   const month = padZero(date.getMonth() + 1, 2);
@@ -905,7 +912,10 @@ function formatMtime(mtime) {
   const hours = padZero(date.getHours(), 2);
   const minutes = padZero(date.getMinutes(), 2);
   const timeAgo = formatTimeAgo(mtime);
-  return `${year}-${month}-${day} ${hours}:${minutes} <span style="color: var(--text-tertiary); font-size: 0.875em;">(${timeAgo})</span>`;
+  return {
+    datetime: `${year}-${month}-${day} ${hours}:${minutes}`,
+    timeago: timeAgo
+  };
 }
 
 function formatTimeAgo(timestamp) {
