@@ -1881,10 +1881,14 @@ where
     for dir in access_paths.entry_paths(&path) {
         let mut it = WalkDir::new(&dir).follow_links(true).into_iter();
         it.next();
-        while let Some(Ok(entry)) = it.next() {
+        while let Some(entry) = it.next() {
             if !running.load(atomic::Ordering::SeqCst) {
                 break;
             }
+            let entry = match entry {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
             let entry_path = entry.path();
             let base_name = get_file_name(entry_path);
             let is_dir = entry.file_type().is_dir();
