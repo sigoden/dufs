@@ -54,6 +54,7 @@ pin-project-lite = "0.2"
 sha2 = "0.10.8"
 ed25519-dalek = "2.2.0"
 hex = "0.4.3"
+nix = { version = "0.31.1", features = ["fs"] }
 
 [features]
 default = ["tls"]
