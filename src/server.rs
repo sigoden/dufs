@@ -51,6 +51,7 @@ use tokio_util::io::{ReaderStream, StreamReader};
 use uuid::Uuid;
 use walkdir::{DirEntry, WalkDir};
 use xml::escape::escape_str_pcdata;
+use nix;
 
 pub type Request = hyper::Request<Incoming>;
 pub type Response = hyper::Response<BoxBody<Bytes, anyhow::Error>>;
@@ -1074,7 +1075,7 @@ impl Server {
         }
         let output = paths
             .iter()
-            .map(|v| v.to_dav_xml(self.args.uri_prefix.as_str()))
+            .map(|v| v.to_dav_xml(self.args.serve_path.to_str().unwrap(), self.args.uri_prefix.as_str()))
             .fold(String::new(), |mut acc, v| {
                 acc.push_str(&v);
                 acc
@@ -1085,7 +1086,7 @@ impl Server {
 
     async fn handle_propfind_file(&self, path: &Path, res: &mut Response) -> Result<()> {
         if let Some(pathitem) = self.to_pathitem(path, &self.args.serve_path).await? {
-            res_multistatus(res, &pathitem.to_dav_xml(self.args.uri_prefix.as_str()));
+            res_multistatus(res, &pathitem.to_dav_xml(self.args.serve_path.to_str().unwrap(), self.args.uri_prefix.as_str()));
         } else {
             status_not_found(res);
         }
@@ -1511,13 +1512,24 @@ impl PathItem {
             href.push('/');
         }
         let displayname = escape_str_pcdata(self.base_name());
+        let quota_string = if self.is_dir() && href == "/" {
+                let byteperblocks = nix::sys::statvfs::statvfs(root_path).unwrap().block_size();
+                let usedblocks = nix::sys::statvfs::statvfs(root_path).unwrap().blocks() * byteperblocks;
+                let availableblocks = nix::sys::statvfs::statvfs(root_path).unwrap().blocks_available() * byteperblocks;
+                format!(
+                r#"<D:quota-available-bytes>{availableblocks}</D:quota-available-bytes>
+<D:quota-used-bytes>{usedblocks}</D:quota-used-bytes>"#)
+        } else {
+                String::new()
+        };
+
         match self.path_type {
             PathType::Dir | PathType::SymlinkDir => format!(
                 r#"<D:response>
 <D:href>{href}</D:href>
 <D:propstat>
 <D:prop>
-<D:displayname>{displayname}</D:displayname>
+{quota_string}<D:displayname>{displayname}</D:displayname>
 <D:getlastmodified>{mtime}</D:getlastmodified>
 <D:resourcetype><D:collection/></D:resourcetype>
 </D:prop>
