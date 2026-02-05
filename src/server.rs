@@ -1209,10 +1209,11 @@ impl Server {
             let output = paths
                 .into_iter()
                 .map(|v| {
+                    let displayname = escape_str_pcdata(&v.name);
                     if v.is_dir() {
-                        format!("{}/\n", v.name)
+                        format!("{}/\n", displayname)
                     } else {
-                        format!("{}\n", v.name)
+                        format!("{}\n", displayname)
                     }
                 })
                 .collect::<Vec<String>>()
