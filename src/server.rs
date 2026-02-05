@@ -272,7 +272,7 @@ impl Server {
         let render_spa = self.args.render_spa;
         let render_try_index = self.args.render_try_index;
 
-        if !self.args.allow_symlink && !is_miss && !self.is_root_contained(path).await {
+        if self.guard_root_contained(path).await {
             status_not_found(&mut res);
             return Ok(res);
         }
@@ -1114,6 +1114,11 @@ impl Server {
 
         ensure_path_parent(&dest).await?;
 
+        if self.guard_root_contained(&dest).await {
+            status_bad_request(res, "Invalid Destination");
+            return Ok(());
+        }
+
         fs::copy(path, &dest).await?;
 
         status_no_content(res);
@@ -1129,6 +1134,11 @@ impl Server {
         };
 
         ensure_path_parent(&dest).await?;
+
+        if self.guard_root_contained(&dest).await {
+            status_bad_request(res, "Invalid Destination");
+            return Ok(());
+        }
 
         fs::rename(path, &dest).await?;
 
@@ -1287,6 +1297,21 @@ impl Server {
         www_authenticate(res, &self.args)?;
         *res.status_mut() = StatusCode::UNAUTHORIZED;
         Ok(())
+    }
+
+    async fn guard_root_contained(&self, path: &Path) -> bool {
+        if self.args.allow_symlink {
+            return false;
+        }
+        let path = if !fs::try_exists(path).await.unwrap_or_default() {
+            match path.parent() {
+                Some(parent) => parent.to_path_buf(),
+                None => return true,
+            }
+        } else {
+            path.to_path_buf()
+        };
+        !self.is_root_contained(path.as_path()).await
     }
 
     async fn is_root_contained(&self, path: &Path) -> bool {
