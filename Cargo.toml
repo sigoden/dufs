@@ -1,6 +1,6 @@
 [package]
 name = "dufs"
-version = "0.45.0"
+version = "0.46.0"
 edition = "2021"
 authors = ["sigoden <sigoden@gmail.com>"]
 description = "Dufs is a distinctive utility file server"
@@ -24,7 +24,7 @@ futures-util = { version = "0.3", default-features = false, features = ["alloc"]
 async_zip = { version = "0.0.18", default-features = false, features = ["deflate", "bzip2", "xz", "chrono", "tokio"] }
 headers = "0.4"
 mime_guess = "2.0"
-if-addrs = "0.14"
+if-addrs = "0.15"
 tokio-rustls = { version = "0.26", optional = true }
 md5 = "0.8"
 lazy_static = "1.4"

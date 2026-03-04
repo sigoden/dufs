@@ -38,14 +38,6 @@ jobs:
           os: ubuntu-latest
           use-cross: true
           cargo-flags: ""
-        - target: i686-unknown-linux-musl
-          os: ubuntu-latest
-          use-cross: true
-          cargo-flags: ""
-        - target: i686-pc-windows-msvc
-          os: windows-latest
-          use-cross: true
-          cargo-flags: ""
         - target: armv7-unknown-linux-musleabihf
           os: ubuntu-latest
           use-cross: true
@@ -170,7 +162,6 @@ jobs:
           platforms: |
             linux/amd64
             linux/arm64
-            linux/386
             linux/arm/v7
           push: ${{ needs.release.outputs.rc == 'false' }}
           tags: ${{ github.repository }}:latest, ${{ github.repository }}:${{ github.ref_name }}

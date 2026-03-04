@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.46.0] - 2026-03-04
+
+### Bug Fixes
+
+- Some search results missing due to broken symlinks ([#665](https://github.com/sigoden/dufs/issues/665))
+- Escape filename in ?simple output ([#669](https://github.com/sigoden/dufs/issues/669))
+- Ensure symlink inside serve root ([#670](https://github.com/sigoden/dufs/issues/670))
+
+### Features
+
+- Add option --allow-hash to allow/disallow file hashing ([#657](https://github.com/sigoden/dufs/issues/657))
+
+### Refactor
+
+- Update deps ([#655](https://github.com/sigoden/dufs/issues/655))
+- Improve UI button titles ([#656](https://github.com/sigoden/dufs/issues/656))
+
 ## [0.45.0] - 2025-09-03
 
 ### Bug Fixes
