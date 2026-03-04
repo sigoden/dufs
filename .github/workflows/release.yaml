@@ -162,7 +162,6 @@ jobs:
           platforms: |
             linux/amd64
             linux/arm64
-            linux/386
             linux/arm/v7
           push: ${{ needs.release.outputs.rc == 'false' }}
           tags: ${{ github.repository }}:latest, ${{ github.repository }}:${{ github.ref_name }}
