@@ -38,14 +38,6 @@ jobs:
           os: ubuntu-latest
           use-cross: true
           cargo-flags: ""
-        - target: i686-unknown-linux-musl
-          os: ubuntu-latest
-          use-cross: true
-          cargo-flags: ""
-        - target: i686-pc-windows-msvc
-          os: windows-latest
-          use-cross: true
-          cargo-flags: ""
         - target: armv7-unknown-linux-musleabihf
           os: ubuntu-latest
           use-cross: true
