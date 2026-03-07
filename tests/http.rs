@@ -40,11 +40,11 @@ fn head_dir_404(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
-#[case(server(&["--allow-archive"] as &[&str]))]
-#[case(server(&["--allow-archive", "--compress", "none"]))]
-#[case(server(&["--allow-archive", "--compress", "low"]))]
-#[case(server(&["--allow-archive", "--compress", "medium"]))]
-#[case(server(&["--allow-archive", "--compress", "high"]))]
+#[case(server(&["--allow-archive-download"] as &[&str]))]
+#[case(server(&["--allow-archive-download", "--compress", "none"]))]
+#[case(server(&["--allow-archive-download", "--compress", "low"]))]
+#[case(server(&["--allow-archive-download", "--compress", "medium"]))]
+#[case(server(&["--allow-archive-download", "--compress", "high"]))]
 fn get_dir_zip(#[case] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(format!("{}?zip", server.url()))?;
     assert_eq!(resp.status(), 200);

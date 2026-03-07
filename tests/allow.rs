@@ -80,7 +80,9 @@ fn allow_search(#[with(&["--allow-search"])] server: TestServer) -> Result<(), E
 }
 
 #[rstest]
-fn allow_archive(#[with(&["--allow-archive"])] server: TestServer) -> Result<(), Error> {
+fn allow_archive_download(
+    #[with(&["--allow-archive-download"])] server: TestServer,
+) -> Result<(), Error> {
     let resp = reqwest::blocking::get(format!("{}?zip", server.url()))?;
     assert_eq!(resp.status(), 200);
     assert_eq!(

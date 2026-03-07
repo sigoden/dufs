@@ -12,6 +12,7 @@ Dufs is a distinctive utility file server that supports static serving, uploadin
 
 - Serve static files
 - Download folder as zip file
+- Browse zip, 7z, tar, and tar.gz archives, including nested zip archives
 - Upload files and folders (Drag & Drop)
 - Create/Edit/Search files
 - Resumable/partial uploads/downloads
@@ -66,9 +67,9 @@ Options:
       --allow-delete         Allow delete files/folders
       --allow-search         Allow search files/folders
       --allow-symlink        Allow symlink to files/folders outside root directory
-      --allow-archive        Allow download folders as archive file
-      --zip-extensions <exts>  Extensions treated as zip archives [default: zip]
-      --allow-zip-browse     Allow browsing into .zip files
+      --allow-archive-download  Allow download folders as archive file
+      --archive-extensions <exts>  Additional non-standard extensions treated as browseable archives
+      --allow-archive-browse  Allow browsing into archive files
       --allow-hash           Allow ?hash query to get file sha256 hash
       --enable-cors          Enable CORS, sets `Access-Control-Allow-Origin: *`
       --render-index         Serve index.html when requesting a directory, returns 404 if not found index.html
@@ -77,7 +78,7 @@ Options:
       --assets <path>        Set the path to the assets directory for overriding the built-in assets
       --log-format <format>  Customize http log format
       --log-file <file>      Specify the file to save logs to, other than stdout/stderr
-      --compress <level>     Set zip compress level [default: low] [possible values: none, low, medium, high]
+      --compress <level>     Set archive download compress level [default: low] [possible values: none, low, medium, high]
       --completions <shell>  Print shell completion script for <shell> [possible values: bash, elvish, fish, powershell, zsh]
       --tls-cert <path>      Path to an SSL/TLS certificate to serve with HTTPS
       --tls-key <path>       Path to the SSL/TLS certificate's private key
@@ -170,6 +171,16 @@ Download a folder as zip file
 
 ```sh
 curl -o path-to-folder.zip http://127.0.0.1:5000/path-to-folder?zip
+```
+
+Browse an archive (`.zip`, `.7z`, `.tar`, `.tar.gz`, and `.tgz` are built in; use `--archive-extensions` for extra aliases)
+
+```sh
+http://127.0.0.1:5000/archive.zip/
+http://127.0.0.1:5000/archive.7z/
+http://127.0.0.1:5000/archive.tar/
+http://127.0.0.1:5000/archive.tar.gz/
+http://127.0.0.1:5000/outer.zip/inner.zip/
 ```
 
 Delete a file/folder
@@ -348,9 +359,9 @@ All options can be set using environment variables prefixed with `DUFS_`.
     --allow-delete          DUFS_ALLOW_DELETE=true
     --allow-search          DUFS_ALLOW_SEARCH=true
     --allow-symlink         DUFS_ALLOW_SYMLINK=true
-    --allow-archive         DUFS_ALLOW_ARCHIVE=true
-    --zip-extensions        DUFS_ZIP_EXTENSIONS=zip,tpf,dst,atfx
-    --allow-zip-browse      DUFS_ALLOW_ZIP_BROWSE=true
+    --allow-archive-download  DUFS_ALLOW_ARCHIVE_DOWNLOAD=true
+    --archive-extensions    DUFS_ARCHIVE_EXTENSIONS=tpf,dst,atfx
+    --allow-archive-browse  DUFS_ALLOW_ARCHIVE_BROWSE=true
     --allow-hash            DUFS_ALLOW_HASH=true
     --enable-cors           DUFS_ENABLE_CORS=true
     --render-index          DUFS_RENDER_INDEX=true
@@ -388,13 +399,12 @@ allow-upload: true
 allow-delete: true
 allow-search: true
 allow-symlink: true
-allow-archive: true
-zip-extensions:
-  - zip
+allow-archive-download: true
+archive-extensions:
   - tpf
   - dst
   - atfx
-allow-zip-browse: true
+allow-archive-browse: true
 allow-hash: true
 enable-cors: true
 render-index: true

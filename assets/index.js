@@ -15,15 +15,15 @@
  * @property {boolean} allow_upload
  * @property {boolean} allow_delete
  * @property {boolean} allow_search
- * @property {boolean} allow_archive
- * @property {boolean} allow_zip_browse
- * @property {string[]} zip_extensions
+ * @property {boolean} allow_archive_download
+ * @property {boolean} allow_archive_browse
+ * @property {string[]} archive_extensions
  * @property {boolean} auth
  * @property {string} user
  * @property {boolean} dir_exists
  * @property {string} editable
- * @property {boolean} zip_browsing
- * @property {string|null} zip_file
+ * @property {boolean} archive_browsing
+ * @property {string|null} archive_label
  */
 
 var DUFS_MAX_UPLOADINGS = 1;
@@ -200,20 +200,20 @@ async function ready() {
 
   addBreadcrumb(DATA.href, DATA.uri_prefix);
 
-  if (DATA.zip_browsing) {
+  if (DATA.archive_browsing) {
     const $breadcrumb = document.querySelector(".breadcrumb");
-    const zipLabel = DATA.zip_file || "ZIP";
+    const archiveLabel = DATA.archive_label || "Archive";
     const $zipIndicator = document.createElement("span");
     $zipIndicator.className = "zip-indicator";
-    $zipIndicator.textContent = "ZIP";
-    $zipIndicator.title = `Browsing ${zipLabel}`;
+    $zipIndicator.textContent = "ARCHIVE";
+    $zipIndicator.title = `Browsing ${archiveLabel}`;
     $breadcrumb.appendChild($zipIndicator);
     document.body.classList.add("zip-browsing");
   }
 
   if (DATA.kind === "Index") {
-    const zipSuffix = DATA.zip_browsing ? " (zip)" : "";
-    document.title = `Index of ${DATA.href}${zipSuffix} - Dufs`;
+    const archiveSuffix = DATA.archive_browsing ? " (archive)" : "";
+    document.title = `Index of ${DATA.href}${archiveSuffix} - Dufs`;
     document.querySelector(".index-page").classList.remove("hidden");
 
     await setupIndexPage();
@@ -562,7 +562,7 @@ function addBreadcrumb(href, uri_prefix) {
 }
 
 async function setupIndexPage() {
-  if (DATA.allow_archive && !DATA.zip_browsing) {
+  if (DATA.allow_archive_download && !DATA.archive_browsing) {
     const $download = document.querySelector(".download");
     $download.href = baseUrl() + "?zip";
     $download.title = "Download folder as a .zip file";
@@ -663,27 +663,29 @@ function renderPathsTableBody() {
 function addPath(file, index) {
   const encodedName = encodedStr(file.name);
   let url = newUrl(file.name);
-  const zipExtensions = Array.isArray(DATA.zip_extensions) && DATA.zip_extensions.length > 0
-    ? DATA.zip_extensions.map(v => v.replace(/^\./, '').toLowerCase())
-    : ["zip"];
-  const isZip = DATA.allow_zip_browse && file.path_type.endsWith("File") && zipExtensions.includes(extName(file.name).slice(1).toLowerCase());
+  const archiveExtensions = Array.isArray(DATA.archive_extensions) && DATA.archive_extensions.length > 0
+    ? DATA.archive_extensions.map(v => v.replace(/^\./, '').toLowerCase())
+    : ["zip", "7z", "tar", "tar.gz", "tgz"];
+  const isArchiveBrowse = DATA.allow_archive_browse
+    && file.path_type.endsWith("File")
+    && hasArchiveExtension(file.name, archiveExtensions);
   let actionDelete = "";
   let actionDownload = "";
   let actionMove = "";
   let actionEdit = "";
   let actionView = "";
-  let isDir = file.path_type.endsWith("Dir") || isZip;
-  const downloadUrl = isZip ? `${url}?download` : url;
+  let isDir = file.path_type.endsWith("Dir") || isArchiveBrowse;
+  const downloadUrl = isArchiveBrowse ? `${url}?download` : url;
   if (isDir) {
     url += "/";
-    if (DATA.allow_archive && !isZip) {
+    if (DATA.allow_archive_download && !isArchiveBrowse) {
       actionDownload = `
       <div class="action-btn">
         <a class="dlwt" href="${url}?zip" title="Download folder as a .zip file" download>${ICONS.download}</a>
       </div>`;
     }
   }
-  if (!isDir || isZip) {
+  if (!isDir || isArchiveBrowse) {
     actionDownload = `
     <div class="action-btn" >
       <a class="dlwt" href="${downloadUrl}" title="Download file" download>${ICONS.download}</a>
@@ -713,12 +715,12 @@ function addPath(file, index) {
     </div>
   </td>`;
 
-  let sizeDisplay = isDir && !isZip ? formatDirSize(file.size) : formatFileSize(file.size).join(" ");
+  let sizeDisplay = isDir && !isArchiveBrowse ? formatDirSize(file.size) : formatFileSize(file.size).join(" ");
 
   $pathsTableBody.insertAdjacentHTML("beforeend", `
 <tr id="addPath${index}">
   <td class="path cell-icon">
-  ${getPathIcon(isZip ? "Dir" : file.path_type, file.name, isZip)}
+  ${getPathIcon(isArchiveBrowse ? "Dir" : file.path_type, file.name, isArchiveBrowse)}
   </td>
   <td class="path cell-name">
     <a href="${url}" ${isDir ? "" : `target="_blank"`}>${encodedName}</a>
@@ -1112,6 +1114,14 @@ function extName(filename) {
   }
 
   return filename.substring(dotIndex);
+}
+
+function hasArchiveExtension(filename, archiveExtensions) {
+  const lowerName = filename.toLowerCase();
+  return archiveExtensions.some(extension => {
+    const normalized = extension.replace(/^\./, '').toLowerCase();
+    return normalized.length > 0 && (lowerName === normalized || lowerName.endsWith(`.${normalized}`));
+  });
 }
 
 function pathBaseName(path) {

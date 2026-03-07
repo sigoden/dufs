@@ -1,3 +1,4 @@
+mod archive;
 mod args;
 mod auth;
 mod http_logger;

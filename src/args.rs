@@ -5,6 +5,7 @@ use clap::{Arg, ArgAction, ArgMatches, Command, ValueEnum, value_parser};
 use clap_complete::{Generator, Shell, generate};
 use serde::{Deserialize, Deserializer};
 use smart_default::SmartDefault;
+use std::collections::HashSet;
 use std::env;
 use std::net::IpAddr;
 use std::path::{Path, PathBuf};
@@ -12,6 +13,8 @@ use std::path::{Path, PathBuf};
 use crate::auth::AccessControl;
 use crate::http_logger::HttpLogger;
 use crate::utils::encode_uri;
+
+pub const STANDARD_ARCHIVE_EXTENSIONS: &[&str] = &["zip", "7z", "tar", "tar.gz", "tgz"];
 
 pub fn build_cli() -> Command {
     let app = Command::new(env!("CARGO_CRATE_NAME"))
@@ -141,30 +144,30 @@ pub fn build_cli() -> Command {
                 .help("Allow symlink to files/folders outside root directory"),
         )
         .arg(
-            Arg::new("allow-archive")
-                .env("DUFS_ALLOW_ARCHIVE")
+            Arg::new("allow-archive-download")
+                .env("DUFS_ALLOW_ARCHIVE_DOWNLOAD")
 				.hide_env(true)
-                .long("allow-archive")
+                .long("allow-archive-download")
                 .action(ArgAction::SetTrue)
                 .help("Allow download folders as archive file"),
         )
         .arg(
-            Arg::new("zip-extensions")
-                .env("DUFS_ZIP_EXTENSIONS")
+            Arg::new("archive-extensions")
+                .env("DUFS_ARCHIVE_EXTENSIONS")
 				.hide_env(true)
-                .long("zip-extensions")
+                .long("archive-extensions")
                 .action(ArgAction::Append)
                 .value_delimiter(',')
-                .help("Extensions treated as zip archives [default: zip]")
+                .help("Additional non-standard extensions treated as browseable archives")
                 .value_name("exts"),
         )
         .arg(
-            Arg::new("allow-zip-browse")
-                .env("DUFS_ALLOW_ZIP_BROWSE")
+            Arg::new("allow-archive-browse")
+                .env("DUFS_ALLOW_ARCHIVE_BROWSE")
 				.hide_env(true)
-                .long("allow-zip-browse")
+                .long("allow-archive-browse")
                 .action(ArgAction::SetTrue)
-                .help("Allow browsing into .zip files"),
+                .help("Allow browsing into archive files"),
         )
         .arg(
             Arg::new("allow-hash")
@@ -239,7 +242,7 @@ pub fn build_cli() -> Command {
                 .value_parser(clap::builder::EnumValueParser::<Compress>::new())
                 .long("compress")
                 .value_name("level")
-                .help("Set zip compress level [default: low]")
+                .help("Set archive download compress level [default: low]")
         )
         .arg(
             Arg::new("completions")
@@ -311,12 +314,12 @@ pub struct Args {
     pub allow_delete: bool,
     pub allow_search: bool,
     pub allow_symlink: bool,
-    pub allow_archive: bool,
-    #[serde(default = "default_zip_extensions")]
+    pub allow_archive_download: bool,
+    #[serde(default = "default_archive_extensions")]
     #[serde(deserialize_with = "deserialize_string_or_vec")]
-    #[default(default_zip_extensions())]
-    pub zip_extensions: Vec<String>,
-    pub allow_zip_browse: bool,
+    #[default(default_archive_extensions())]
+    pub archive_extensions: Vec<String>,
+    pub allow_archive_browse: bool,
     pub allow_hash: bool,
     pub render_index: bool,
     pub render_spa: bool,
@@ -415,34 +418,24 @@ impl Args {
         if !args.allow_hash {
             args.allow_hash = allow_all || matches.get_flag("allow-hash");
         }
-        if !args.allow_archive {
-            args.allow_archive = allow_all || matches.get_flag("allow-archive");
+        if !args.allow_archive_download {
+            args.allow_archive_download = allow_all || matches.get_flag("allow-archive-download");
         }
-        if let Some(exts) = matches.get_many::<String>("zip-extensions") {
+        if let Some(exts) = matches.get_many::<String>("archive-extensions") {
             // When provided via CLI, clap has already split by value_delimiter(',').
-            // Just trim whitespace and discard empty entries.
-            args.zip_extensions = exts
-                .map(|v| v.trim().trim_start_matches('.'))
-                .filter(|v| !v.is_empty())
-                .map(|v| v.to_string())
-                .collect();
+            args.archive_extensions = normalize_archive_extensions(exts.cloned().collect());
         } else {
             // When coming from config/env, entries may contain commas and lack trimming.
             // Normalize by splitting, trimming, and discarding empty pieces.
-            args.zip_extensions = args
-                .zip_extensions
+            let archive_extensions = args
+                .archive_extensions
                 .into_iter()
-                .flat_map(|v| {
-                    v.split(',')
-                        .map(|s| s.trim().trim_start_matches('.'))
-                        .filter(|s| !s.is_empty())
-                        .map(String::from)
-                        .collect::<Vec<String>>()
-                })
-                .collect();
+                .flat_map(|v| v.split(',').map(String::from).collect::<Vec<String>>())
+                .collect::<Vec<String>>();
+            args.archive_extensions = normalize_archive_extensions(archive_extensions);
         }
-        if !args.allow_zip_browse {
-            args.allow_zip_browse = allow_all || matches.get_flag("allow-zip-browse");
+        if !args.allow_archive_browse {
+            args.allow_archive_browse = allow_all || matches.get_flag("allow-archive-browse");
         }
         if !args.render_index {
             args.render_index = matches.get_flag("render-index");
@@ -500,6 +493,48 @@ impl Args {
         }
 
         Ok(args)
+    }
+
+    pub fn effective_archive_extensions(&self) -> Vec<String> {
+        let mut extensions = STANDARD_ARCHIVE_EXTENSIONS
+            .iter()
+            .map(|value| value.to_string())
+            .collect::<Vec<String>>();
+        for value in &self.archive_extensions {
+            if let Some(value) = normalize_archive_extension(value)
+                && !extensions.iter().any(|item| item == &value)
+            {
+                extensions.push(value);
+            }
+        }
+        extensions
+    }
+
+    pub fn is_archive_extension(&self, value: &str) -> bool {
+        let Some(value) = normalize_archive_extension(value) else {
+            return false;
+        };
+        STANDARD_ARCHIVE_EXTENSIONS
+            .iter()
+            .any(|item| *item == value)
+            || self
+                .archive_extensions
+                .iter()
+                .any(|item| item.eq_ignore_ascii_case(&value))
+    }
+
+    pub fn is_archive_name(&self, value: &str) -> bool {
+        let value = value.trim().trim_start_matches('.').to_ascii_lowercase();
+        if value.is_empty() {
+            return false;
+        }
+        if self.is_archive_extension(&value) {
+            return true;
+        }
+
+        self.effective_archive_extensions()
+            .iter()
+            .any(|extension| value.ends_with(&format!(".{extension}")))
     }
 
     fn sanitize_path<P: AsRef<Path>>(path: P) -> Result<PathBuf> {
@@ -686,8 +721,31 @@ fn default_port() -> u16 {
     5000
 }
 
-fn default_zip_extensions() -> Vec<String> {
-    vec!["zip".to_string()]
+fn default_archive_extensions() -> Vec<String> {
+    vec![]
+}
+
+fn normalize_archive_extension(value: &str) -> Option<String> {
+    let value = value.trim().trim_start_matches('.').to_ascii_lowercase();
+    if value.is_empty() {
+        return None;
+    }
+    Some(value)
+}
+
+fn normalize_archive_extensions(values: Vec<String>) -> Vec<String> {
+    let mut seen = HashSet::new();
+    values
+        .into_iter()
+        .flat_map(|value| value.split(',').map(String::from).collect::<Vec<String>>())
+        .filter_map(|value| normalize_archive_extension(&value))
+        .filter(|value| {
+            !STANDARD_ARCHIVE_EXTENSIONS
+                .iter()
+                .any(|item| *item == value)
+        })
+        .filter(|value| seen.insert(value.clone()))
+        .collect()
 }
 
 #[cfg(test)]
@@ -705,6 +763,11 @@ mod tests {
         assert_eq!(args.serve_path, cwd);
         assert_eq!(args.port, default_port());
         assert_eq!(args.addrs, default_addrs());
+        assert!(args.archive_extensions.is_empty());
+        assert_eq!(
+            args.effective_archive_extensions(),
+            ["zip", "7z", "tar", "tar.gz", "tgz"]
+        );
     }
 
     #[test]
@@ -812,5 +875,24 @@ hidden:
             ]
         );
         assert_eq!(args.hidden, ["tmp", "*.log", "*.lock"]);
+    }
+
+    #[test]
+    fn test_archive_extensions_keep_only_non_standard_values() {
+        let cli = build_cli();
+        let matches = cli
+            .try_get_matches_from(vec!["", "--archive-extensions", "zip,.7z,tpf,cbz,tpf"])
+            .unwrap();
+        let args = Args::parse(matches).unwrap();
+        assert_eq!(args.archive_extensions, ["tpf", "cbz"]);
+        assert_eq!(
+            args.effective_archive_extensions(),
+            ["zip", "7z", "tar", "tar.gz", "tgz", "tpf", "cbz"]
+        );
+        assert!(args.is_archive_extension("zip"));
+        assert!(args.is_archive_extension(".7z"));
+        assert!(args.is_archive_extension("cbz"));
+        assert!(args.is_archive_name("archive.tar.gz"));
+        assert!(args.is_archive_name("archive.tgz"));
     }
 }

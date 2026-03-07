@@ -1,6 +1,10 @@
 #![allow(clippy::too_many_arguments)]
 
 use crate::Args;
+use crate::archive::{
+    ArchiveBrowsePath, ArchiveEntry as BrowseArchiveEntry, ArchiveHandle,
+    detect_archive_format_path, normalize_archive_inner_path,
+};
 use crate::auth::{AccessPaths, AccessPerm, www_authenticate};
 use crate::http_utils::{IncomingStream, LengthLimitedStream, body_full};
 use crate::noscript::{detect_noscript, generate_noscript_html};
@@ -10,10 +14,7 @@ use crate::utils::{
 };
 
 use anyhow::{Result, anyhow};
-use async_zip::{
-    Compression, ZipDateTime, ZipEntryBuilder, base::read::seek::ZipFileReader,
-    tokio::write::ZipFileWriter,
-};
+use async_zip::{Compression, ZipDateTime, ZipEntryBuilder, tokio::write::ZipFileWriter};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use bytes::Bytes;
 use chrono::{LocalResult, TimeZone, Utc};
@@ -46,12 +47,10 @@ use std::sync::Arc;
 use std::sync::atomic::{self, AtomicBool};
 use std::time::SystemTime;
 use tokio::fs::File;
-use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWrite, BufReader};
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWrite};
 use tokio::{fs, io};
 
-use tokio_util::compat::{
-    FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt, TokioAsyncReadCompatExt,
-};
+use tokio_util::compat::FuturesAsyncWriteCompatExt;
 use tokio_util::io::{ReaderStream, StreamReader};
 use uuid::Uuid;
 use walkdir::{DirEntry, WalkDir};
@@ -70,6 +69,9 @@ const INDEX_NAME: &str = "index.html";
 const BUF_SIZE: usize = 65536;
 const EDITABLE_TEXT_MAX_SIZE: u64 = 4194304; // 4M
 const RESUMABLE_UPLOAD_MIN_SIZE: u64 = 20971520; // 20M
+const MAX_ARCHIVE_ENTRY_READ_SIZE: u64 = 33554432; // 32M
+const MAX_ARCHIVE_TOTAL_READ_SIZE: u64 = 134217728; // 128M
+const MAX_ARCHIVE_NESTING_DEPTH: usize = 8;
 const HEALTH_CHECK_PATH: &str = "__dufs__/health";
 pub const MAX_SUBPATHS_COUNT: u64 = 1000;
 
@@ -81,10 +83,39 @@ pub struct Server {
     running: Arc<AtomicBool>,
 }
 
-#[derive(Debug, Clone)]
-struct ZipBrowsePath {
-    zip_relative_path: String,
-    inner_path: String,
+enum ArchiveBrowseResolved {
+    File {
+        archive: ArchiveHandle,
+        entry: BrowseArchiveEntry,
+        href: String,
+    },
+    Directory {
+        archive: ArchiveHandle,
+        inner_path: String,
+        href: String,
+    },
+    NotFound,
+    TooLarge(&'static str),
+}
+
+struct ArchiveReadBudget {
+    remaining_bytes: u64,
+}
+
+impl ArchiveReadBudget {
+    fn new(limit: u64) -> Self {
+        Self {
+            remaining_bytes: limit,
+        }
+    }
+
+    fn reserve(&mut self, size: u64) -> bool {
+        if size > self.remaining_bytes {
+            return false;
+        }
+        self.remaining_bytes -= size;
+        true
+    }
 }
 
 impl Server {
@@ -199,21 +230,21 @@ impl Server {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
 
-        let mut zip_browse = if self.args.allow_zip_browse {
-            self.parse_zip_browse_path(req_path, &relative_path)
+        let mut archive_browse = if self.args.allow_archive_browse {
+            self.parse_archive_browse_path(req_path, &relative_path)
         } else {
             None
         };
         if has_query_flag(&query_params, "download")
-            && let Some(zip_browse_path) = zip_browse.as_ref()
-            && zip_browse_path.inner_path.is_empty()
+            && let Some(archive_browse_path) = archive_browse.as_ref()
+            && archive_browse_path.inner_path.is_empty()
         {
-            zip_browse = None;
+            archive_browse = None;
         }
 
-        let auth_path = zip_browse
+        let auth_path = archive_browse
             .as_ref()
-            .map(|v| v.zip_relative_path.as_str())
+            .map(|v| v.archive_relative_path.as_str())
             .unwrap_or(&relative_path);
 
         let guard = self.args.auth.guard(
@@ -266,7 +297,7 @@ impl Server {
 
         let head_only = method == Method::HEAD;
 
-        if zip_browse.is_some() && method != Method::GET && method != Method::HEAD {
+        if archive_browse.is_some() && method != Method::GET && method != Method::HEAD {
             *res.status_mut() = StatusCode::METHOD_NOT_ALLOWED;
             return Ok(res);
         }
@@ -284,9 +315,9 @@ impl Server {
             }
             return Ok(res);
         }
-        let join_relative_path = zip_browse
+        let join_relative_path = archive_browse
             .as_ref()
-            .map(|v| v.zip_relative_path.as_str())
+            .map(|v| v.archive_relative_path.as_str())
             .unwrap_or(&relative_path);
         let path = match self.join_path(join_relative_path) {
             Some(v) => v,
@@ -306,7 +337,7 @@ impl Server {
         let allow_upload = self.args.allow_upload;
         let allow_delete = self.args.allow_delete;
         let allow_search = self.args.allow_search;
-        let allow_archive = self.args.allow_archive;
+        let allow_archive_download = self.args.allow_archive_download;
         let render_index = self.args.render_index;
         let render_spa = self.args.render_spa;
         let render_try_index = self.args.render_try_index;
@@ -318,14 +349,14 @@ impl Server {
 
         match method {
             Method::GET | Method::HEAD => {
-                if let Some(zip_browse) = zip_browse.as_ref() {
-                    if !self.args.allow_zip_browse || !is_file {
+                if let Some(archive_browse) = archive_browse.as_ref() {
+                    if !self.args.allow_archive_browse || !is_file {
                         status_not_found(&mut res);
                         return Ok(res);
                     }
-                    self.handle_zip_browse(
+                    self.handle_archive_browse(
                         path,
-                        zip_browse,
+                        archive_browse,
                         &query_params,
                         headers,
                         head_only,
@@ -338,8 +369,8 @@ impl Server {
                 }
                 if is_dir {
                     if render_try_index {
-                        if allow_archive && has_query_flag(&query_params, "zip") {
-                            if !allow_archive {
+                        if allow_archive_download && has_query_flag(&query_params, "zip") {
+                            if !allow_archive_download {
                                 status_not_found(&mut res);
                                 return Ok(res);
                             }
@@ -379,7 +410,7 @@ impl Server {
                         )
                         .await?;
                     } else if has_query_flag(&query_params, "zip") {
-                        if !allow_archive {
+                        if !allow_archive_download {
                             status_not_found(&mut res);
                             return Ok(res);
                         }
@@ -753,10 +784,10 @@ impl Server {
     }
 
     #[allow(clippy::too_many_arguments)]
-    async fn handle_zip_browse(
+    async fn handle_archive_browse(
         &self,
-        zip_path: &Path,
-        zip_browse: &ZipBrowsePath,
+        archive_path: &Path,
+        archive_browse: &ArchiveBrowsePath,
         query_params: &HashMap<String, String>,
         _headers: &HeaderMap<HeaderValue>,
         head_only: bool,
@@ -764,26 +795,37 @@ impl Server {
         _access_paths: AccessPaths,
         res: &mut Response,
     ) -> Result<()> {
-        let inner_path = match normalize_zip_inner_path(&zip_browse.inner_path) {
-            Some(v) => v,
+        let inner_path = match normalize_archive_inner_path(&archive_browse.inner_path) {
+            Some(value) => value,
             None => {
-                status_bad_request(res, "Invalid zip path");
+                status_bad_request(res, "Invalid archive path");
                 return Ok(());
             }
         };
 
-        let file = File::open(zip_path).await?;
-        let reader = BufReader::new(file).compat();
-        let mut zip = ZipFileReader::new(reader).await?;
-        let entries = zip.file().entries().to_vec();
-
-        let mut exact_entry: Option<(usize, bool, String)> = None;
-        let mut has_prefix = false;
-        let prefix = if inner_path.is_empty() {
-            String::new()
-        } else {
-            format!("{inner_path}/")
+        let archive_label = try_get_file_name(archive_path)?.to_string();
+        let archive = match ArchiveHandle::open_path(archive_path, archive_label).await {
+            Ok(value) => value,
+            Err(err) => {
+                if detect_archive_format_path(archive_path).await?.is_none() {
+                    status_bad_request(res, "Unsupported archive format");
+                    return Ok(());
+                }
+                return Err(err);
+            }
         };
+
+        let mut read_budget = ArchiveReadBudget::new(MAX_ARCHIVE_TOTAL_READ_SIZE);
+        let resolved = self
+            .resolve_archive_browse(
+                archive,
+                archive_browse.archive_relative_path.clone(),
+                inner_path,
+                archive_browse.inner_path_has_trailing_slash,
+                &mut read_budget,
+            )
+            .await?;
+
         let search = if self.args.allow_search {
             query_params
                 .get("q")
@@ -793,289 +835,235 @@ impl Server {
             None
         };
 
-        if !inner_path.is_empty() {
-            for (index, entry) in entries.iter().enumerate() {
-                let raw_name = match entry.filename().as_str() {
-                    Ok(v) => v,
-                    Err(_) => continue,
-                };
-                let name = match normalize_zip_entry_name(raw_name) {
-                    Some(v) => v,
-                    None => continue,
-                };
-                if name == inner_path || name == prefix {
-                    let is_dir = entry.dir().unwrap_or(false) || name.ends_with('/');
-                    exact_entry = Some((index, is_dir, name.clone()));
-                    if !is_dir {
-                        break;
-                    }
-                }
-                if name.starts_with(&prefix) {
-                    has_prefix = true;
-                }
+        match resolved {
+            ArchiveBrowseResolved::NotFound => {
+                status_not_found(res);
+                Ok(())
             }
-        }
-
-        if let Some((index, false, entry_name)) = exact_entry {
-            if has_query_flag(query_params, "hash") {
-                if !self.args.allow_hash {
-                    status_forbid(res);
+            ArchiveBrowseResolved::TooLarge(message) => {
+                status_payload_too_large(res, message);
+                Ok(())
+            }
+            ArchiveBrowseResolved::File {
+                mut archive,
+                entry,
+                href,
+            } => {
+                if has_query_flag(query_params, "hash") {
+                    if !self.args.allow_hash {
+                        status_forbid(res);
+                        return Ok(());
+                    }
+                    if !can_read_archive_entry(&entry, &mut read_budget) {
+                        status_payload_too_large(res, archive_entry_limit_message(&entry));
+                        return Ok(());
+                    }
+                    let output = format!(
+                        "{:x}",
+                        Sha256::digest(archive.read_file(&entry.normalized_name).await?)
+                    );
+                    res.headers_mut()
+                        .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
+                    res.headers_mut()
+                        .typed_insert(ContentLength(output.len() as u64));
+                    if head_only {
+                        return Ok(());
+                    }
+                    *res.body_mut() = body_full(output);
                     return Ok(());
                 }
-                let mut hasher = Sha256::new();
-                let entry_reader = zip.reader_without_entry(index).await?;
-                let mut entry_reader = entry_reader.compat();
-                let mut buffer = [0u8; 8192];
-                loop {
-                    let bytes_read = entry_reader.read(&mut buffer).await?;
-                    if bytes_read == 0 {
-                        break;
+
+                if has_query_flag(query_params, "view") || has_query_flag(query_params, "edit") {
+                    let mut editable = false;
+                    if entry.size <= EDITABLE_TEXT_MAX_SIZE {
+                        if !can_read_archive_entry(&entry, &mut read_budget) {
+                            status_payload_too_large(res, archive_entry_limit_message(&entry));
+                            return Ok(());
+                        }
+                        let bytes = archive.read_file(&entry.normalized_name).await?;
+                        let inspect_len = bytes.len().min(1024);
+                        editable = content_inspector::inspect(&bytes[..inspect_len]).is_text();
                     }
-                    hasher.update(&buffer[..bytes_read]);
+                    let kind = if has_query_flag(query_params, "edit") {
+                        DataKind::Edit
+                    } else {
+                        DataKind::View
+                    };
+                    self.send_archive_edit(href, kind, editable, head_only, user, res)?;
+                    return Ok(());
                 }
-                let output = format!("{:x}", hasher.finalize());
+
+                let mime = mime_guess::from_path(&entry.normalized_name)
+                    .first()
+                    .unwrap_or(mime_guess::mime::APPLICATION_OCTET_STREAM);
+                if !can_read_archive_entry(&entry, &mut read_budget) {
+                    status_payload_too_large(res, archive_entry_limit_message(&entry));
+                    return Ok(());
+                }
+                res.headers_mut().typed_insert(ContentType::from(mime));
+                res.headers_mut().typed_insert(ContentLength(entry.size));
                 res.headers_mut()
-                    .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
-                res.headers_mut()
-                    .typed_insert(ContentLength(output.len() as u64));
+                    .typed_insert(CacheControl::new().with_no_cache());
+
+                let filename = Path::new(&entry.normalized_name)
+                    .file_name()
+                    .and_then(|value| value.to_str())
+                    .unwrap_or("file");
+                set_content_disposition(res, true, filename)?;
+
                 if head_only {
                     return Ok(());
                 }
-                *res.body_mut() = body_full(output);
-                return Ok(());
+
+                *res.body_mut() = body_full(archive.read_file(&entry.normalized_name).await?);
+                Ok(())
             }
-            if has_query_flag(query_params, "view") || has_query_flag(query_params, "edit") {
-                let entry = &entries[index];
-                let mut editable = false;
-                if entry.uncompressed_size() <= EDITABLE_TEXT_MAX_SIZE
-                    && let Ok(entry_reader) = zip.reader_without_entry(index).await
-                {
-                    let entry_reader = entry_reader.compat();
-                    let mut buffer: Vec<u8> = vec![];
-                    let mut limited_reader = entry_reader.take(1024);
-                    limited_reader.read_to_end(&mut buffer).await?;
-                    editable = content_inspector::inspect(&buffer).is_text();
-                }
-                let href = format!(
-                    "/{}",
-                    normalize_path(format!("{}/{}", zip_browse.zip_relative_path, inner_path))
-                );
-                let kind = if has_query_flag(query_params, "edit") {
-                    DataKind::Edit
-                } else {
-                    DataKind::View
-                };
-                self.send_zip_edit(href, kind, editable, head_only, user, res)?;
-                return Ok(());
-            }
-            let entry = &entries[index];
-            let mime = mime_guess::from_path(&entry_name)
-                .first()
-                .unwrap_or(mime_guess::mime::APPLICATION_OCTET_STREAM);
-            res.headers_mut().typed_insert(ContentType::from(mime));
-            res.headers_mut()
-                .typed_insert(ContentLength(entry.uncompressed_size()));
-            res.headers_mut()
-                .typed_insert(CacheControl::new().with_no_cache());
-
-            let filename = Path::new(&entry_name)
-                .file_name()
-                .and_then(|v| v.to_str())
-                .unwrap_or("file");
-            set_content_disposition(res, true, filename)?;
-
-            if head_only {
-                return Ok(());
-            }
-
-            let entry_reader = zip.into_entry(index).await?;
-            let reader_stream = ReaderStream::with_capacity(entry_reader.compat(), BUF_SIZE);
-            let stream_body = StreamBody::new(
-                reader_stream
-                    .map_ok(Frame::data)
-                    .map_err(|err| anyhow!("{err}")),
-            );
-            let boxed_body = stream_body.boxed();
-            *res.body_mut() = boxed_body;
-            return Ok(());
-        }
-
-        if !inner_path.is_empty() && exact_entry.is_none() && !has_prefix {
-            status_not_found(res);
-            return Ok(());
-        }
-
-        if let Some(search) = search {
-            let mut items: HashMap<String, PathItem> = HashMap::new();
-            for entry in entries.iter() {
-                let raw_name = match entry.filename().as_str() {
-                    Ok(v) => v,
-                    Err(_) => continue,
-                };
-                let name = match normalize_zip_entry_name(raw_name) {
-                    Some(v) => v,
-                    None => continue,
-                };
-                if !name.starts_with(&prefix) {
-                    continue;
-                }
-                let rest = &name[prefix.len()..];
-                if rest.is_empty() {
-                    continue;
-                }
-                if !rest.to_lowercase().contains(&search) {
-                    continue;
-                }
-                let entry_mtime = zip_datetime_to_timestamp(entry.last_modification_date());
-                let is_dir = entry.dir().unwrap_or(false) || name.ends_with('/');
-                let entry_name = if is_dir {
-                    rest.trim_end_matches('/').to_string()
-                } else {
-                    rest.to_string()
-                };
-                let item = PathItem {
-                    path_type: if is_dir {
-                        PathType::Dir
-                    } else {
-                        PathType::File
-                    },
-                    name: entry_name.clone(),
-                    mtime: entry_mtime,
-                    size: if is_dir { 0 } else { entry.uncompressed_size() },
-                };
-                items.entry(entry_name).or_insert(item);
-            }
-
-            let href = if inner_path.is_empty() {
-                format!("/{}", zip_browse.zip_relative_path)
-            } else {
-                format!("/{}/{}", zip_browse.zip_relative_path, inner_path)
-            };
-            let zip_file = try_get_file_name(zip_path)?.to_string();
-            self.send_zip_index(
+            ArchiveBrowseResolved::Directory {
+                archive,
+                inner_path,
                 href,
-                zip_file,
-                items.into_values().collect(),
-                query_params,
-                head_only,
-                user,
-                res,
-            )?;
-            return Ok(());
-        }
-
-        let mut items: HashMap<String, PathItem> = HashMap::new();
-        let mut dir_children: HashMap<String, HashSet<String>> = HashMap::new();
-        let mut dir_mtime: HashMap<String, u64> = HashMap::new();
-
-        for entry in entries.iter() {
-            let raw_name = match entry.filename().as_str() {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
-            let name = match normalize_zip_entry_name(raw_name) {
-                Some(v) => v,
-                None => continue,
-            };
-            if !name.starts_with(&prefix) {
-                continue;
-            }
-            let rest = &name[prefix.len()..];
-            if rest.is_empty() {
-                continue;
-            }
-            let entry_mtime = zip_datetime_to_timestamp(entry.last_modification_date());
-            let mut parts = rest.split('/');
-            let first = match parts.next() {
-                Some(v) if !v.is_empty() => v,
-                _ => continue,
-            };
-            let second = parts.next();
-            if let Some(second) = second {
-                if second.is_empty() && parts.next().is_none() {
-                    items.entry(first.to_string()).or_insert(PathItem {
-                        path_type: PathType::Dir,
-                        name: first.to_string(),
-                        mtime: entry_mtime,
-                        size: 0,
-                    });
-                    dir_mtime
-                        .entry(first.to_string())
-                        .and_modify(|v| *v = (*v).max(entry_mtime))
-                        .or_insert(entry_mtime);
+            } => {
+                let prefix = if inner_path.is_empty() {
+                    String::new()
                 } else {
-                    items.entry(first.to_string()).or_insert(PathItem {
-                        path_type: PathType::Dir,
-                        name: first.to_string(),
-                        mtime: entry_mtime,
-                        size: 0,
-                    });
-                    dir_children
-                        .entry(first.to_string())
-                        .or_default()
-                        .insert(second.to_string());
-                    dir_mtime
-                        .entry(first.to_string())
-                        .and_modify(|v| *v = (*v).max(entry_mtime))
-                        .or_insert(entry_mtime);
-                }
-            } else {
-                let is_dir = entry.dir().unwrap_or(false) || name.ends_with('/');
-                if is_dir {
-                    items.entry(first.to_string()).or_insert(PathItem {
-                        path_type: PathType::Dir,
-                        name: first.to_string(),
-                        mtime: entry_mtime,
-                        size: 0,
-                    });
-                    dir_mtime
-                        .entry(first.to_string())
-                        .and_modify(|v| *v = (*v).max(entry_mtime))
-                        .or_insert(entry_mtime);
-                } else {
-                    items.insert(
-                        first.to_string(),
-                        PathItem {
-                            path_type: PathType::File,
-                            name: first.to_string(),
-                            mtime: entry_mtime,
-                            size: entry.uncompressed_size(),
-                        },
-                    );
-                }
-            }
-        }
-
-        for (name, item) in items.iter_mut() {
-            if item.is_dir() {
-                let count = dir_children.get(name).map(|v| v.len()).unwrap_or(0);
-                item.size = if count >= MAX_SUBPATHS_COUNT as usize {
-                    MAX_SUBPATHS_COUNT
-                } else {
-                    count as u64
+                    format!("{inner_path}/")
                 };
-                if let Some(mtime) = dir_mtime.get(name) {
-                    item.mtime = *mtime;
+
+                if let Some(search) = search {
+                    let mut items: HashMap<String, PathItem> = HashMap::new();
+                    for entry in archive.entries() {
+                        if !entry.normalized_name.starts_with(&prefix) {
+                            continue;
+                        }
+                        let rest = &entry.normalized_name[prefix.len()..];
+                        if rest.is_empty() || !rest.to_lowercase().contains(&search) {
+                            continue;
+                        }
+                        let entry_name = if entry.is_dir {
+                            rest.trim_end_matches('/').to_string()
+                        } else {
+                            rest.to_string()
+                        };
+                        let item = PathItem {
+                            path_type: if entry.is_dir {
+                                PathType::Dir
+                            } else {
+                                PathType::File
+                            },
+                            name: entry_name.clone(),
+                            mtime: entry.mtime,
+                            size: entry.size,
+                        };
+                        items.entry(entry_name).or_insert(item);
+                    }
+
+                    self.send_archive_index(
+                        href,
+                        format!("{} ({})", archive.label(), archive.format().label()),
+                        items.into_values().collect(),
+                        query_params,
+                        head_only,
+                        user,
+                        res,
+                    )?;
+                    return Ok(());
                 }
+
+                let mut items: HashMap<String, PathItem> = HashMap::new();
+                let mut dir_children: HashMap<String, HashSet<String>> = HashMap::new();
+                let mut dir_mtime: HashMap<String, u64> = HashMap::new();
+
+                for entry in archive.entries() {
+                    if !entry.normalized_name.starts_with(&prefix) {
+                        continue;
+                    }
+                    let rest = &entry.normalized_name[prefix.len()..];
+                    if rest.is_empty() {
+                        continue;
+                    }
+                    let mut parts = rest.split('/');
+                    let first = match parts.next() {
+                        Some(value) if !value.is_empty() => value,
+                        _ => continue,
+                    };
+                    let second = parts.next();
+                    if let Some(second) = second {
+                        if second.is_empty() && parts.next().is_none() {
+                            items.entry(first.to_string()).or_insert(PathItem {
+                                path_type: PathType::Dir,
+                                name: first.to_string(),
+                                mtime: entry.mtime,
+                                size: 0,
+                            });
+                            dir_mtime
+                                .entry(first.to_string())
+                                .and_modify(|value| *value = (*value).max(entry.mtime))
+                                .or_insert(entry.mtime);
+                        } else {
+                            items.entry(first.to_string()).or_insert(PathItem {
+                                path_type: PathType::Dir,
+                                name: first.to_string(),
+                                mtime: entry.mtime,
+                                size: 0,
+                            });
+                            dir_children
+                                .entry(first.to_string())
+                                .or_default()
+                                .insert(second.to_string());
+                            dir_mtime
+                                .entry(first.to_string())
+                                .and_modify(|value| *value = (*value).max(entry.mtime))
+                                .or_insert(entry.mtime);
+                        }
+                    } else if entry.is_dir {
+                        items.entry(first.to_string()).or_insert(PathItem {
+                            path_type: PathType::Dir,
+                            name: first.to_string(),
+                            mtime: entry.mtime,
+                            size: 0,
+                        });
+                        dir_mtime
+                            .entry(first.to_string())
+                            .and_modify(|value| *value = (*value).max(entry.mtime))
+                            .or_insert(entry.mtime);
+                    } else {
+                        items.insert(
+                            first.to_string(),
+                            PathItem {
+                                path_type: PathType::File,
+                                name: first.to_string(),
+                                mtime: entry.mtime,
+                                size: entry.size,
+                            },
+                        );
+                    }
+                }
+
+                for (name, item) in items.iter_mut() {
+                    if item.is_dir() {
+                        let count = dir_children.get(name).map(|value| value.len()).unwrap_or(0);
+                        item.size = if count >= MAX_SUBPATHS_COUNT as usize {
+                            MAX_SUBPATHS_COUNT
+                        } else {
+                            count as u64
+                        };
+                        if let Some(mtime) = dir_mtime.get(name) {
+                            item.mtime = *mtime;
+                        }
+                    }
+                }
+
+                self.send_archive_index(
+                    href,
+                    format!("{} ({})", archive.label(), archive.format().label()),
+                    items.into_values().collect(),
+                    query_params,
+                    head_only,
+                    user,
+                    res,
+                )
             }
         }
-
-        let href = if inner_path.is_empty() {
-            format!("/{}", zip_browse.zip_relative_path)
-        } else {
-            format!("/{}/{}", zip_browse.zip_relative_path, inner_path)
-        };
-
-        let zip_file = try_get_file_name(zip_path)?.to_string();
-        self.send_zip_index(
-            href,
-            zip_file,
-            items.into_values().collect(),
-            query_params,
-            head_only,
-            user,
-            res,
-        )
     }
 
     async fn handle_render_index(
@@ -1647,14 +1635,14 @@ impl Server {
             allow_upload: self.args.allow_upload && readwrite,
             allow_delete: self.args.allow_delete && readwrite,
             allow_search: self.args.allow_search,
-            allow_archive: self.args.allow_archive,
-            allow_zip_browse: self.args.allow_zip_browse,
-            zip_extensions: self.args.zip_extensions.clone(),
+            allow_archive_download: self.args.allow_archive_download,
+            allow_archive_browse: self.args.allow_archive_browse,
+            archive_extensions: self.args.effective_archive_extensions(),
             dir_exists: exist,
             auth: self.args.auth.has_users(),
             user,
-            zip_browsing: false,
-            zip_file: None,
+            archive_browsing: false,
+            archive_label: None,
             paths,
         };
         let output = if has_query_flag(query_params, "json") {
@@ -1696,10 +1684,10 @@ impl Server {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn send_zip_index(
+    fn send_archive_index(
         &self,
         href: String,
-        zip_file: String,
+        archive_label: String,
         mut paths: Vec<PathItem>,
         query_params: &HashMap<String, String>,
         head_only: bool,
@@ -1755,14 +1743,14 @@ impl Server {
             allow_upload: false,
             allow_delete: false,
             allow_search: self.args.allow_search,
-            allow_archive: false,
-            allow_zip_browse: false,
-            zip_extensions: self.args.zip_extensions.clone(),
+            allow_archive_download: false,
+            allow_archive_browse: false,
+            archive_extensions: self.args.effective_archive_extensions(),
             dir_exists: true,
             auth: self.args.auth.has_users(),
             user,
-            zip_browsing: true,
-            zip_file: Some(zip_file),
+            archive_browsing: true,
+            archive_label: Some(archive_label),
             paths,
         };
         let output = if has_query_flag(query_params, "json") {
@@ -1803,7 +1791,7 @@ impl Server {
         Ok(())
     }
 
-    fn send_zip_edit(
+    fn send_archive_edit(
         &self,
         href: String,
         kind: DataKind,
@@ -1841,6 +1829,116 @@ impl Server {
         }
         *res.body_mut() = body_full(output);
         Ok(())
+    }
+
+    async fn resolve_archive_browse(
+        &self,
+        mut archive: ArchiveHandle,
+        mut archive_relative_path: String,
+        mut inner_path: String,
+        inner_path_has_trailing_slash: bool,
+        read_budget: &mut ArchiveReadBudget,
+    ) -> Result<ArchiveBrowseResolved> {
+        let mut depth = 0usize;
+        loop {
+            if !inner_path.is_empty() {
+                let parts: Vec<&str> = inner_path.split('/').collect();
+                let mut prefix_parts: Vec<&str> = Vec::new();
+                let mut nested_match = None;
+
+                for (index, part) in parts.iter().enumerate() {
+                    prefix_parts.push(part);
+                    let candidate = prefix_parts.join("/");
+                    let remaining = if index + 1 < parts.len() {
+                        parts[index + 1..].join("/")
+                    } else {
+                        String::new()
+                    };
+                    let should_enter = !remaining.is_empty() || inner_path_has_trailing_slash;
+                    if !should_enter || !self.is_archive_name(part) {
+                        continue;
+                    }
+                    let Some(entry) = archive.find_entry(&candidate) else {
+                        continue;
+                    };
+                    if entry.is_dir {
+                        continue;
+                    }
+                    nested_match = Some((candidate, remaining));
+                    break;
+                }
+
+                if let Some((candidate, remaining)) = nested_match {
+                    if depth >= MAX_ARCHIVE_NESTING_DEPTH {
+                        return Ok(ArchiveBrowseResolved::TooLarge(
+                            "Archive nesting depth limit exceeded",
+                        ));
+                    }
+                    let Some(entry) = archive.find_entry(&candidate).cloned() else {
+                        return Ok(ArchiveBrowseResolved::NotFound);
+                    };
+                    if !can_read_archive_entry(&entry, read_budget) {
+                        return Ok(ArchiveBrowseResolved::TooLarge(
+                            archive_entry_limit_message(&entry),
+                        ));
+                    }
+                    let archive_name = Path::new(&candidate)
+                        .file_name()
+                        .and_then(|value| value.to_str())
+                        .unwrap_or("archive")
+                        .to_string();
+                    let bytes = archive.read_file(&candidate).await?;
+                    archive = ArchiveHandle::open_bytes(bytes, archive_name).await?;
+                    archive_relative_path =
+                        normalize_path(format!("{}/{}", archive_relative_path, candidate));
+                    inner_path = remaining;
+                    depth += 1;
+                    continue;
+                }
+            }
+
+            let href = build_archive_href(&archive_relative_path, &inner_path);
+            if inner_path.is_empty() {
+                return Ok(ArchiveBrowseResolved::Directory {
+                    archive,
+                    inner_path,
+                    href,
+                });
+            }
+
+            if let Some(entry) = archive.find_entry(&inner_path).cloned() {
+                if entry.is_dir {
+                    return Ok(ArchiveBrowseResolved::Directory {
+                        archive,
+                        inner_path,
+                        href,
+                    });
+                }
+                if inner_path_has_trailing_slash {
+                    return Ok(ArchiveBrowseResolved::NotFound);
+                }
+                return Ok(ArchiveBrowseResolved::File {
+                    archive,
+                    entry,
+                    href,
+                });
+            }
+
+            let prefix = format!("{inner_path}/");
+            if archive
+                .entries()
+                .iter()
+                .any(|entry| entry.normalized_name.starts_with(&prefix))
+            {
+                return Ok(ArchiveBrowseResolved::Directory {
+                    archive,
+                    inner_path,
+                    href,
+                });
+            }
+
+            return Ok(ArchiveBrowseResolved::NotFound);
+        }
     }
 
     fn auth_reject(&self, res: &mut Response) -> Result<()> {
@@ -1958,41 +2056,35 @@ impl Server {
         Some(self.args.serve_path.join(path))
     }
 
-    fn parse_zip_browse_path(&self, _req_path: &str, relative_path: &str) -> Option<ZipBrowsePath> {
+    fn parse_archive_browse_path(
+        &self,
+        req_path: &str,
+        relative_path: &str,
+    ) -> Option<ArchiveBrowsePath> {
         let parts: Vec<&str> = relative_path.split('/').collect();
-        let mut zip_index = None;
+        let mut archive_index = None;
         for (idx, part) in parts.iter().enumerate() {
-            if self.is_zip_name(part) {
-                zip_index = Some(idx);
+            if self.is_archive_name(part) {
+                archive_index = Some(idx);
                 break;
             }
         }
-        let zip_index = zip_index?;
-        let zip_relative_path = parts[..=zip_index].join("/");
-        let inner_path = if zip_index + 1 < parts.len() {
-            parts[zip_index + 1..].join("/")
+        let archive_index = archive_index?;
+        let archive_relative_path = parts[..=archive_index].join("/");
+        let inner_path = if archive_index + 1 < parts.len() {
+            parts[archive_index + 1..].join("/")
         } else {
             String::new()
         };
-        Some(ZipBrowsePath {
-            zip_relative_path,
+        Some(ArchiveBrowsePath {
+            archive_relative_path,
             inner_path,
+            inner_path_has_trailing_slash: req_path.ends_with('/'),
         })
     }
 
-    fn is_zip_name(&self, name: &str) -> bool {
-        let name = name.to_ascii_lowercase();
-        let Some((_, ext)) = name.rsplit_once('.') else {
-            return false;
-        };
-        let ext = ext.trim().trim_start_matches('.');
-        if ext.is_empty() {
-            return false;
-        }
-        self.args
-            .zip_extensions
-            .iter()
-            .any(|v| v.trim().trim_start_matches('.').eq_ignore_ascii_case(ext))
+    fn is_archive_name(&self, name: &str) -> bool {
+        self.args.is_archive_name(name)
     }
 
     async fn list_dir(
@@ -2096,14 +2188,14 @@ pub struct IndexData {
     pub allow_upload: bool,
     pub allow_delete: bool,
     pub allow_search: bool,
-    pub allow_archive: bool,
-    pub allow_zip_browse: bool,
-    pub zip_extensions: Vec<String>,
+    pub allow_archive_download: bool,
+    pub allow_archive_browse: bool,
+    pub archive_extensions: Vec<String>,
     pub dir_exists: bool,
     pub auth: bool,
     pub user: Option<String>,
-    pub zip_browsing: bool,
-    pub zip_file: Option<String>,
+    pub archive_browsing: bool,
+    pub archive_label: Option<String>,
     pub paths: Vec<PathItem>,
 }
 
@@ -2261,55 +2353,11 @@ fn normalize_path<P: AsRef<Path>>(path: P) -> String {
     }
 }
 
-fn normalize_zip_inner_path(inner: &str) -> Option<String> {
-    if inner.is_empty() {
-        return Some(String::new());
-    }
-    let mut parts = Vec::new();
-    for part in inner.split('/') {
-        if part.is_empty() {
-            continue;
-        }
-        if part == "." || part == ".." {
-            return None;
-        }
-        parts.push(part);
-    }
-    Some(parts.join("/"))
-}
-
-fn normalize_zip_entry_name(name: &str) -> Option<String> {
-    let name = name.replace('\\', "/");
-    if name.starts_with('/') {
-        return None;
-    }
-    let mut parts = Vec::new();
-    let mut trailing_slash = false;
-    let total_parts = name.split('/').count();
-    for (idx, part) in name.split('/').enumerate() {
-        if part.is_empty() {
-            if idx == total_parts - 1 {
-                trailing_slash = true;
-                continue;
-            }
-            return None;
-        }
-        if part == "." || part == ".." {
-            return None;
-        }
-        parts.push(part);
-    }
-    let mut normalized = parts.join("/");
-    if trailing_slash {
-        normalized.push('/');
-    }
-    Some(normalized)
-}
-
-fn zip_datetime_to_timestamp(dt: &ZipDateTime) -> u64 {
-    match dt.as_chrono() {
-        LocalResult::Single(v) => v.timestamp_millis().max(0) as u64,
-        _ => 0,
+fn build_archive_href(archive_relative_path: &str, inner_path: &str) -> String {
+    if inner_path.is_empty() {
+        format!("/{}", archive_relative_path)
+    } else {
+        format!("/{}/{}", archive_relative_path, inner_path)
     }
 }
 
@@ -2426,7 +2474,31 @@ fn status_no_content(res: &mut Response) {
 fn status_bad_request(res: &mut Response, body: &str) {
     *res.status_mut() = StatusCode::BAD_REQUEST;
     if !body.is_empty() {
+        res.headers_mut().remove(CONTENT_LENGTH);
         *res.body_mut() = body_full(body.to_string());
+    }
+}
+
+fn status_payload_too_large(res: &mut Response, body: &str) {
+    *res.status_mut() = StatusCode::PAYLOAD_TOO_LARGE;
+    if !body.is_empty() {
+        res.headers_mut().remove(CONTENT_LENGTH);
+        *res.body_mut() = body_full(body.to_string());
+    }
+}
+
+fn can_read_archive_entry(entry: &BrowseArchiveEntry, read_budget: &mut ArchiveReadBudget) -> bool {
+    if entry.size > MAX_ARCHIVE_ENTRY_READ_SIZE {
+        return false;
+    }
+    read_budget.reserve(entry.size)
+}
+
+fn archive_entry_limit_message(entry: &BrowseArchiveEntry) -> &'static str {
+    if entry.size > MAX_ARCHIVE_ENTRY_READ_SIZE {
+        "Archive entry exceeds size limit"
+    } else {
+        "Archive read budget exceeded"
     }
 }
 

@@ -53,6 +53,9 @@ pin-project-lite = "0.2"
 sha2 = "0.10.8"
 ed25519-dalek = "2.2.0"
 hex = "0.4.3"
+sevenz-rust2 = { version = "0.20.2", default-features = false, features = ["util", "compress"] }
+tar = "0.4"
+flate2 = "1.1"
 
 [features]
 default = ["tls"]
