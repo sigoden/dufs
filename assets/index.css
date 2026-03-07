@@ -1,54 +1,45 @@
-html {
-  font-family: -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  color: #24292e;
-}
-
-body {
-  /* prevent premature breadcrumb wrapping on mobile */
-  min-width: 538px;
-  margin: 0;
-}
-
+/* Keep .hidden as display:none utility (used throughout the JS) */
 .hidden {
   display: none !important;
 }
 
-.head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  padding: 0.6em 1em;
-  position: sticky;
-  top: 0;
-  background-color: white;
+body {
+  /* Allow proper responsive wrapping; Bootstrap handles min-width */
+  min-width: 320px;
 }
 
+/* ── Breadcrumb ─────────────────────────────────────────────── */
 .breadcrumb {
-  font-size: 1.25em;
-  padding-right: 0.6em;
+  font-size: 1.1em;
   word-break: break-all;
+  padding-right: 0.4em;
 }
 
-.breadcrumb>a {
+.breadcrumb > a {
   color: #0366d6;
   text-decoration: none;
 }
 
-.breadcrumb>a:hover {
+.breadcrumb > a:hover {
   text-decoration: underline;
 }
 
-/* final breadcrumb */
-.breadcrumb>b {
-  color: #24292e;
+.breadcrumb > b {
+  color: inherit;
 }
 
-.breadcrumb>.separator {
+.breadcrumb > .separator {
   color: #586069;
   padding: 0 0.25em;
 }
 
+.breadcrumb svg {
+  height: 1em;
+  fill: rgba(3, 47, 98, 0.5);
+  vertical-align: middle;
+}
+
+/* ── Zip indicator badge ────────────────────────────────────── */
 .zip-indicator {
   display: inline-block;
   margin-left: 0.5em;
@@ -61,173 +52,91 @@ body {
   border-radius: 0.4em;
 }
 
-.breadcrumb svg {
-  height: 100%;
-  fill: rgba(3, 47, 98, 0.5);
-}
-
-.toolbox {
-  display: flex;
-  margin-right: 10px;
-}
-
-.toolbox>a,
-.toolbox>div {
-  /* vertically align with breadcrumb text */
-  height: 1.1rem;
-}
-
-.toolbox .control {
-  cursor: pointer;
-  padding-left: 0.25em;
-}
-
-.theme-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  margin-right: 4px;
-  border: 1px solid #d0d7de;
-  border-radius: 6px;
-  background-color: #f6f8fa;
-}
-
-.theme-toggle .icon-theme {
-  fill: #0969da;
-}
-
-.theme-toggle:hover {
-  background-color: #eaeef2;
-}
-
-.theme-toggle:focus-visible {
-  outline: 2px solid #0969da;
-  outline-offset: 2px;
-}
-
-.upload-file input {
+/* ── Upload file label ──────────────────────────────────────── */
+.upload-file-input {
   display: none;
 }
 
-.upload-file label {
+.upload-file {
   cursor: pointer;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.searchbar {
-  display: flex;
-  flex-wrap: nowrap;
-  width: 246px;
-  height: 22px;
-  background-color: #fafafa;
-  transition: all .15s;
-  border: 1px #ddd solid;
-  border-radius: 15px;
-  margin-bottom: 2px;
+.toolbox > .btn,
+.toolbox > .upload-file,
+.toolbox-right > .btn,
+.logout-btn > .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.searchbar #search {
-  box-sizing: border-box;
-  width: 100%;
-  height: 100%;
-  font-size: 16px;
-  line-height: 16px;
-  padding: 1px;
-  background-color: transparent;
-  border: none;
-  outline: none;
+/* ── Search bar ─────────────────────────────────────────────── */
+.searchbar .input-group {
+  width: 240px;
 }
 
-.searchbar .icon {
-  color: #9a9a9a;
-  padding: 3px 3px;
-  cursor: pointer;
-}
-
-.main {
-  padding: 0 1em;
-}
-
-.empty-folder {
-  font-style: italic;
-}
-
-.uploaders-table th,
-.paths-table th {
-  text-align: left;
-  font-weight: unset;
-  color: #5c5c5c;
-  white-space: nowrap;
-}
-
-.uploaders-table td,
-.paths-table td {
-  color: #24292e;
-  white-space: nowrap;
-}
-
-.uploaders-table .cell-status {
-  width: 80px;
-  padding-left: 0.6em;
-}
-
-.cell-status span {
-  display: inline-block;
-}
-
+/* ── Paths table ────────────────────────────────────────────── */
 .paths-table thead a {
-  color: unset;
+  color: inherit;
   text-decoration: none;
 }
 
-.paths-table thead a>span {
+.paths-table thead a > span {
   padding-left: 2px;
 }
 
-.paths-table tbody tr:hover {
-  background-color: #fafafa;
+.paths-table .cell-actions {
+  width: 100px;
+  white-space: nowrap;
 }
 
-.paths-table .cell-actions {
-  width: 90px;
-  display: flex;
-  padding-left: 0.5em;
+.paths-table th,
+.paths-table td {
+  vertical-align: middle;
+}
+
+.paths-table td.cell-actions {
+  white-space: nowrap;
+}
+
+.paths-table td.cell-actions .cell-actions-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
 }
 
 .paths-table .cell-mtime {
-  width: 120px;
-  padding-left: 0.5em;
+  width: 140px;
   font-variant-numeric: tabular-nums;
 }
 
 .paths-table .cell-size {
   text-align: right;
-  width: 70px;
-  padding-left: 0.5em;
+  width: 80px;
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Path cells ─────────────────────────────────────────────── */
+.paths-table td.cell-icon {
+  width: 1%;
+  padding-right: 0.5rem !important;
+  white-space: nowrap;
+}
+
+.paths-table td.cell-name {
+  padding-left: 0 !important;
+  white-space: nowrap;
+}
+
 .path svg {
-  height: 16px;
+  height: 1.2em;
+  width: auto;
   fill: rgba(3, 47, 98, 0.5);
-  padding-right: 0.5em;
   vertical-align: text-top;
-}
-
-.filetype-symbol {
-  display: inline-block;
-  width: 16px;
-  text-align: center;
-  padding-right: 0.5em;
-  vertical-align: text-top;
-  font-size: 14px;
-  line-height: 16px;
-  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
-}
-
-.path {
-  list-style: none;
 }
 
 .path a {
@@ -237,12 +146,73 @@ body {
   overflow: hidden;
   display: block;
   text-decoration: none;
-  max-width: calc(100vw - 375px);
-  min-width: 170px;
+  max-width: calc(100vw - 400px);
+  min-width: 120px;
 }
 
 .path a:hover {
   text-decoration: underline;
+}
+
+.filetype-symbol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  color: rgba(3, 47, 98, 0.5);
+}
+
+.filetype-symbol svg {
+  width: 1rem;
+  height: 1rem;
+  fill: currentColor;
+}
+
+.zip-folder-symbol {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  color: rgba(3, 47, 98, 0.5);
+}
+
+.zip-folder-symbol svg {
+  width: 1rem;
+  height: 1rem;
+  fill: currentColor;
+}
+
+.zip-folder-badge {
+  position: absolute;
+  right: -0.42rem;
+  bottom: -0.2rem;
+  padding: 0.02rem 0.14rem;
+  border-radius: 999px;
+  font-size: 0.4rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #0b4f6c;
+  background-color: #e6f2f8;
+  border: 1px solid #b6d7e6;
+}
+
+/* ── Action buttons ─────────────────────────────────────────── */
+.action-btn,
+.action-btn a {
+  color: var(--bs-secondary-color);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.action-btn:hover,
+.action-btn a:hover {
+  color: var(--bs-body-color);
 }
 
 .action-btn {
@@ -250,53 +220,41 @@ body {
   cursor: pointer;
 }
 
-.uploaders-table {
-  padding: 0.5em 0;
+.action-btn svg {
+  fill: currentColor;
+  width: 1em;
+  height: 1em;
+}
+
+/* ── Upload progress table ──────────────────────────────────── */
+.uploaders-table .cell-status {
+  width: 200px;
+}
+
+.cell-status span {
+  display: inline-block;
 }
 
 .uploader {
   padding-right: 1em;
 }
 
+/* ── Editor ─────────────────────────────────────────────────── */
 .editor {
   width: 100%;
   height: calc(100vh - 5rem);
-  border: 1px solid #ced4da;
-  outline: none;
-  padding: 5px;
+  resize: vertical;
 }
 
-.toolbox-right {
-  margin-left: auto;
-  margin-right: 2em;
-}
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .path a {
+    max-width: calc(100vw - 160px);
+  }
 
-.login-btn {
-  cursor: pointer;
-}
-
-.save-btn {
-  cursor: pointer;
-  -webkit-user-select: none;
-  user-select: none;
-}
-
-.logout-btn {
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-}
-
-.user-name {
-  padding-left: 3px;
-}
-
-.not-editable {
-  font-style: italic;
-}
-
-.retry-btn {
-  cursor: pointer;
+  .action-btn {
+    padding: 4px 5px;
+  }
 }
 
 @media (min-width: 768px) {
@@ -305,181 +263,43 @@ body {
   }
 }
 
-/* dark theme */
-@media (prefers-color-scheme: dark) {
-  body {
-    background-color: #000;
-  }
-
-  html,
-  .breadcrumb>b,
-  .searchbar #search {
-    color: #fff;
-  }
-
-  .uploaders-table th,
-  .paths-table th {
-    color: #ddd;
-  }
-
-  svg,
-  .path svg,
-  .breadcrumb svg {
-    fill: #fff;
-  }
-
-  .head {
-    background-color: #111;
-  }
-
-  .searchbar {
-    background-color: #111;
-    border-color: #fff6;
-  }
-
-  .searchbar svg {
-    fill: #fff6;
-  }
-
-  .path a {
-    color: #3191ff;
-  }
-
-  .paths-table tbody tr:hover {
-    background-color: #1a1a1a;
-  }
-
-  .zip-indicator {
-    color: #cfe8f6;
-    background-color: #0c2430;
-    border-color: #1a3b4a;
-  }
-
-  .editor {
-    background: black;
-    color: white;
-  }
+/* ── Dark theme overrides (Bootstrap handles component theming) */
+[data-bs-theme="dark"] .breadcrumb > a,
+[data-bs-theme="dark"] .path a {
+  color: #58a6ff;
 }
 
-/* manual theme override */
-:root[data-theme="dark"] body {
-  background-color: #000;
+[data-bs-theme="dark"] .path svg,
+[data-bs-theme="dark"] .breadcrumb svg {
+  fill: rgba(255, 255, 255, 0.5);
 }
 
-:root[data-theme="dark"] html,
-:root[data-theme="dark"] .breadcrumb>b,
-:root[data-theme="dark"] .searchbar #search {
-  color: #fff;
+[data-bs-theme="dark"] .filetype-symbol {
+  color: rgba(255, 255, 255, 0.5);
 }
 
-:root[data-theme="dark"] .uploaders-table th,
-:root[data-theme="dark"] .paths-table th {
-  color: #ddd;
+[data-bs-theme="dark"] .zip-folder-symbol {
+  color: rgba(255, 255, 255, 0.5);
 }
 
-:root[data-theme="dark"] .uploaders-table td,
-:root[data-theme="dark"] .paths-table td {
-  color: #ddd;
-}
-
-:root[data-theme="dark"] svg,
-:root[data-theme="dark"] .path svg,
-:root[data-theme="dark"] .breadcrumb svg,
-:root[data-theme="dark"] .theme-toggle .icon-theme {
-  fill: #fff;
-}
-
-:root[data-theme="dark"] .head {
-  background-color: #111;
-}
-
-:root[data-theme="dark"] .theme-toggle {
-  border-color: #3a3a3a;
-  background-color: #1f1f1f;
-}
-
-:root[data-theme="dark"] .theme-toggle:hover {
-  background-color: #2a2a2a;
-}
-
-:root[data-theme="dark"] .searchbar {
-  background-color: #111;
-  border-color: #fff6;
-}
-
-:root[data-theme="dark"] .searchbar svg {
-  fill: #fff6;
-}
-
-:root[data-theme="dark"] .path a {
-  color: #3191ff;
-}
-
-:root[data-theme="dark"] .paths-table tbody tr:hover {
-  background-color: #1a1a1a;
-}
-
-:root[data-theme="dark"] .zip-indicator {
+[data-bs-theme="dark"] .zip-folder-badge {
   color: #cfe8f6;
   background-color: #0c2430;
   border-color: #1a3b4a;
 }
 
-:root[data-theme="dark"] .editor {
-  background: black;
-  color: white;
+[data-bs-theme="dark"] .zip-indicator {
+  color: #cfe8f6;
+  background-color: #0c2430;
+  border-color: #1a3b4a;
 }
 
-:root[data-theme="light"] body {
-  background-color: white;
-}
-
-:root[data-theme="light"] html,
-:root[data-theme="light"] .breadcrumb>b,
-:root[data-theme="light"] .searchbar #search {
-  color: #24292e;
-}
-
-:root[data-theme="light"] .uploaders-table th,
-:root[data-theme="light"] .paths-table th {
-  color: #5c5c5c;
-}
-
-:root[data-theme="light"] svg,
-:root[data-theme="light"] .path svg,
-:root[data-theme="light"] .breadcrumb svg,
-:root[data-theme="light"] .theme-toggle .icon-theme {
-  fill: #0969da;
-}
-
-:root[data-theme="light"] .head {
-  background-color: white;
-}
-
-:root[data-theme="light"] .searchbar {
-  background-color: #fafafa;
-  border-color: #ddd;
-}
-
-:root[data-theme="light"] .searchbar svg {
-  fill: #9a9a9a;
-}
-
-:root[data-theme="light"] .path a {
-  color: #0366d6;
-}
-
-:root[data-theme="light"] .paths-table tbody tr:hover {
-  background-color: #fafafa;
-}
-
-:root[data-theme="light"] .zip-indicator {
-  color: #0b4f6c;
-  background-color: #e6f2f8;
-  border-color: #b6d7e6;
-}
-
-:root[data-theme="light"] .editor {
-  background: white;
-  color: #24292e;
+/* Boost btn-outline-secondary contrast on the dark navbar */
+[data-bs-theme="dark"] .toolbox .btn-outline-secondary,
+[data-bs-theme="dark"] .toolbox-right .btn-outline-secondary {
+  --bs-btn-color: rgba(222, 226, 230, 0.9);
+  --bs-btn-border-color: rgba(222, 226, 230, 0.45);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: rgba(222, 226, 230, 0.12);
+  --bs-btn-hover-border-color: rgba(222, 226, 230, 0.75);
 }

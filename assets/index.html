@@ -3,134 +3,218 @@
 
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <noscript>
     <meta http-equiv="refresh" content="0; url=?noscript">
   </noscript>
   <link rel="icon" type="image/x-icon" href="__ASSETS_PREFIX__favicon.ico">
+  <link rel="stylesheet" href="__ASSETS_PREFIX__bootstrap.min.css">
   <link rel="stylesheet" href="__ASSETS_PREFIX__index.css">
 </head>
 
 <body>
-  <div class="head">
-    <div class="breadcrumb"></div>
-    <div class="toolbox">
-      <a href="" class="control download hidden" title="Download file" download="">
-        <svg width="16" height="16" viewBox="0 0 16 16">
-          <path
-            d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z" />
-          <path
-            d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z" />
+  <nav class="navbar bg-body-secondary border-bottom sticky-top px-2 py-1 flex-wrap gap-1">
+    <div class="breadcrumb mb-0 me-2 flex-shrink-1 align-items-center"></div>
+    <div class="toolbox d-flex align-items-center gap-1 flex-shrink-0">
+      <a href="" class="btn btn-sm btn-outline-secondary control download hidden" title="Download file" download="">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z" />
+          <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z" />
         </svg>
       </a>
-      <div class="control move-file hidden" title="Move & Rename">
-        <svg class="icon-move" width="16" height="16" viewBox="0 0 16 16">
-          <path fill-rule="evenodd"
-            d="M1.5 1.5A.5.5 0 0 0 1 2v4.8a2.5 2.5 0 0 0 2.5 2.5h9.793l-3.347 3.346a.5.5 0 0 0 .708.708l4.2-4.2a.5.5 0 0 0 0-.708l-4-4a.5.5 0 0 0-.708.708L13.293 8.3H3.5A1.5 1.5 0 0 1 2 6.8V2a.5.5 0 0 0-.5-.5z">
-          </path>
+      <button type="button" class="btn btn-sm btn-outline-secondary control move-file hidden" title="Move &amp; Rename">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path fill-rule="evenodd" d="M1.5 1.5A.5.5 0 0 0 1 2v4.8a2.5 2.5 0 0 0 2.5 2.5h9.793l-3.347 3.346a.5.5 0 0 0 .708.708l4.2-4.2a.5.5 0 0 0 0-.708l-4-4a.5.5 0 0 0-.708.708L13.293 8.3H3.5A1.5 1.5 0 0 1 2 6.8V2a.5.5 0 0 0-.5-.5z" />
         </svg>
-      </div>
-      <div class="control delete-file hidden" title="Delete">
-        <svg class="icon-delete" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-          <path
-            d="M6.854 7.146a.5.5 0 1 0-.708.708L7.293 9l-1.147 1.146a.5.5 0 0 0 .708.708L8 9.707l1.146 1.147a.5.5 0 0 0 .708-.708L8.707 9l1.147-1.146a.5.5 0 0 0-.708-.708L8 8.293 6.854 7.146z" />
-          <path
-            d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z" />
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary control delete-file hidden" title="Delete">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M6.854 7.146a.5.5 0 1 0-.708.708L7.293 9l-1.147 1.146a.5.5 0 0 0 .708.708L8 9.707l1.146 1.147a.5.5 0 0 0 .708-.708L8.707 9l1.147-1.146a.5.5 0 0 0-.708-.708L8 8.293 6.854 7.146z" />
+          <path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z" />
         </svg>
-      </div>
-      <div class="control upload-file hidden" title="Upload files/folders">
-        <label for="file">
-          <svg width="16" height="16" viewBox="0 0 16 16">
-            <path
-              d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z" />
-            <path
-              d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z" />
-          </svg>
-        </label>
-        <input type="file" id="file" title="Upload files/folders" name="file" multiple>
-      </div>
-      <div class="control new-folder hidden" title="New folder">
-        <svg width="16" height="16" viewBox="0 0 16 16">
-          <path
-            d="m.5 3 .04.87a1.99 1.99 0 0 0-.342 1.311l.637 7A2 2 0 0 0 2.826 14H9v-1H2.826a1 1 0 0 1-.995-.91l-.637-7A1 1 0 0 1 2.19 4h11.62a1 1 0 0 1 .996 1.09L14.54 8h1.005l.256-2.819A2 2 0 0 0 13.81 3H9.828a2 2 0 0 1-1.414-.586l-.828-.828A2 2 0 0 0 6.172 1H2.5a2 2 0 0 0-2 2zm5.672-1a1 1 0 0 1 .707.293L7.586 3H2.19c-.24 0-.47.042-.683.12L1.5 2.98a1 1 0 0 1 1-.98h3.672z" />
-          <path
-            d="M13.5 10a.5.5 0 0 1 .5.5V12h1.5a.5.5 0 1 1 0 1H14v1.5a.5.5 0 1 1-1 0V13h-1.5a.5.5 0 0 1 0-1H13v-1.5a.5.5 0 0 1 .5-.5z" />
+      </button>
+      <label for="file" class="btn btn-sm btn-outline-secondary control upload-file hidden mb-0" title="Upload files/folders">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z" />
+          <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z" />
         </svg>
-      </div>
-      <div class="control new-file hidden" title="New File">
-        <svg width="16" height="16" viewBox="0 0 16 16">
-          <path
-            d="M8 6.5a.5.5 0 0 1 .5.5v1.5H10a.5.5 0 0 1 0 1H8.5V11a.5.5 0 0 1-1 0V9.5H6a.5.5 0 0 1 0-1h1.5V7a.5.5 0 0 1 .5-.5z" />
-          <path
-            d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z" />
+      </label>
+      <input type="file" id="file" class="upload-file-input" title="Upload files/folders" name="file" multiple>
+      <button type="button" class="btn btn-sm btn-outline-secondary control new-folder hidden" title="New folder">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="m.5 3 .04.87a1.99 1.99 0 0 0-.342 1.311l.637 7A2 2 0 0 0 2.826 14H9v-1H2.826a1 1 0 0 1-.995-.91l-.637-7A1 1 0 0 1 2.19 4h11.62a1 1 0 0 1 .996 1.09L14.54 8h1.005l.256-2.819A2 2 0 0 0 13.81 3H9.828a2 2 0 0 1-1.414-.586l-.828-.828A2 2 0 0 0 6.172 1H2.5a2 2 0 0 0-2 2zm5.672-1a1 1 0 0 1 .707.293L7.586 3H2.19c-.24 0-.47.042-.683.12L1.5 2.98a1 1 0 0 1 1-.98h3.672z" />
+          <path d="M13.5 10a.5.5 0 0 1 .5.5V12h1.5a.5.5 0 1 1 0 1H14v1.5a.5.5 0 1 1-1 0V13h-1.5a.5.5 0 0 1 0-1H13v-1.5a.5.5 0 0 1 .5-.5z" />
         </svg>
-      </div>
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary control new-file hidden" title="New File">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 6.5a.5.5 0 0 1 .5.5v1.5H10a.5.5 0 0 1 0 1H8.5V11a.5.5 0 0 1-1 0V9.5H6a.5.5 0 0 1 0-1h1.5V7a.5.5 0 0 1 .5-.5z" />
+          <path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z" />
+        </svg>
+      </button>
     </div>
     <form class="searchbar hidden">
-      <div class="icon">
-        <svg width="16" height="16" viewBox="0 0 16 16">
-          <path
-            d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z" />
-        </svg>
+      <div class="input-group input-group-sm">
+        <span class="input-group-text">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z" />
+          </svg>
+        </span>
+        <input id="search" class="form-control" title="Search for folders or files" name="q" type="text" maxlength="128" autocomplete="off" tabindex="1">
+        <input type="submit" hidden />
       </div>
-      <input id="search" title="Searching for folders or files" name="q" type="text" maxlength="128" autocomplete="off"
-        tabindex="1">
-      <input type="submit" hidden />
     </form>
-    <div class="toolbox-right">
-      <div class="control theme-toggle" title="Toggle theme" aria-label="Toggle theme" role="button" tabindex="0">
-        <svg class="icon-theme" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+    <div class="toolbox-right ms-auto d-flex align-items-center gap-2">
+      <button type="button" class="btn btn-sm btn-outline-secondary theme-toggle" title="Toggle theme" aria-label="Toggle theme">
+        <svg class="icon-theme" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
           <path d="M8 12.5A4.5 4.5 0 1 1 12.5 8 4.505 4.505 0 0 1 8 12.5zm0-8A3.5 3.5 0 1 0 11.5 8 3.504 3.504 0 0 0 8 4.5z"/>
         </svg>
-      </div>
-      <div class="login-btn hidden" title="Login">
-        <svg width="16" height="16" viewBox="0 0 16 16">
-          <path fill-rule="evenodd"
-            d="M6 3.5a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 0-1 0v2A1.5 1.5 0 0 0 6.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 14.5 2h-8A1.5 1.5 0 0 0 5 3.5v2a.5.5 0 0 0 1 0v-2z" />
-          <path fill-rule="evenodd"
-            d="M11.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 1 0-.708.708L10.293 7.5H1.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z" />
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary login-btn hidden" title="Login">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path fill-rule="evenodd" d="M6 3.5a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 0-1 0v2A1.5 1.5 0 0 0 6.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 14.5 2h-8A1.5 1.5 0 0 0 5 3.5v2a.5.5 0 0 0 1 0v-2z" />
+          <path fill-rule="evenodd" d="M11.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 1 0-.708.708L10.293 7.5H1.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z" />
         </svg>
+      </button>
+      <div class="logout-btn hidden d-flex align-items-center gap-1" title="Logout">
+        <button type="button" class="btn btn-sm btn-outline-secondary">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 3.5a.5.5 0 0 0-.5-.5h-8a.5.5 0 0 0-.5.5v9a.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5v-2a.5.5 0 0 1 1 0v2A1.5 1.5 0 0 1 9.5 14h-8A1.5 1.5 0 0 1 0 12.5v-9A1.5 1.5 0 0 1 1.5 2h8A1.5 1.5 0 0 1 11 3.5v2a.5.5 0 0 1-1 0z"/>
+            <path fill-rule="evenodd" d="M4.146 8.354a.5.5 0 0 1 0-.708l3-3a.5.5 0 1 1 .708.708L5.707 7.5H14.5a.5.5 0 0 1 0 1H5.707l2.147 2.146a.5.5 0 0 1-.708.708z"/>
+          </svg>
+        </button>
+        <span class="user-name small"></span>
       </div>
-      <div class="logout-btn hidden" title="Logout">
-        <svg width="16" height="16" viewBox="0 0 16 16">
-          <path fill-rule="evenodd" d="M10 3.5a.5.5 0 0 0-.5-.5h-8a.5.5 0 0 0-.5.5v9a.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5v-2a.5.5 0 0 1 1 0v2A1.5 1.5 0 0 1 9.5 14h-8A1.5 1.5 0 0 1 0 12.5v-9A1.5 1.5 0 0 1 1.5 2h8A1.5 1.5 0 0 1 11 3.5v2a.5.5 0 0 1-1 0z"/>
-          <path fill-rule="evenodd" d="M4.146 8.354a.5.5 0 0 1 0-.708l3-3a.5.5 0 1 1 .708.708L5.707 7.5H14.5a.5.5 0 0 1 0 1H5.707l2.147 2.146a.5.5 0 0 1-.708.708z"/>
-        </svg>
-        <span class="user-name"></span>
-      </div>
-      <div class="save-btn hidden" title="Save file">
-        <svg viewBox="0 0 1024 1024" width="24" height="24">
-          <path
-            d="M426.666667 682.666667v42.666666h170.666666v-42.666666h-170.666666z m-42.666667-85.333334h298.666667v128h42.666666V418.133333L605.866667 298.666667H298.666667v426.666666h42.666666v-128h42.666667z m260.266667-384L810.666667 379.733333V810.666667H213.333333V213.333333h430.933334zM341.333333 341.333333h85.333334v170.666667H341.333333V341.333333z"
-            fill="#444444" p-id="8311"></path>
-        </svg>
-      </div>
+      <button type="button" class="btn btn-sm btn-success save-btn hidden" title="Save file">Save</button>
     </div>
-  </div>
-  <div class="main">
+  </nav>
+
+  <div class="main container-fluid py-3">
     <div class="index-page hidden">
-      <div class="empty-folder hidden"></div>
-      <table class="uploaders-table hidden">
-        <thead>
-          <tr>
-            <th class="cell-name" colspan="2">Name</th>
-            <th class="cell-status">Progress</th>
-          </tr>
-        </thead>
-      </table>
-      <table class="paths-table hidden">
-        <thead>
-        </thead>
-        <tbody>
-        </tbody>
-      </table>
+      <div class="empty-folder hidden text-muted fst-italic py-2"></div>
+      <div class="table-responsive">
+        <table class="uploaders-table table table-sm hidden">
+          <thead>
+            <tr>
+              <th class="cell-name" colspan="2">Name</th>
+              <th class="cell-status">Progress</th>
+            </tr>
+          </thead>
+        </table>
+      </div>
+      <div class="table-responsive">
+        <table class="paths-table table table-hover table-sm hidden">
+          <thead>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
     </div>
     <div class="editor-page hidden">
-      <div class="not-editable hidden"></div>
-      <textarea id="editor" class="editor hidden" aria-label="Editor" cols="10"></textarea>
+      <div class="not-editable hidden text-muted fst-italic py-2"></div>
+      <textarea id="editor" class="editor form-control hidden" aria-label="Editor" cols="10"></textarea>
     </div>
   </div>
+
+  <!-- New Folder Modal -->
+  <div class="modal fade" id="newFolderModal" tabindex="-1" aria-labelledby="newFolderModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h6 class="modal-title" id="newFolderModalLabel">New Folder</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body py-2">
+          <input type="text" class="form-control form-control-sm" id="newFolderName" placeholder="Folder name" autocomplete="off">
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary btn-sm" id="newFolderConfirm">Create</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- New File Modal -->
+  <div class="modal fade" id="newFileModal" tabindex="-1" aria-labelledby="newFileModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h6 class="modal-title" id="newFileModalLabel">New File</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body py-2">
+          <input type="text" class="form-control form-control-sm" id="newFileName" placeholder="File name" autocomplete="off">
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary btn-sm" id="newFileConfirm">Create</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Move / Rename Modal -->
+  <div class="modal fade" id="moveModal" tabindex="-1" aria-labelledby="moveModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h6 class="modal-title" id="moveModalLabel">Move &amp; Rename</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body py-2">
+          <label for="moveNewPath" class="form-label small mb-1">New path</label>
+          <input type="text" class="form-control form-control-sm" id="moveNewPath" autocomplete="off">
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary btn-sm" id="moveConfirm">Move</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirm Modal -->
+  <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h6 class="modal-title" id="deleteModalLabel">Delete</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body py-2">
+          Delete <code id="deleteTargetName"></code>?
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-danger btn-sm" id="deleteConfirm">Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Override Confirm Modal -->
+  <div class="modal fade" id="overrideModal" tabindex="-1" aria-labelledby="overrideModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h6 class="modal-title" id="overrideModalLabel">Override</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body py-2">
+          Override existing file?
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-warning btn-sm" id="overrideConfirm">Override</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <template id="index-data">__INDEX_DATA__</template>
+  <script src="__ASSETS_PREFIX__bootstrap.bundle.min.js"></script>
   <script src="__ASSETS_PREFIX__index.js"></script>
 </body>
 

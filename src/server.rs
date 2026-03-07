@@ -64,6 +64,8 @@ const INDEX_HTML: &str = include_str!("../assets/index.html");
 const INDEX_CSS: &str = include_str!("../assets/index.css");
 const INDEX_JS: &str = include_str!("../assets/index.js");
 const FAVICON_ICO: &[u8] = include_bytes!("../assets/favicon.ico");
+const BOOTSTRAP_CSS: &str = include_str!("../assets/bootstrap.min.css");
+const BOOTSTRAP_JS: &str = include_str!("../assets/bootstrap.bundle.min.js");
 const INDEX_NAME: &str = "index.html";
 const BUF_SIZE: usize = 65536;
 const EDITABLE_TEXT_MAX_SIZE: u64 = 4194304; // 4M
@@ -1153,6 +1155,20 @@ impl Server {
                             HeaderValue::from_static("text/css; charset=UTF-8"),
                         );
                     }
+                    "bootstrap.min.css" => {
+                        *res.body_mut() = body_full(BOOTSTRAP_CSS);
+                        res.headers_mut().insert(
+                            "content-type",
+                            HeaderValue::from_static("text/css; charset=UTF-8"),
+                        );
+                    }
+                    "bootstrap.bundle.min.js" => {
+                        *res.body_mut() = body_full(BOOTSTRAP_JS);
+                        res.headers_mut().insert(
+                            "content-type",
+                            HeaderValue::from_static("application/javascript; charset=UTF-8"),
+                        );
+                    }
                     "favicon.ico" => {
                         *res.body_mut() = body_full(FAVICON_ICO);
                         res.headers_mut()
@@ -1648,7 +1664,10 @@ impl Server {
         } else if has_query_flag(query_params, "noscript") {
             res.headers_mut()
                 .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
-            generate_noscript_html(&data)?
+            generate_noscript_html(
+                &data,
+                &format!("{}{}", self.args.uri_prefix, self.assets_prefix),
+            )?
         } else {
             res.headers_mut()
                 .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
@@ -1753,7 +1772,10 @@ impl Server {
         } else if has_query_flag(query_params, "noscript") {
             res.headers_mut()
                 .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
-            generate_noscript_html(&data)?
+            generate_noscript_html(
+                &data,
+                &format!("{}{}", self.args.uri_prefix, self.assets_prefix),
+            )?
         } else {
             res.headers_mut()
                 .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));

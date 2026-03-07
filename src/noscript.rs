@@ -15,7 +15,7 @@ pub fn detect_noscript(user_agent: &str) -> bool {
     .any(|v| user_agent.starts_with(v))
 }
 
-pub fn generate_noscript_html(data: &IndexData) -> Result<String> {
+pub fn generate_noscript_html(data: &IndexData, assets_base: &str) -> Result<String> {
     let mut html = String::new();
 
     let title = format!("Index of {}", escape_str_pcdata(&data.href));
@@ -23,22 +23,15 @@ pub fn generate_noscript_html(data: &IndexData) -> Result<String> {
     html.push_str("<html>\n");
     html.push_str("<head>\n");
     html.push_str(&format!("<title>{title}</title>\n"));
-    html.push_str(
-        r#"<style>
-  td {
-    padding: 0.2rem;
-    text-align: left;
-  }
-  td:nth-child(3) {
-    text-align: right;
-  }
-</style>
-"#,
-    );
+    html.push_str(&format!(
+        "<link rel=\"stylesheet\" href=\"{assets_base}bootstrap.min.css\">\n"
+    ));
+    html.push_str("<style>body { padding: 1rem; }</style>\n");
     html.push_str("</head>\n");
     html.push_str("<body>\n");
-    html.push_str(&format!("<h1>{title}</h1>\n"));
-    html.push_str("<table>\n");
+    html.push_str(&format!("<h4 class=\"mb-3\">{title}</h4>\n"));
+    html.push_str("<table class=\"table table-hover table-sm table-bordered\">\n");
+    html.push_str("  <thead class=\"table-light\"><tr><th>Name</th><th>Last Modified</th><th class=\"text-end\">Size</th></tr></thead>\n");
     html.push_str("  <tbody>\n");
     html.push_str(&format!("    {}\n", render_parent()));
 
@@ -68,7 +61,9 @@ fn render_path_item(path: &PathItem) -> String {
     let mtime = format_mtime(path.mtime).unwrap_or_default();
     let size = format_size(path.size, path.path_type);
 
-    format!("<tr><td><a href=\"{href}\">{name}</a></td><td>{mtime}</td><td>{size}</td></tr>")
+    format!(
+        "<tr><td><a href=\"{href}\">{name}</a></td><td>{mtime}</td><td class=\"text-end\">{size}</td></tr>"
+    )
 }
 
 fn format_mtime(mtime: u64) -> Option<String> {
