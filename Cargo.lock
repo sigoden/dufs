@@ -609,6 +609,7 @@ dependencies = [
  "sha2",
  "smart-default",
  "socket2",
+ "subtle",
  "tokio",
  "tokio-rustls",
  "tokio-util",

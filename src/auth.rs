@@ -9,6 +9,7 @@ use indexmap::IndexMap;
 use lazy_static::lazy_static;
 use md5::Context;
 use sha2::{Digest, Sha256};
+use subtle::ConstantTimeEq;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -406,7 +407,7 @@ pub fn check_auth(
             if let Ok(()) = sha_crypt::sha512_check(pass, auth_pass) {
                 return Some(());
             }
-        } else if pass == auth_pass {
+        } else if pass.as_bytes().ct_eq(auth_pass.as_bytes()).unwrap_u8() == 1 {
             return Some(());
         }
 
@@ -475,7 +476,7 @@ pub fn check_auth(
                     format!("{:x}", c.finalize())
                 }
             };
-            if correct_response.as_bytes() == *user_response {
+            if correct_response.as_bytes().ct_eq(user_response).unwrap_u8() == 1 {
                 return Some(());
             }
         }
