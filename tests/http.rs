@@ -186,6 +186,22 @@ fn get_file(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn get_file_json(server: TestServer) -> Result<(), Error> {
+    let resp = reqwest::blocking::get(format!("{}index.html?json", server.url()))?;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(
+        resp.headers().get("content-type").unwrap(),
+        "application/json"
+    );
+    let json: Value = serde_json::from_str(&resp.text()?).unwrap();
+    assert_eq!(json["name"], "index.html");
+    assert_eq!(json["path_type"], "File");
+    assert!(json["size"].as_u64().is_some());
+    assert!(json["mtime"].as_u64().is_some());
+    Ok(())
+}
+
+#[rstest]
 fn head_file(server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"HEAD", format!("{}index.html", server.url())).send()?;
     assert_eq!(resp.status(), 200);
