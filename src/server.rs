@@ -578,6 +578,11 @@ impl Server {
         access_paths: AccessPaths,
         res: &mut Response,
     ) -> Result<()> {
+        if head_only && query_params.is_empty() {
+            self.send_index_head(res);
+            return Ok(());
+        }
+
         let mut paths = vec![];
         if exist {
             paths = match self.list_dir(path, path, access_paths.clone()).await {
@@ -1342,6 +1347,17 @@ impl Server {
         }
         *res.body_mut() = body_full(output);
         Ok(())
+    }
+
+    fn send_index_head(&self, res: &mut Response) {
+        res.headers_mut()
+            .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
+        res.headers_mut()
+            .typed_insert(CacheControl::new().with_no_cache());
+        res.headers_mut().insert(
+            "x-content-type-options",
+            HeaderValue::from_static("nosniff"),
+        );
     }
 
     fn auth_reject(&self, res: &mut Response) -> Result<()> {

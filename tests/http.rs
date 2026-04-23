@@ -21,6 +21,7 @@ fn head_dir(server: TestServer) -> Result<(), Error> {
         resp.headers().get("content-type").unwrap(),
         "text/html; charset=utf-8"
     );
+    assert!(!resp.headers().contains_key("content-length"));
     assert_eq!(resp.text()?, "");
     Ok(())
 }
