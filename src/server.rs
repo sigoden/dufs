@@ -351,7 +351,9 @@ impl Server {
                         .await?;
                     }
                 } else if is_file {
-                    if has_query_flag(&query_params, "edit") {
+                    if has_query_flag(&query_params, "json") {
+                        self.handle_file_json(path, head_only, &mut res).await?;
+                    } else if has_query_flag(&query_params, "edit") {
                         self.handle_edit_file(path, DataKind::Edit, head_only, user, &mut res)
                             .await?;
                     } else if has_query_flag(&query_params, "view") {
@@ -720,6 +722,31 @@ impl Server {
         } else {
             status_not_found(res)
         }
+        Ok(())
+    }
+
+    async fn handle_file_json(
+        &self,
+        path: &Path,
+        head_only: bool,
+        res: &mut Response,
+    ) -> Result<()> {
+        let pathitem = match self.to_pathitem(path, &self.args.serve_path).await? {
+            Some(v) => v,
+            None => {
+                status_not_found(res);
+                return Ok(());
+            }
+        };
+        let output = serde_json::to_string_pretty(&pathitem)?;
+        res.headers_mut()
+            .typed_insert(ContentType::from(mime_guess::mime::APPLICATION_JSON));
+        res.headers_mut()
+            .typed_insert(ContentLength(output.len() as u64));
+        if head_only {
+            return Ok(());
+        }
+        *res.body_mut() = body_full(output);
         Ok(())
     }
 
