@@ -295,6 +295,7 @@ pub struct Args {
     pub render_try_index: bool,
     pub enable_cors: bool,
     pub assets: Option<PathBuf>,
+    pub error_page: Option<PathBuf>,
     #[serde(deserialize_with = "deserialize_log_http")]
     #[serde(rename = "log-format")]
     pub http_logger: HttpLogger,
@@ -408,6 +409,13 @@ impl Args {
 
         if let Some(assets_path) = &args.assets {
             args.assets = Some(Args::sanitize_assets_path(assets_path)?);
+        }
+
+        if let Some(assets_path) = &args.assets {
+            let p = assets_path.join("404.html");
+            if p.exists() {
+                args.error_page = Some(p);
+            }
         }
 
         if let Some(log_format) = matches.get_one::<String>("log-format") {

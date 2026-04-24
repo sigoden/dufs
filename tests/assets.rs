@@ -123,3 +123,36 @@ fn assets_override(tmpdir: TempDir, port: u16) -> Result<(), Error> {
     child.kill()?;
     Ok(())
 }
+
+#[rstest]
+fn assets_override_not_found_page(tmpdir: TempDir, port: u16) -> Result<(), Error> {
+    let not_found_html = "<html><body>custom 404 page</body></html>";
+    std::fs::write(
+        tmpdir.join(format!("{}404.html", DIR_ASSETS)),
+        not_found_html,
+    )?;
+
+    let mut child = Command::new(assert_cmd::cargo::cargo_bin!())
+        .arg(tmpdir.path())
+        .arg("-p")
+        .arg(port.to_string())
+        .arg("--assets")
+        .arg(tmpdir.join(DIR_ASSETS))
+        .stdout(Stdio::piped())
+        .spawn()?;
+
+    wait_for_port(port);
+
+    let url = format!("http://localhost:{port}/missing-path");
+    let resp = reqwest::blocking::get(&url)?;
+    assert_eq!(resp.status(), 404);
+    assert_eq!(resp.text()?, not_found_html);
+
+    let url = format!("http://localhost:{port}/missing-path?noscript");
+    let resp = reqwest::blocking::get(&url)?;
+    assert_eq!(resp.status(), 404);
+    assert_eq!(resp.text()?, "Not Found");
+
+    child.kill()?;
+    Ok(())
+}

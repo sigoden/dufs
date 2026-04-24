@@ -245,7 +245,8 @@ impl Server {
                 self.handle_send_file(&self.args.serve_path, headers, head_only, &mut res)
                     .await?;
             } else {
-                status_not_found(&mut res);
+                self.handle_not_found(&query_params, headers, head_only, &mut res)
+                    .await?;
             }
             return Ok(res);
         }
@@ -273,7 +274,8 @@ impl Server {
         let render_try_index = self.args.render_try_index;
 
         if self.guard_root_contained(path).await {
-            status_not_found(&mut res);
+            self.handle_not_found(&query_params, headers, head_only, &mut res)
+                .await?;
             return Ok(res);
         }
 
@@ -283,7 +285,8 @@ impl Server {
                     if render_try_index {
                         if allow_archive && has_query_flag(&query_params, "zip") {
                             if !allow_archive {
-                                status_not_found(&mut res);
+                                self.handle_not_found(&query_params, headers, head_only, &mut res)
+                                    .await?;
                                 return Ok(res);
                             }
                             self.handle_zip_dir(path, head_only, access_paths, &mut res)
@@ -370,7 +373,7 @@ impl Server {
                             .await?;
                     }
                 } else if render_spa {
-                    self.handle_render_spa(path, headers, head_only, &mut res)
+                    self.handle_render_spa(path, &query_params, headers, head_only, &mut res)
                         .await?;
                 } else if allow_upload && req_path.ends_with('/') {
                     self.handle_ls_dir(
@@ -384,7 +387,8 @@ impl Server {
                     )
                     .await?;
                 } else {
-                    status_not_found(&mut res);
+                    self.handle_not_found(&query_params, headers, head_only, &mut res)
+                        .await?;
                 }
             }
             Method::OPTIONS => {
@@ -720,7 +724,8 @@ impl Server {
             self.handle_ls_dir(path, true, query_params, head_only, user, access_paths, res)
                 .await?;
         } else {
-            status_not_found(res)
+            self.handle_not_found(query_params, headers, head_only, res)
+                .await?;
         }
         Ok(())
     }
@@ -753,6 +758,7 @@ impl Server {
     async fn handle_render_spa(
         &self,
         path: &Path,
+        query_params: &HashMap<String, String>,
         headers: &HeaderMap<HeaderValue>,
         head_only: bool,
         res: &mut Response,
@@ -762,8 +768,28 @@ impl Server {
             self.handle_send_file(&path, headers, head_only, res)
                 .await?;
         } else {
-            status_not_found(res)
+            self.handle_not_found(query_params, headers, head_only, res)
+                .await?;
         }
+        Ok(())
+    }
+
+    async fn handle_not_found(
+        &self,
+        query_params: &HashMap<String, String>,
+        headers: &HeaderMap<HeaderValue>,
+        head_only: bool,
+        res: &mut Response,
+    ) -> Result<()> {
+        if let Some(error_page) = &self.args.error_page {
+            if !has_query_flag(query_params, "noscript") {
+                self.handle_send_file(error_page, headers, head_only, res)
+                    .await?;
+                *res.status_mut() = StatusCode::NOT_FOUND;
+                return Ok(());
+            }
+        }
+        status_not_found(res);
         Ok(())
     }
 
