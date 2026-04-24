@@ -206,7 +206,7 @@ impl Server {
             (x, Some(y)) => (x, y),
         };
 
-        if detect_noscript(&user_agent) {
+        if method == Method::GET && detect_noscript(&user_agent) {
             query_params.insert("noscript".to_string(), String::new());
         }
 

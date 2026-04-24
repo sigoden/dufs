@@ -15,7 +15,9 @@ fn get_dir(server: TestServer) -> Result<(), Error> {
 
 #[rstest]
 fn head_dir(server: TestServer) -> Result<(), Error> {
-    let resp = fetch!(b"HEAD", server.url()).send()?;
+    let resp = fetch!(b"HEAD", server.url())
+        .header("user-agent", "curl/8.7.1")
+        .send()?;
     assert_eq!(resp.status(), 200);
     assert_eq!(
         resp.headers().get("content-type").unwrap(),
