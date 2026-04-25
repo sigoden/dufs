@@ -107,13 +107,11 @@ let $logoutBtn;
 let $userName;
 
 // manage unload event to prevent leaving with uploads in progress
-// TBD: brave refuses to show the box 
 const beforeUnloadHandler = (event) => {
   if (Uploader.queues.length > 0 || Uploader.runnings > 0) {
     event.preventDefault();
-    const warningMessage = 'Uploads are in progress. Are you sure you want to leave?';
-    event.returnValue = warningMessage;
-    return warningMessage; // for some browsers
+    event.returnValue = '';
+    return ''; // for some browsers
   }
 };
 
