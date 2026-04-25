@@ -121,7 +121,7 @@ pub fn parse_range(range: &str, size: u64) -> Option<Vec<(u64, u64)>> {
                     result.push((start, size - 1));
                 } else {
                     let end = end.parse::<u64>().ok()?;
-                    if end < size {
+                    if end < size && start <= end {
                         result.push((start, end));
                     } else {
                         return None;
