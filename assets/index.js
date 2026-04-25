@@ -106,6 +106,17 @@ let $logoutBtn;
  */
 let $userName;
 
+// manage unload event to prevent leaving with uploads in progress
+// TBD: brave refuses to show the box 
+const beforeUnloadHandler = (event) => {
+  if (Uploader.queues.length > 0 || Uploader.runnings > 0) {
+    event.preventDefault();
+    const warningMessage = 'Uploads are in progress. Are you sure you want to leave?';
+    event.returnValue = warningMessage;
+    return warningMessage; // for some browsers
+  }
+};
+
 // Produce table when window loads
 window.addEventListener("DOMContentLoaded", async () => {
   const $indexData = document.getElementById('index-data');
@@ -130,6 +141,8 @@ async function ready() {
   $loginBtn = document.querySelector(".login-btn");
   $logoutBtn = document.querySelector(".logout-btn");
   $userName = document.querySelector(".user-name");
+
+  window.addEventListener('beforeunload', beforeUnloadHandler);
 
   addBreadcrumb(DATA.href, DATA.uri_prefix);
 
