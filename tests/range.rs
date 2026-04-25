@@ -104,3 +104,25 @@ fn get_file_multipart_range_invalid(server: TestServer) -> Result<(), Error> {
     assert_eq!(resp.headers().get("content-length").unwrap(), "0");
     Ok(())
 }
+
+#[rstest]
+fn get_file_range_reversed(server: TestServer) -> Result<(), Error> {
+    let resp = fetch!(b"GET", format!("{}index.html", server.url()))
+        .header("range", HeaderValue::from_static("bytes=10-1"))
+        .send()?;
+    assert_eq!(resp.status(), 416);
+    assert_eq!(resp.headers().get("content-range").unwrap(), "bytes */18");
+    assert_eq!(resp.headers().get("accept-ranges").unwrap(), "bytes");
+    Ok(())
+}
+
+#[rstest]
+fn get_file_multipart_range_reversed(server: TestServer) -> Result<(), Error> {
+    let resp = fetch!(b"GET", format!("{}index.html", server.url()))
+        .header("range", HeaderValue::from_static("bytes=10-1,20-2"))
+        .send()?;
+    assert_eq!(resp.status(), 416);
+    assert_eq!(resp.headers().get("content-range").unwrap(), "bytes */18");
+    assert_eq!(resp.headers().get("accept-ranges").unwrap(), "bytes");
+    Ok(())
+}
