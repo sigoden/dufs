@@ -9,6 +9,7 @@ use indexmap::IndexMap;
 use lazy_static::lazy_static;
 use md5::Context;
 use sha2::{Digest, Sha256};
+use sha_crypt::PasswordVerifier;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -427,7 +428,10 @@ pub fn check_auth(
         }
 
         if auth_pass.starts_with("$6$") {
-            if let Ok(()) = sha_crypt::sha512_check(pass, auth_pass) {
+            if sha_crypt::ShaCrypt::SHA512
+                .verify_password(pass.as_bytes(), auth_pass)
+                .is_ok()
+            {
                 return Some(());
             }
         } else if pass == auth_pass {
