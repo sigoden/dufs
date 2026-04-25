@@ -52,7 +52,7 @@ jobs:
       BUILD_CMD: cargo
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Check Tag
       id: check-tag
@@ -172,7 +172,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@stable
 
