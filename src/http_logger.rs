@@ -30,7 +30,9 @@ impl HttpLogger {
                 LogElement::Variable(name) => match name.as_str() {
                     "request" => {
                         let uri = req.uri().to_string();
-                        let uri = decode_uri(&uri).map(|s| s.to_string()).unwrap_or(uri);
+                        let uri = decode_uri(&uri)
+                            .map(|s| sanitize_log_value(&s))
+                            .unwrap_or(uri);
                         data.insert(name.to_string(), format!("{} {uri}", req.method()));
                     }
                     "remote_user" => {
@@ -44,7 +46,7 @@ impl HttpLogger {
                 },
                 LogElement::Header(name) => {
                     if let Some(value) = req.headers().get(name).and_then(|v| v.to_str().ok()) {
-                        data.insert(name.to_string(), value.to_string());
+                        data.insert(name.to_string(), sanitize_log_value(value));
                     }
                 }
                 LogElement::Literal(_) => {}
@@ -103,4 +105,16 @@ impl FromStr for HttpLogger {
         }
         Ok(Self { elements })
     }
+}
+
+fn sanitize_log_value(s: &str) -> String {
+    s.chars()
+        .flat_map(|c| {
+            if c.is_control() {
+                format!("\\x{:02x}", c as u32).chars().collect::<Vec<_>>()
+            } else {
+                vec![c]
+            }
+        })
+        .collect()
 }
