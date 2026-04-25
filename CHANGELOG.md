@@ -2,17 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.46.0] - 2026-03-04
+## [0.46.0] - 2026-04-25
 
 ### Bug Fixes
 
 - Some search results missing due to broken symlinks ([#665](https://github.com/sigoden/dufs/issues/665))
 - Escape filename in ?simple output ([#669](https://github.com/sigoden/dufs/issues/669))
 - Ensure symlink inside serve root ([#670](https://github.com/sigoden/dufs/issues/670))
+- Tweak auth logic ([#689](https://github.com/sigoden/dufs/issues/689))
+- Http range underflow ([#690](https://github.com/sigoden/dufs/issues/690))
+- Escape control chars in logged URI and headers ([#691](https://github.com/sigoden/dufs/issues/691))
 
 ### Features
 
 - Add option --allow-hash to allow/disallow file hashing ([#657](https://github.com/sigoden/dufs/issues/657))
+- Support `?json` on file path ([#686](https://github.com/sigoden/dufs/issues/686))
+- Support customizable 404 page ([#688](https://github.com/sigoden/dufs/issues/688))
+- Enhence log format ([#692](https://github.com/sigoden/dufs/issues/692))
+- Webui confirm on exit while uploading ([#693](https://github.com/sigoden/dufs/issues/693))
 
 ### Refactor
 
