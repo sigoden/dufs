@@ -9,6 +9,7 @@ use indexmap::IndexMap;
 use lazy_static::lazy_static;
 use md5::Context;
 use sha2::{Digest, Sha256};
+use sha_crypt::PasswordVerifier;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -85,8 +86,14 @@ impl AccessControl {
             access_paths
                 .merge(paths)
                 .ok_or_else(|| anyhow!("Invalid auth value `{user}:{pass}@{paths}"))?;
-            if let Some(paths) = annoy_paths {
-                access_paths.merge(paths);
+            if let Some(anon_ap) = &anonymous {
+                let orig_user = access_paths.clone();
+                access_paths.absorb_anon(
+                    anon_ap,
+                    &orig_user,
+                    AccessPerm::IndexOnly,
+                    AccessPerm::IndexOnly,
+                );
             }
             if pass.starts_with("$6$") {
                 use_hashed_password = true;
@@ -219,9 +226,8 @@ impl AccessPaths {
     }
 
     pub fn set_perm(&mut self, perm: AccessPerm) {
-        if self.perm < perm {
+        if !perm.indexonly() {
             self.perm = perm;
-            self.recursively_purge_children(perm);
         }
     }
 
@@ -246,17 +252,6 @@ impl AccessPaths {
         Some(target)
     }
 
-    fn recursively_purge_children(&mut self, perm: AccessPerm) {
-        self.children.retain(|_, child| {
-            if child.perm <= perm {
-                false
-            } else {
-                child.recursively_purge_children(perm);
-                true
-            }
-        });
-    }
-
     fn add(&mut self, path: &str, perm: AccessPerm) {
         let path = path.trim_matches('/');
         if path.is_empty() {
@@ -268,16 +263,46 @@ impl AccessPaths {
     }
 
     fn add_impl(&mut self, parts: &[&str], perm: AccessPerm) {
-        let parts_len = parts.len();
-        if parts_len == 0 {
-            self.set_perm(perm);
-            return;
-        }
-        if self.perm >= perm {
+        if parts.is_empty() {
+            self.perm = perm;
             return;
         }
         let child = self.children.entry(parts[0].to_string()).or_default();
         child.add_impl(&parts[1..], perm)
+    }
+
+    /// Merge anonymous `AccessPaths` into `self` (a user's paths) with "higher perm wins" semantics.
+    /// `orig_user` is a snapshot of `self` before any anonymous merging begins, used so that
+    /// the user's own effective perm is measured against the pre-merge state.
+    fn absorb_anon(
+        &mut self,
+        anon: &AccessPaths,
+        orig_user: &AccessPaths,
+        user_inherited: AccessPerm,
+        anon_inherited: AccessPerm,
+    ) {
+        let anon_eff = if !anon.perm.indexonly() {
+            anon.perm
+        } else {
+            anon_inherited
+        };
+        let orig_user_eff = if !orig_user.perm.indexonly() {
+            orig_user.perm
+        } else {
+            user_inherited
+        };
+
+        let combined = std::cmp::max(anon_eff, orig_user_eff);
+        if !combined.indexonly() && combined > self.perm {
+            self.perm = combined;
+        }
+
+        let default_ap = AccessPaths::default();
+        for (name, anon_child) in &anon.children {
+            let orig_user_child = orig_user.children.get(name).unwrap_or(&default_ap);
+            let user_child = self.children.entry(name.clone()).or_default();
+            user_child.absorb_anon(anon_child, orig_user_child, orig_user_eff, anon_eff);
+        }
     }
 
     pub fn find(&self, path: &str) -> Option<AccessPaths> {
@@ -403,7 +428,10 @@ pub fn check_auth(
         }
 
         if auth_pass.starts_with("$6$") {
-            if let Ok(()) = sha_crypt::sha512_check(pass, auth_pass) {
+            if sha_crypt::ShaCrypt::SHA512
+                .verify_password(pass.as_bytes(), auth_pass)
+                .is_ok()
+            {
                 return Some(());
             }
         } else if pass == auth_pass {
@@ -706,7 +734,7 @@ mod tests {
         );
         assert_eq!(
             paths.find("dir2/dir21/dir211/file"),
-            Some(AccessPaths::new(AccessPerm::ReadWrite))
+            Some(AccessPaths::new(AccessPerm::ReadOnly))
         );
         assert_eq!(
             paths.find("dir2/dir22/file"),

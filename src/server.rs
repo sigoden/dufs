@@ -245,7 +245,8 @@ impl Server {
                 self.handle_send_file(&self.args.serve_path, headers, head_only, &mut res)
                     .await?;
             } else {
-                status_not_found(&mut res);
+                self.handle_not_found(&query_params, headers, head_only, &mut res)
+                    .await?;
             }
             return Ok(res);
         }
@@ -273,7 +274,8 @@ impl Server {
         let render_try_index = self.args.render_try_index;
 
         if self.guard_root_contained(path).await {
-            status_not_found(&mut res);
+            self.handle_not_found(&query_params, headers, head_only, &mut res)
+                .await?;
             return Ok(res);
         }
 
@@ -283,7 +285,8 @@ impl Server {
                     if render_try_index {
                         if allow_archive && has_query_flag(&query_params, "zip") {
                             if !allow_archive {
-                                status_not_found(&mut res);
+                                self.handle_not_found(&query_params, headers, head_only, &mut res)
+                                    .await?;
                                 return Ok(res);
                             }
                             self.handle_zip_dir(path, head_only, access_paths, &mut res)
@@ -351,7 +354,9 @@ impl Server {
                         .await?;
                     }
                 } else if is_file {
-                    if has_query_flag(&query_params, "edit") {
+                    if has_query_flag(&query_params, "json") {
+                        self.handle_file_json(path, head_only, &mut res).await?;
+                    } else if has_query_flag(&query_params, "edit") {
                         self.handle_edit_file(path, DataKind::Edit, head_only, user, &mut res)
                             .await?;
                     } else if has_query_flag(&query_params, "view") {
@@ -368,7 +373,7 @@ impl Server {
                             .await?;
                     }
                 } else if render_spa {
-                    self.handle_render_spa(path, headers, head_only, &mut res)
+                    self.handle_render_spa(path, &query_params, headers, head_only, &mut res)
                         .await?;
                 } else if allow_upload && req_path.ends_with('/') {
                     self.handle_ls_dir(
@@ -382,7 +387,8 @@ impl Server {
                     )
                     .await?;
                 } else {
-                    status_not_found(&mut res);
+                    self.handle_not_found(&query_params, headers, head_only, &mut res)
+                        .await?;
                 }
             }
             Method::OPTIONS => {
@@ -718,14 +724,41 @@ impl Server {
             self.handle_ls_dir(path, true, query_params, head_only, user, access_paths, res)
                 .await?;
         } else {
-            status_not_found(res)
+            self.handle_not_found(query_params, headers, head_only, res)
+                .await?;
         }
+        Ok(())
+    }
+
+    async fn handle_file_json(
+        &self,
+        path: &Path,
+        head_only: bool,
+        res: &mut Response,
+    ) -> Result<()> {
+        let pathitem = match self.to_pathitem(path, &self.args.serve_path).await? {
+            Some(v) => v,
+            None => {
+                status_not_found(res);
+                return Ok(());
+            }
+        };
+        let output = serde_json::to_string_pretty(&pathitem)?;
+        res.headers_mut()
+            .typed_insert(ContentType::from(mime_guess::mime::APPLICATION_JSON));
+        res.headers_mut()
+            .typed_insert(ContentLength(output.len() as u64));
+        if head_only {
+            return Ok(());
+        }
+        *res.body_mut() = body_full(output);
         Ok(())
     }
 
     async fn handle_render_spa(
         &self,
         path: &Path,
+        query_params: &HashMap<String, String>,
         headers: &HeaderMap<HeaderValue>,
         head_only: bool,
         res: &mut Response,
@@ -735,8 +768,28 @@ impl Server {
             self.handle_send_file(&path, headers, head_only, res)
                 .await?;
         } else {
-            status_not_found(res)
+            self.handle_not_found(query_params, headers, head_only, res)
+                .await?;
         }
+        Ok(())
+    }
+
+    async fn handle_not_found(
+        &self,
+        query_params: &HashMap<String, String>,
+        headers: &HeaderMap<HeaderValue>,
+        head_only: bool,
+        res: &mut Response,
+    ) -> Result<()> {
+        if let Some(error_page) = &self.args.error_page {
+            if !has_query_flag(query_params, "noscript") {
+                self.handle_send_file(error_page, headers, head_only, res)
+                    .await?;
+                *res.status_mut() = StatusCode::NOT_FOUND;
+                return Ok(());
+            }
+        }
+        status_not_found(res);
         Ok(())
     }
 
@@ -1830,14 +1883,10 @@ async fn get_content_type(path: &Path) -> Result<String> {
     let mime = mime_guess::from_path(path).first();
     let is_text = content_inspector::inspect(&buffer).is_text();
     let content_type = if is_text {
-        let mut detector = chardetng::EncodingDetector::new();
+        let mut detector = chardetng::EncodingDetector::new(chardetng::Iso2022JpDetection::Allow);
         detector.feed(&buffer, buffer.len() < 1024);
-        let (enc, confident) = detector.guess_assess(None, true);
-        let charset = if confident {
-            format!("; charset={}", enc.name())
-        } else {
-            "".into()
-        };
+        let enc = detector.guess(None, chardetng::Utf8Detection::Allow);
+        let charset = format!("; charset={}", enc.name());
         match mime {
             Some(m) => format!("{m}{charset}"),
             None => format!("text/plain{charset}"),
@@ -1881,7 +1930,7 @@ async fn sha256_file(path: &Path) -> Result<String> {
     }
 
     let result = hasher.finalize();
-    Ok(format!("{result:x}"))
+    Ok(hex::encode(result))
 }
 
 fn has_query_flag(query_params: &HashMap<String, String>, name: &str) -> bool {

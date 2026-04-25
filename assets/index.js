@@ -106,6 +106,15 @@ let $logoutBtn;
  */
 let $userName;
 
+// manage unload event to prevent leaving with uploads in progress
+const beforeUnloadHandler = (event) => {
+  if (Uploader.queues.length > 0 || Uploader.runnings > 0) {
+    event.preventDefault();
+    event.returnValue = '';
+    return ''; // for some browsers
+  }
+};
+
 // Produce table when window loads
 window.addEventListener("DOMContentLoaded", async () => {
   const $indexData = document.getElementById('index-data');
@@ -130,6 +139,8 @@ async function ready() {
   $loginBtn = document.querySelector(".login-btn");
   $logoutBtn = document.querySelector(".logout-btn");
   $userName = document.querySelector(".user-name");
+
+  window.addEventListener('beforeunload', beforeUnloadHandler);
 
   addBreadcrumb(DATA.href, DATA.uri_prefix);
 
