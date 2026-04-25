@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use chrono::{Local, SecondsFormat};
 use log::{Level, LevelFilter, Metadata, Record};
 use std::fs::{File, OpenOptions};
 use std::io::Write;
@@ -17,8 +16,7 @@ impl log::Log for SimpleLogger {
 
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
-            let timestamp = Local::now().to_rfc3339_opts(SecondsFormat::Secs, true);
-            let text = format!("{} {} - {}", timestamp, record.level(), record.args());
+            let text = record.args().to_string();
             match &self.file {
                 Some(file) => {
                     if let Ok(mut file) = file.lock() {
