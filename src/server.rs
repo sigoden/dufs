@@ -1883,14 +1883,10 @@ async fn get_content_type(path: &Path) -> Result<String> {
     let mime = mime_guess::from_path(path).first();
     let is_text = content_inspector::inspect(&buffer).is_text();
     let content_type = if is_text {
-        let mut detector = chardetng::EncodingDetector::new();
+        let mut detector = chardetng::EncodingDetector::new(chardetng::Iso2022JpDetection::Allow);
         detector.feed(&buffer, buffer.len() < 1024);
-        let (enc, confident) = detector.guess_assess(None, true);
-        let charset = if confident {
-            format!("; charset={}", enc.name())
-        } else {
-            "".into()
-        };
+        let enc = detector.guess(None, chardetng::Utf8Detection::Allow);
+        let charset = format!("; charset={}", enc.name());
         match mime {
             Some(m) => format!("{m}{charset}"),
             None => format!("text/plain{charset}"),
@@ -1934,7 +1930,7 @@ async fn sha256_file(path: &Path) -> Result<String> {
     }
 
     let result = hasher.finalize();
-    Ok(format!("{result:x}"))
+    Ok(hex::encode(result))
 }
 
 fn has_query_flag(query_params: &HashMap<String, String>, name: &str) -> bool {
