@@ -262,7 +262,7 @@ class Uploader {
     const now = Date.now();
     const elapsed = now - this.lastUptime;
     if (elapsed < 300) return; // throttle update for safari
-    const speed = (event.loaded - this.uploaded) / (now - this.lastUptime) * 1000;
+    const speed = (event.loaded - this.uploaded) / (elapsed) * 1000;
     const [speedValue, speedUnit] = formatFileSize(speed);
     const speedText = `${speedValue} ${speedUnit}/s`;
     const progress = formatPercent(((event.loaded + this.uploadOffset) / this.file.size) * 100);
