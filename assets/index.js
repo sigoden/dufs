@@ -261,11 +261,11 @@ class Uploader {
   progress(event) {
     const now = Date.now();
     const speed = (event.loaded - this.uploaded) / (now - this.lastUptime) * 1000;
-    const [speedValue, speedUnit] = formatFileSize(speed);
+    const [speedValue, speedUnit] = formatFileSize(speed, true);
     const speedText = `${speedValue} ${speedUnit}/s`;
     const progress = formatPercent(((event.loaded + this.uploadOffset) / this.file.size) * 100);
     const duration = formatDuration((event.total - event.loaded) / speed);
-    this.$uploadStatus.innerHTML = `<span style="width: 80px;">${speedText}</span><span>${progress} ${duration}</span>`;
+    this.$uploadStatus.innerHTML = `<span style="width: 90px;">${speedText}</span><span>${progress} ${duration}</span>`;
     this.uploaded = event.loaded;
     this.lastUptime = now;
   }
@@ -930,15 +930,14 @@ function formatDirSize(size) {
   return ` ${num} ${unit}`;
 }
 
-function formatFileSize(size) {
+function formatFileSize(size, isUpload = false) {
   if (size == null) return [0, "B"];
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   if (size == 0) return [0, "B"];
   const i = parseInt(Math.floor(Math.log(size) / Math.log(1024)));
   let ratio = 1;
-  if (i >= 3) {
-    ratio = 100;
-  }
+  if (isUpload) ratio = 10;
+  if (i >= 3) ratio = 100;
   return [Math.round(size * ratio / Math.pow(1024, i), 2) / ratio, sizes[i]];
 }
 
