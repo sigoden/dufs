@@ -262,12 +262,12 @@ class Uploader {
     const now = Date.now();
     const elapsed = now - this.lastUptime;
     if (elapsed < 300) return; // throttle update for safari
-    const speed = (event.loaded - this.uploaded) / (elapsed) * 1000;
+    const speed = (event.loaded - this.uploaded) / elapsed * 1000;
     const [speedValue, speedUnit] = formatFileSize(speed);
     const speedText = `${speedValue} ${speedUnit}/s`;
     const progress = formatPercent(((event.loaded + this.uploadOffset) / this.file.size) * 100);
     const duration = formatDuration((event.total - event.loaded) / speed);
-    this.$uploadStatus.innerHTML = `<span style="width: 80px;">${speedText}</span><span>${progress} ${duration}</span>`;
+    this.$uploadStatus.innerHTML = `<span style="width: 80px;">${speedText}</span><span style="margin-left: 5px;">${progress} ${duration}</span>`;
     this.uploaded = event.loaded;
     this.lastUptime = now;
   }
@@ -937,11 +937,14 @@ function formatFileSize(size) {
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   if (size == 0) return [0, "B"];
   const i = parseInt(Math.floor(Math.log(size) / Math.log(1024)));
-  let ratio = 1;
-  if (i >= 3) {
-    ratio = 100;
+  const raw = size / Math.pow(1024, i);
+  let value;
+  if (i > 0 && raw < 999.95) {
+    value = Math.round(raw * 10) / 10;
+  } else {
+    value = Math.round(raw);
   }
-  return [Math.round(size * ratio / Math.pow(1024, i), 2) / ratio, sizes[i]];
+  return [value, sizes[i]];
 }
 
 function formatDuration(seconds) {
