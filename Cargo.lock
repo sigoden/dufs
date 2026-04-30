@@ -632,7 +632,7 @@ checksum = "780955b8b195a21ab8e4ac6b60dd1dbdcec1dc6c51c0617964b08c81785e12c9"
 
 [[package]]
 name = "dufs"
-version = "0.45.0"
+version = "0.46.0"
 dependencies = [
  "alphanumeric-sort",
  "anyhow",
