@@ -579,7 +579,7 @@ impl Server {
         res: &mut Response,
     ) -> Result<()> {
         let mut paths = vec![];
-        if exist {
+        if !head_only && exist {
             paths = match self.list_dir(path, path, access_paths.clone()).await {
                 Ok(paths) => paths,
                 Err(_) => {
@@ -618,14 +618,15 @@ impl Server {
             return self
                 .handle_ls_dir(path, true, query_params, head_only, user, access_paths, res)
                 .await;
-        } else {
+        }
+
+        if !head_only {
             let path_buf = path.to_path_buf();
             let hidden = Arc::new(self.args.hidden.to_vec());
             let search = search.clone();
 
-            let access_paths = access_paths.clone();
             let search_paths = tokio::spawn(collect_dir_entries(
-                access_paths,
+                access_paths.clone(),
                 self.running.clone(),
                 path_buf,
                 hidden,
