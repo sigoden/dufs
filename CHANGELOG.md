@@ -2,14 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.46.0] - 2026-04-29
+## [0.46.0] - 2026-05-07
 
 ### Features
 
 - Add option --allow-hash to allow/disallow file hashing ([#657](https://github.com/sigoden/dufs/issues/657))
 - Support `?json` on file path ([#686](https://github.com/sigoden/dufs/issues/686))
 - Support customizable 404 page ([#688](https://github.com/sigoden/dufs/issues/688))
-- Enhence log format ([#692](https://github.com/sigoden/dufs/issues/692))
+- Enhance log format ([#692](https://github.com/sigoden/dufs/issues/692))
 - Webui confirm on exit while uploading ([#693](https://github.com/sigoden/dufs/issues/693))
 - Skip directory walking in HEAD requests ([#701](https://github.com/sigoden/dufs/issues/701))
 
@@ -22,7 +22,6 @@ All notable changes to this project will be documented in this file.
 - Http range underflow ([#690](https://github.com/sigoden/dufs/issues/690))
 - Escape control chars in logged URI and headers ([#691](https://github.com/sigoden/dufs/issues/691))
 - Webui safari bug uploadspeed ([#695](https://github.com/sigoden/dufs/issues/695))
-
 
 ### Refactor
 
