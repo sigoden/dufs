@@ -74,11 +74,10 @@ enum LockScope {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 struct LockInfo {
     token: String,
     scope: LockScope,
-    depth: String,
+    timeout_seconds: u64,
     created_at: SystemTime,
 }
 
@@ -93,7 +92,24 @@ impl LockManager {
         }
     }
 
-    fn acquire(&self, path_key: &str, scope: LockScope, token: &str, depth: &str) -> Result<bool> {
+    fn cleanup_expired(&self) {
+        let now = SystemTime::now();
+        let mut locks = self.locks.write().unwrap();
+        for entry in locks.values_mut() {
+            entry.retain(|lock| !is_expired(lock, now));
+        }
+        locks.retain(|_, entry| !entry.is_empty());
+    }
+
+    fn acquire(
+        &self,
+        path_key: &str,
+        scope: LockScope,
+        token: &str,
+        timeout_seconds: u64,
+    ) -> Result<bool> {
+        self.cleanup_expired();
+
         let mut locks = self.locks.write().unwrap();
         let entry = locks.entry(path_key.to_string()).or_default();
 
@@ -108,7 +124,7 @@ impl LockManager {
         entry.push(LockInfo {
             token: token.to_string(),
             scope,
-            depth: depth.to_string(),
+            timeout_seconds,
             created_at: SystemTime::now(),
         });
         Ok(true)
@@ -130,18 +146,35 @@ impl LockManager {
         removed
     }
 
+    fn remove_all(&self, path_key: &str) -> bool {
+        let mut locks = self.locks.write().unwrap();
+        locks.remove(path_key).is_some()
+    }
+
     fn is_locked(&self, path_key: &str, token: Option<&str>) -> bool {
+        let now = SystemTime::now();
         let locks = self.locks.read().unwrap();
         if let Some(entry) = locks.get(path_key) {
-            if entry.is_empty() {
+            let active: Vec<_> = entry.iter().filter(|lock| !is_expired(lock, now)).collect();
+            if active.is_empty() {
                 return false;
             }
             if let Some(t) = token {
-                return !entry.iter().any(|lock| lock.token == t);
+                return !active.iter().any(|lock| lock.token == t);
             }
             return true;
         }
         false
+    }
+}
+
+fn is_expired(lock: &LockInfo, now: SystemTime) -> bool {
+    if lock.timeout_seconds == 0 {
+        return false;
+    }
+    match now.duration_since(lock.created_at) {
+        Ok(elapsed) => elapsed.as_secs() >= lock.timeout_seconds,
+        Err(_) => false,
     }
 }
 
@@ -586,7 +619,8 @@ impl Server {
                     if is_file {
                         let has_auth = authorization.is_some();
                         let req_path = req_path.to_owned();
-                        self.handle_lock(path, &req_path, has_auth, req.into_body(), &mut res)
+                        let timeout_seconds = parse_timeout(headers);
+                        self.handle_lock(path, &req_path, has_auth, timeout_seconds, req.into_body(), &mut res)
                             .await?;
                     } else {
                         status_not_found(&mut res);
@@ -673,6 +707,7 @@ impl Server {
             false => fs::remove_file(path).await?,
         }
 
+        self.lock_manager.remove_all(&path_key(path));
         status_no_content(res);
         Ok(())
     }
@@ -1305,6 +1340,7 @@ impl Server {
 
         fs::rename(path, &dest).await?;
 
+        self.lock_manager.remove_all(&path_key(path));
         status_no_content(res);
         Ok(())
     }
@@ -1314,6 +1350,7 @@ impl Server {
         path: &Path,
         req_path: &str,
         auth: bool,
+        timeout_seconds: u64,
         body: Incoming,
         res: &mut Response,
     ) -> Result<()> {
@@ -1325,11 +1362,6 @@ impl Server {
         } else {
             LockScope::Exclusive
         };
-        let depth = if body_str.contains("<D:depth>") {
-            "infinity"
-        } else {
-            "infinity"
-        };
 
         let token = if auth {
             format!("opaquelocktoken:{}", Uuid::new_v4())
@@ -1338,7 +1370,9 @@ impl Server {
         };
 
         let key = path_key(path);
-        let acquired = self.lock_manager.acquire(&key, scope.clone(), &token, depth)?;
+        let acquired = self
+            .lock_manager
+            .acquire(&key, scope.clone(), &token, timeout_seconds)?;
         if !acquired {
             status_locked(res);
             return Ok(());
@@ -1350,18 +1384,34 @@ impl Server {
             "<D:lockscope><D:exclusive/></D:lockscope>"
         };
 
+        let timeout_xml = if timeout_seconds == 0 {
+            "<D:timeout>Infinite</D:timeout>"
+        } else {
+            &format!("<D:timeout>Second-{timeout_seconds}</D:timeout>")
+        };
+
+        let timeout_header = if timeout_seconds == 0 {
+            "Infinite".to_string()
+        } else {
+            format!("Second-{timeout_seconds}")
+        };
+
         res.headers_mut().insert(
             "content-type",
             HeaderValue::from_static("application/xml; charset=utf-8"),
         );
         res.headers_mut()
             .insert("lock-token", format!("<{token}>").parse()?);
+        res.headers_mut()
+            .insert("timeout", timeout_header.parse()?);
 
         *res.body_mut() = body_full(format!(
             r#"<?xml version="1.0" encoding="utf-8"?>
 <D:prop xmlns:D="DAV:"><D:lockdiscovery><D:activelock>
 <D:locktype><D:write/></D:locktype>
 {lockscope}
+<D:depth>infinity</D:depth>
+{timeout_xml}
 <D:locktoken><D:href>{token}</D:href></D:locktoken>
 <D:lockroot><D:href>{req_path}</D:href></D:lockroot>
 </D:activelock></D:lockdiscovery></D:prop>"#
@@ -2040,6 +2090,28 @@ fn extract_if_lock_token(headers: &hyper::HeaderMap) -> Option<String> {
 
 fn path_key(path: &Path) -> String {
     path.to_string_lossy().to_string()
+}
+
+const DEFAULT_LOCK_TIMEOUT: u64 = 300;
+
+fn parse_timeout(headers: &hyper::HeaderMap) -> u64 {
+    let value = headers
+        .get("timeout")
+        .or_else(|| headers.get("Timeout"))
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if value.eq_ignore_ascii_case("infinite") {
+        return 0;
+    }
+    for part in value.split(',') {
+        let part = part.trim();
+        if let Some(n) = part.strip_prefix("Second-") {
+            if let Ok(seconds) = n.parse::<u64>() {
+                return seconds;
+            }
+        }
+    }
+    DEFAULT_LOCK_TIMEOUT
 }
 
 fn status_bad_request(res: &mut Response, body: &str) {
