@@ -151,6 +151,28 @@ impl LockManager {
         locks.remove(path_key).is_some()
     }
 
+    fn refresh(&self, path_key: &str, token: &str, timeout_seconds: u64) -> bool {
+        let mut locks = self.locks.write().unwrap();
+        if let Some(entry) = locks.get_mut(path_key) {
+            if let Some(lock) = entry.iter_mut().find(|l| l.token == token) {
+                lock.timeout_seconds = timeout_seconds;
+                lock.created_at = SystemTime::now();
+                return true;
+            }
+        }
+        false
+    }
+
+    fn get_lock(&self, path_key: &str, token: &str) -> Option<LockInfo> {
+        let locks = self.locks.read().unwrap();
+        locks.get(path_key)?.iter().find(|l| l.token == token).cloned()
+    }
+
+    fn has_locks(&self, path_key: &str) -> bool {
+        let locks = self.locks.read().unwrap();
+        locks.get(path_key).map_or(false, |e| !e.is_empty())
+    }
+
     fn is_locked(&self, path_key: &str, token: Option<&str>) -> bool {
         let now = SystemTime::now();
         let locks = self.locks.read().unwrap();
@@ -511,6 +533,8 @@ impl Server {
             Method::PUT => {
                 if is_dir || !allow_upload || (!allow_delete && size > 0) {
                     status_forbid(&mut res);
+                } else if let Some(code) = self.check_write_precondition(path, headers) {
+                    *res.status_mut() = code;
                 } else if self.is_write_locked(path, headers) {
                     status_locked(&mut res);
                 } else {
@@ -522,6 +546,8 @@ impl Server {
                     status_not_found(&mut res);
                 } else if !allow_upload {
                     status_forbid(&mut res);
+                } else if let Some(code) = self.check_write_precondition(path, headers) {
+                    *res.status_mut() = code;
                 } else if self.is_write_locked(path, headers) {
                     status_locked(&mut res);
                 } else {
@@ -549,6 +575,8 @@ impl Server {
             Method::DELETE => {
                 if !allow_delete {
                     status_forbid(&mut res);
+                } else if let Some(code) = self.check_write_precondition(path, headers) {
+                    *res.status_mut() = code;
                 } else if self.is_write_locked(path, headers) {
                     status_locked(&mut res);
                 } else if !is_miss {
@@ -577,8 +605,12 @@ impl Server {
                 }
                 "PROPPATCH" => {
                     if is_file {
-                        let req_path = req_path.to_owned();
-                        self.handle_proppatch(&req_path, req.into_body(), &mut res).await?;
+                        if self.is_write_locked(path, headers) {
+                            status_locked(&mut res);
+                        } else {
+                            let req_path = req_path.to_owned();
+                            self.handle_proppatch(&req_path, req.into_body(), &mut res).await?;
+                        }
                     } else {
                         status_not_found(&mut res);
                     }
@@ -586,6 +618,8 @@ impl Server {
                 "MKCOL" => {
                     if !allow_upload {
                         status_forbid(&mut res);
+                    } else if let Some(code) = self.check_write_precondition(path, headers) {
+                        *res.status_mut() = code;
                     } else if self.is_write_locked(path, headers) {
                         status_locked(&mut res);
                     } else if !is_miss {
@@ -609,6 +643,8 @@ impl Server {
                         status_forbid(&mut res);
                     } else if is_miss {
                         status_not_found(&mut res);
+                    } else if let Some(code) = self.check_write_precondition(path, headers) {
+                        *res.status_mut() = code;
                     } else if self.is_write_locked(path, headers) {
                         status_locked(&mut res);
                     } else {
@@ -616,15 +652,12 @@ impl Server {
                     }
                 }
                 "LOCK" => {
-                    if is_file {
-                        let has_auth = authorization.is_some();
-                        let req_path = req_path.to_owned();
-                        let timeout_seconds = parse_timeout(headers);
-                        self.handle_lock(path, &req_path, has_auth, timeout_seconds, req.into_body(), &mut res)
-                            .await?;
-                    } else {
-                        status_not_found(&mut res);
-                    }
+                    let has_auth = authorization.is_some();
+                    let req_path = req_path.to_owned();
+                    let timeout_seconds = parse_timeout(headers);
+                    let lock_token = extract_if_lock_token(headers);
+                    self.handle_lock(path, &req_path, has_auth, timeout_seconds, lock_token, req.into_body(), &mut res)
+                        .await?;
                 }
                 "UNLOCK" => {
                     if is_miss {
@@ -654,6 +687,15 @@ impl Server {
         let token = extract_if_lock_token(headers);
         let key = path_key(path);
         self.lock_manager.is_locked(&key, token.as_deref())
+    }
+
+    fn check_write_precondition(&self, path: &Path, headers: &hyper::HeaderMap) -> Option<StatusCode> {
+        let token = extract_if_lock_token(headers);
+        let key = path_key(path);
+        if token.is_some() && !self.lock_manager.has_locks(&key) {
+            return Some(StatusCode::PRECONDITION_FAILED);
+        }
+        None
     }
 
     async fn handle_upload(
@@ -1304,6 +1346,11 @@ impl Server {
             }
         };
 
+        if self.is_write_locked(&dest, req.headers()) {
+            status_locked(res);
+            return Ok(());
+        }
+
         let meta = fs::symlink_metadata(path).await?;
         if meta.is_dir() {
             status_forbid(res);
@@ -1351,11 +1398,61 @@ impl Server {
         req_path: &str,
         auth: bool,
         timeout_seconds: u64,
+        refresh_token: Option<String>,
         body: Incoming,
         res: &mut Response,
     ) -> Result<()> {
         let body_bytes = body.collect().await?.to_bytes();
         let body_str = String::from_utf8_lossy(&body_bytes);
+
+        let key = path_key(path);
+
+        if let Some(rt) = refresh_token {
+            let refreshed = self.lock_manager.refresh(&key, &rt, timeout_seconds);
+            if refreshed {
+                let lock = self.lock_manager.get_lock(&key, &rt);
+                if let Some(lock) = lock {
+                    let lockscope = match lock.scope {
+                        LockScope::Shared => "<D:lockscope><D:shared/></D:lockscope>",
+                        LockScope::Exclusive => "<D:lockscope><D:exclusive/></D:lockscope>",
+                    };
+                    let timeout_xml = if timeout_seconds == 0 {
+                        "<D:timeout>Infinite</D:timeout>"
+                    } else {
+                        &format!("<D:timeout>Second-{timeout_seconds}</D:timeout>")
+                    };
+                    let timeout_header = if timeout_seconds == 0 {
+                        "Infinite".to_string()
+                    } else {
+                        format!("Second-{timeout_seconds}")
+                    };
+                    res.headers_mut().insert(
+                        "content-type",
+                        HeaderValue::from_static("application/xml; charset=utf-8"),
+                    );
+                    res.headers_mut()
+                        .insert("lock-token", format!("<{}>", lock.token).parse()?);
+                    res.headers_mut()
+                        .insert("timeout", timeout_header.parse()?);
+                    *res.body_mut() = body_full(format!(
+                        r#"<?xml version="1.0" encoding="utf-8"?>
+<D:prop xmlns:D="DAV:"><D:lockdiscovery><D:activelock>
+<D:locktype><D:write/></D:locktype>
+{lockscope}
+<D:depth>infinity</D:depth>
+{timeout_xml}
+<D:locktoken><D:href>{}</D:href></D:locktoken>
+<D:lockroot><D:href>{req_path}</D:href></D:lockroot>
+</D:activelock></D:lockdiscovery></D:prop>"#,
+                        lock.token
+                    ));
+                    return Ok(());
+                }
+            }
+            status_bad_request(res, "Lock token not found for refresh");
+            return Ok(());
+        }
+
         let is_shared = body_str.contains("<D:shared") || body_str.contains("<shared");
         let scope = if is_shared {
             LockScope::Shared
@@ -2078,10 +2175,9 @@ fn extract_if_lock_token(headers: &hyper::HeaderMap) -> Option<String> {
         .and_then(|v| v.to_str().ok())
         .and_then(|v| {
             let v = v.trim();
-            let prefix = "(<";
-            let suffix = ">)";
-            if let (Some(start), Some(end)) = (v.find(prefix), v.rfind(suffix)) {
-                Some(v[start + prefix.len()..end].to_string())
+            if let Some(start) = v.find("(<") {
+                let rest = &v[start + "(<".len()..];
+                rest.find(">)").map(|end| rest[..end].to_string())
             } else {
                 None
             }

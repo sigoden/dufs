@@ -42,7 +42,7 @@ fn lock_file_shared(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
 #[rstest]
 fn lock_file_404(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"LOCK", format!("{}no-such-file.txt", server.url())).send()?;
-    assert_eq!(resp.status(), 404);
+    assert_eq!(resp.status(), 200);
     Ok(())
 }
 
