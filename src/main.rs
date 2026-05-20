@@ -221,27 +221,20 @@ fn check_addrs(args: &Args) -> Result<(Vec<BindAddr>, Vec<BindAddr>)> {
         (vec![], vec![])
     };
     for bind_addr in args.addrs.iter() {
+        new_addrs.push(bind_addr.clone());
         match bind_addr {
             BindAddr::IpAddr(ip) => match &ip {
                 IpAddr::V4(_) => {
                     if ip.is_unspecified() {
-                        if !ipv4_addrs.is_empty() {
-                            new_addrs.push(bind_addr.clone());
-                            print_addrs.extend(ipv4_addrs.clone());
-                        }
+                        print_addrs.extend(ipv4_addrs.clone());
                     } else {
-                        new_addrs.push(bind_addr.clone());
                         print_addrs.push(bind_addr.clone());
                     }
                 }
                 IpAddr::V6(_) => {
                     if ip.is_unspecified() {
-                        if !ipv6_addrs.is_empty() {
-                            new_addrs.push(bind_addr.clone());
-                            print_addrs.extend(ipv6_addrs.clone());
-                        }
+                        print_addrs.extend(ipv6_addrs.clone());
                     } else {
-                        new_addrs.push(bind_addr.clone());
                         print_addrs.push(bind_addr.clone());
                     }
                 }
