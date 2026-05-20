@@ -211,28 +211,31 @@ fn create_listener(addr: SocketAddr) -> Result<TcpListener> {
 fn check_addrs(args: &Args) -> Result<(Vec<BindAddr>, Vec<BindAddr>)> {
     let mut new_addrs = vec![];
     let mut print_addrs = vec![];
-    let (ipv4_addrs, ipv6_addrs) = interface_addrs()?;
+    let has_unspecified = args
+        .addrs
+        .iter()
+        .any(|a| matches!(a, BindAddr::IpAddr(ip) if ip.is_unspecified()));
+    let (ipv4_addrs, ipv6_addrs) = if has_unspecified {
+        interface_addrs()?
+    } else {
+        (vec![], vec![])
+    };
     for bind_addr in args.addrs.iter() {
+        new_addrs.push(bind_addr.clone());
         match bind_addr {
             BindAddr::IpAddr(ip) => match &ip {
                 IpAddr::V4(_) => {
-                    if !ipv4_addrs.is_empty() {
-                        new_addrs.push(bind_addr.clone());
-                        if ip.is_unspecified() {
-                            print_addrs.extend(ipv4_addrs.clone());
-                        } else {
-                            print_addrs.push(bind_addr.clone());
-                        }
+                    if ip.is_unspecified() {
+                        print_addrs.extend(ipv4_addrs.clone());
+                    } else {
+                        print_addrs.push(bind_addr.clone());
                     }
                 }
                 IpAddr::V6(_) => {
-                    if !ipv6_addrs.is_empty() {
-                        new_addrs.push(bind_addr.clone());
-                        if ip.is_unspecified() {
-                            print_addrs.extend(ipv6_addrs.clone());
-                        } else {
-                            print_addrs.push(bind_addr.clone())
-                        }
+                    if ip.is_unspecified() {
+                        print_addrs.extend(ipv6_addrs.clone());
+                    } else {
+                        print_addrs.push(bind_addr.clone());
                     }
                 }
             },
