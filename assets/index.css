@@ -10,7 +10,7 @@
   --text-accent: #0366d6;
   --svg-primary: #24292e;
   --svg-secondary: rgba(3, 47, 98, 0.5);
-  --svg-tertiary: #9a9a9a;
+  --svg-tertiary: #24292e;
   --border-primary: #ddd;
   --border-secondary: #ced4da;
 }
@@ -25,6 +25,7 @@ body {
   /* prevent premature breadcrumb wrapping on mobile */
   min-width: 538px;
   margin: 0;
+  background-color: var(--bg-primary);
 }
 
 svg {
@@ -297,7 +298,8 @@ svg {
     --text-tertiary: #586069;  /*Unchanged in both color schemes*/
     --text-accent: #3191ff;
     --svg-primary: #fff;
-    --svg-secondary: #fff6;
+    --svg-secondary: #fff;
+    --svg-tertiary: #fff6;
     --border-primary: #fff6;
     --border-secondary: #ced4da; /*Unchanged in both color schemes*/
   }
