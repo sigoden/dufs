@@ -8,8 +8,9 @@
   --text-secondary: #5c5c5c;
   --text-tertiary: #586069;
   --text-accent: #0366d6;
-  --svg-primary: rgba(3, 47, 98, 0.5);
-  --svg-secondary: #9a9a9a;
+  --svg-primary: #24292e;
+  --svg-secondary: rgba(3, 47, 98, 0.5);
+  --svg-tertiary: #9a9a9a;
   --border-primary: #ddd;
   --border-secondary: #ced4da;
 }
@@ -26,6 +27,10 @@ body {
   margin: 0;
 }
 
+svg {
+  fill: var(--svg-primary);
+}
+
 .hidden {
   display: none !important;
 }
@@ -37,7 +42,7 @@ body {
   padding: 0.6em 1em;
   position: sticky;
   top: 0;
-  background-color: var(--bg-primary);
+  background-color: var(--bg-tertiary);
 }
 
 .breadcrumb {
@@ -67,7 +72,7 @@ body {
 
 .breadcrumb svg {
   height: 100%;
-  fill: var(--svg-primary);
+  fill: var(--svg-secondary);
 }
 
 .toolbox {
@@ -113,15 +118,20 @@ body {
   font-size: 16px;
   line-height: 16px;
   padding: 1px;
+  color: var(--text-primary);
   background-color: transparent;
   border: none;
   outline: none;
 }
 
 .searchbar .icon {
-  color: var(--svg-secondary);
+  color: var(--svg-tertiary);
   padding: 3px 3px;
   cursor: pointer;
+}
+
+.searchbar svg {
+  fill: var(--svg-tertiary);
 }
 
 .main {
@@ -188,7 +198,7 @@ body {
 
 .path svg {
   height: 16px;
-  fill: var(--svg-primary);
+  fill: var(--svg-secondary);
   padding-right: 0.5em;
   vertical-align: text-top;
 }
@@ -229,6 +239,8 @@ body {
   width: 100%;
   height: calc(100vh - 5rem);
   border: 1px solid var(--border-secondary);
+  background: var(--bg-primary);
+  color: var(--text-primary);
   outline: none;
   padding: 5px;
 }
@@ -287,52 +299,6 @@ body {
     --svg-primary: #fff;
     --svg-secondary: #fff6;
     --border-primary: #fff6;
-  }
-  
-  body {
-    background-color: var(--bg-primary);
-  }
-
-  html,
-  .breadcrumb>b,
-  .searchbar #search {
-    color: var(--text-primary);
-  }
-
-  .uploaders-table th,
-  .paths-table th {
-    color: var(--text-secondary);
-  }
-
-  svg,
-  .path svg,
-  .breadcrumb svg {
-    fill: var(--svg-primary);
-  }
-
-  .head {
-    background-color: var(--bg-tertiary);
-  }
-
-  .searchbar {
-    background-color: var(--bg-secondary);
-    border-color: var(--border-primary);
-  }
-
-  .searchbar svg {
-    fill: var(--svg-secondary);
-  }
-
-  .path a {
-    color: var(--text-accent);
-  }
-
-  .paths-table tbody tr:hover {
-    background-color: var(--bg-hover);
-  }
-
-  .editor {
-    background: var(--bg-primary);
-    color: var(--text-primary);
+    --border-secondary: #ced4da; /*Unchanged in both color schemes*/
   }
 }
