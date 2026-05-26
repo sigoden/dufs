@@ -1,13 +1,35 @@
+:root {
+  color-scheme: light;
+  --bg-primary: #fff;
+  --bg-secondary: #fafafa;
+  --bg-tertiary: #fff;
+  --bg-hover: #fafafa;
+  --text-primary: #24292e;
+  --text-secondary: #5c5c5c;
+  --text-tertiary: #586069;
+  --text-accent: #0366d6;
+  --svg-primary: #24292e;
+  --svg-secondary: rgba(3, 47, 98, 0.5);
+  --svg-tertiary: #24292e;
+  --border-primary: #ddd;
+  --border-secondary: #ced4da;
+}
+
 html {
   font-family: -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
   line-height: 1.5;
-  color: #24292e;
+  color: var(--text-primary);
 }
 
 body {
   /* prevent premature breadcrumb wrapping on mobile */
   min-width: 538px;
   margin: 0;
+  background-color: var(--bg-primary);
+}
+
+svg {
+  fill: var(--svg-primary);
 }
 
 .hidden {
@@ -21,7 +43,7 @@ body {
   padding: 0.6em 1em;
   position: sticky;
   top: 0;
-  background-color: white;
+  background-color: var(--bg-tertiary);
 }
 
 .breadcrumb {
@@ -31,7 +53,7 @@ body {
 }
 
 .breadcrumb>a {
-  color: #0366d6;
+  color: var(--text-accent);
   text-decoration: none;
 }
 
@@ -41,17 +63,17 @@ body {
 
 /* final breadcrumb */
 .breadcrumb>b {
-  color: #24292e;
+  color: var(--text-primary);
 }
 
 .breadcrumb>.separator {
-  color: #586069;
+  color: var(--text-tertiary);
   padding: 0 0.25em;
 }
 
 .breadcrumb svg {
   height: 100%;
-  fill: rgba(3, 47, 98, 0.5);
+  fill: var(--svg-secondary);
 }
 
 .toolbox {
@@ -83,9 +105,9 @@ body {
   flex-wrap: nowrap;
   width: 246px;
   height: 22px;
-  background-color: #fafafa;
+  background-color: var(--bg-secondary);
   transition: all .15s;
-  border: 1px #ddd solid;
+  border: 1px var(--border-primary) solid;
   border-radius: 15px;
   margin-bottom: 2px;
 }
@@ -97,15 +119,20 @@ body {
   font-size: 16px;
   line-height: 16px;
   padding: 1px;
+  color: var(--text-primary);
   background-color: transparent;
   border: none;
   outline: none;
 }
 
 .searchbar .icon {
-  color: #9a9a9a;
+  color: var(--svg-tertiary);
   padding: 3px 3px;
   cursor: pointer;
+}
+
+.searchbar svg {
+  fill: var(--svg-tertiary);
 }
 
 .main {
@@ -120,7 +147,7 @@ body {
 .paths-table th {
   text-align: left;
   font-weight: unset;
-  color: #5c5c5c;
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 
@@ -148,7 +175,7 @@ body {
 }
 
 .paths-table tbody tr:hover {
-  background-color: #fafafa;
+  background-color: var(--bg-hover);
 }
 
 .paths-table .cell-actions {
@@ -172,7 +199,7 @@ body {
 
 .path svg {
   height: 16px;
-  fill: rgba(3, 47, 98, 0.5);
+  fill: var(--svg-secondary);
   padding-right: 0.5em;
   vertical-align: text-top;
 }
@@ -182,7 +209,7 @@ body {
 }
 
 .path a {
-  color: #0366d6;
+  color: var(--text-accent);
   text-overflow: ellipsis;
   white-space: nowrap;
   overflow: hidden;
@@ -212,7 +239,9 @@ body {
 .editor {
   width: 100%;
   height: calc(100vh - 5rem);
-  border: 1px solid #ced4da;
+  border: 1px solid var(--border-secondary);
+  background: var(--bg-primary);
+  color: var(--text-primary);
   outline: none;
   padding: 5px;
 }
@@ -258,50 +287,20 @@ body {
 
 /* dark theme */
 @media (prefers-color-scheme: dark) {
-  body {
-    background-color: #000;
-  }
-
-  html,
-  .breadcrumb>b,
-  .searchbar #search {
-    color: #fff;
-  }
-
-  .uploaders-table th,
-  .paths-table th {
-    color: #ddd;
-  }
-
-  svg,
-  .path svg,
-  .breadcrumb svg {
-    fill: #fff;
-  }
-
-  .head {
-    background-color: #111;
-  }
-
-  .searchbar {
-    background-color: #111;
-    border-color: #fff6;
-  }
-
-  .searchbar svg {
-    fill: #fff6;
-  }
-
-  .path a {
-    color: #3191ff;
-  }
-
-  .paths-table tbody tr:hover {
-    background-color: #1a1a1a;
-  }
-
-  .editor {
-    background: black;
-    color: white;
+  :root {
+    color-scheme: dark;
+    --bg-primary: #000;
+    --bg-secondary: #111;
+    --bg-tertiary: #111;
+    --bg-hover: #1a1a1a;
+    --text-primary: #fff;
+    --text-secondary: #ddd;
+    --text-tertiary: #586069;  /*Unchanged in both color schemes*/
+    --text-accent: #3191ff;
+    --svg-primary: #fff;
+    --svg-secondary: #fff;
+    --svg-tertiary: #fff6;
+    --border-primary: #fff6;
+    --border-secondary: #ced4da; /*Unchanged in both color schemes*/
   }
 }
