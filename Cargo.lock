@@ -654,6 +654,7 @@ dependencies = [
  "if-addrs",
  "indexmap",
  "lazy_static",
+ "liblzma",
  "log",
  "md5",
  "mime_guess",
