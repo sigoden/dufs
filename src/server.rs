@@ -1357,15 +1357,14 @@ impl Server {
         if self.args.allow_symlink {
             return false;
         }
-        let path = if !fs::try_exists(path).await.unwrap_or_default() {
-            match path.parent() {
-                Some(parent) => parent.to_path_buf(),
+        let mut check_path = path.to_path_buf();
+        while !fs::try_exists(&check_path).await.unwrap_or_default() {
+            match check_path.parent() {
+                Some(parent) => check_path = parent.to_path_buf(),
                 None => return true,
             }
-        } else {
-            path.to_path_buf()
-        };
-        !self.is_root_contained(path.as_path()).await
+        }
+        !self.is_root_contained(check_path.as_path()).await
     }
 
     async fn is_root_contained(&self, path: &Path) -> bool {
