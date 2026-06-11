@@ -273,7 +273,9 @@ impl Server {
         let render_spa = self.args.render_spa;
         let render_try_index = self.args.render_try_index;
 
-        if self.guard_root_contained(path).await {
+        // Skip symlink guard for non-existent paths (matches v0.45.0 behavior)
+        // This allows uploads to directories that don't exist yet
+        if !is_miss && self.guard_root_contained(path).await {
             self.handle_not_found(&query_params, headers, head_only, &mut res)
                 .await?;
             return Ok(res);
