@@ -414,6 +414,7 @@ impl Server {
                         Some(offset) => {
                             if offset < size && !allow_delete {
                                 status_forbid(&mut res);
+                                return Ok(res);
                             }
                             self.handle_upload(path, Some(offset), size, req, &mut res)
                                 .await?;
