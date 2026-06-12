@@ -328,6 +328,16 @@ fn put_file_create_dir(#[with(&["-A"])] server: TestServer) -> Result<(), Error>
 }
 
 #[rstest]
+fn put_file_create_deep_dir(#[with(&["--allow-upload"])] server: TestServer) -> Result<(), Error> {
+    let url = format!("{}newdir/subdir/file1", server.url());
+    let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
+    assert_eq!(resp.status(), 201);
+    let resp = reqwest::blocking::get(url)?;
+    assert_eq!(resp.status(), 200);
+    Ok(())
+}
+
+#[rstest]
 fn put_file_conflict_dir(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let url = format!("{}dir1", server.url());
     let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
