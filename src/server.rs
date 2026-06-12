@@ -3,14 +3,11 @@
 use crate::auth::{www_authenticate, AccessPaths, AccessPerm};
 use crate::http_utils::{body_full, IncomingStream, LengthLimitedStream};
 use crate::noscript::{detect_noscript, generate_noscript_html};
-use crate::utils::{
-    decode_uri, encode_uri, get_file_mtime_and_mode, get_file_name, glob, parse_range,
-    try_get_file_name,
-};
+use crate::utils::{decode_uri, encode_uri, get_file_name, glob, parse_range, try_get_file_name};
 use crate::Args;
 
 use anyhow::{anyhow, Result};
-use async_zip::{tokio::write::ZipFileWriter, Compression, ZipDateTime, ZipEntryBuilder};
+use async_deflate_zip::{Compression, ZipWriter};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use bytes::Bytes;
 use chrono::{LocalResult, TimeZone, Utc};
@@ -46,7 +43,6 @@ use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWrite};
 use tokio::{fs, io};
 
-use tokio_util::compat::FuturesAsyncWriteCompatExt;
 use tokio_util::io::{ReaderStream, StreamReader};
 use uuid::Uuid;
 use walkdir::{DirEntry, WalkDir};
@@ -1762,7 +1758,6 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
     serve_path: PathBuf,
     running: Arc<AtomicBool>,
 ) -> Result<()> {
-    let mut writer = ZipFileWriter::with_tokio(writer);
     let hidden = Arc::new(hidden.to_vec());
     let zip_paths = tokio::task::spawn(collect_dir_entries(
         access_paths,
@@ -1774,6 +1769,7 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
         move |x| x.path().symlink_metadata().is_ok() && x.file_type().is_file(),
     ))
     .await?;
+    let mut zip = ZipWriter::new(&mut *writer).with_level(compression);
     for zip_path in zip_paths.into_iter() {
         let filename = match zip_path
             .strip_prefix(dir)
@@ -1784,16 +1780,21 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
             Some(v) => v,
             None => continue,
         };
-        let (datetime, mode) = get_file_mtime_and_mode(&zip_path).await?;
-        let builder = ZipEntryBuilder::new(filename.into(), compression)
-            .unix_permissions(mode)
-            .last_modification_date(ZipDateTime::from_chrono(&datetime));
         let mut file = File::open(&zip_path).await?;
-        let mut file_writer = writer.write_entry_stream(builder).await?.compat_write();
-        io::copy(&mut file, &mut file_writer).await?;
-        file_writer.into_inner().close().await?;
+        let meta = file.metadata().await?;
+        let mut entry = zip.append_file(&filename).await?;
+        if let Ok(mtime) = meta.modified() {
+            entry.set_mtime(mtime);
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            entry.set_permissions(meta.permissions().mode() & 0o777);
+        }
+        io::copy(&mut file, &mut entry).await?;
+        entry.close().await?;
     }
-    writer.close().await?;
+    zip.finalize().await?;
     Ok(())
 }
 
