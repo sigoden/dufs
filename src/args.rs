@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 use crate::auth::AccessControl;
 use crate::http_logger::HttpLogger;
-use crate::utils::encode_uri;
+use crate::utils::{encode_uri, is_ipv6_available};
 
 pub fn build_cli() -> Command {
     let app = Command::new(env!("CARGO_CRATE_NAME"))
@@ -633,7 +633,12 @@ fn default_serve_path() -> PathBuf {
 }
 
 fn default_addrs() -> Vec<BindAddr> {
-    BindAddr::parse_addrs(&["0.0.0.0", "::"]).unwrap()
+    let addrs = if is_ipv6_available() {
+        ["0.0.0.0", "::"].as_slice()
+    } else {
+        ["0.0.0.0"].as_slice()
+    };
+    BindAddr::parse_addrs(addrs).unwrap()
 }
 
 fn default_port() -> u16 {

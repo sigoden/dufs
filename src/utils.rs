@@ -121,6 +121,11 @@ pub fn parse_range(range: &str, size: u64) -> Option<Vec<(u64, u64)>> {
     Some(result)
 }
 
+pub fn is_ipv6_available() -> bool {
+    use socket2::{Domain, Protocol, Socket, Type};
+    Socket::new(Domain::IPV6, Type::STREAM, Some(Protocol::TCP)).is_ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
