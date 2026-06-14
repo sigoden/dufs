@@ -7,7 +7,7 @@ use crate::utils::{decode_uri, encode_uri, get_file_name, glob, parse_range, try
 use crate::Args;
 
 use anyhow::{anyhow, Result};
-use async_deflate_zip::{Compression, ZipWriter};
+use async_deflate_zip::{Compression, WriterOptions, ZipWriter};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use bytes::Bytes;
 use chrono::{LocalResult, TimeZone, Utc};
@@ -1780,17 +1780,9 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
             Some(v) => v,
             None => continue,
         };
+        let options = WriterOptions::from_path(&zip_path).await?;
         let mut file = File::open(&zip_path).await?;
-        let meta = file.metadata().await?;
-        let mut entry = zip.append_file(&filename).await?;
-        if let Ok(mtime) = meta.modified() {
-            entry.set_mtime(mtime);
-        }
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            entry.set_permissions(meta.permissions().mode() & 0o777);
-        }
+        let mut entry = zip.append_file(&filename, options).await?;
         io::copy(&mut file, &mut entry).await?;
         entry.close().await?;
     }

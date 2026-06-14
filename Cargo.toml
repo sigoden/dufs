@@ -21,7 +21,7 @@ percent-encoding = "2.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
-async-deflate-zip = "0.1.1"
+async-deflate-zip = "0.2.0"
 headers = "0.4"
 mime_guess = "2.0"
 if-addrs = "0.15"

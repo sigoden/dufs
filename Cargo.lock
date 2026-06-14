@@ -120,9 +120,9 @@ dependencies = [
 
 [[package]]
 name = "async-deflate-zip"
-version = "0.1.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "613debb46d5477cd9ac7ab57e6ae1c6846383daa199dba9fe3153fc31be3ae86"
+checksum = "7576ada82ae1daa532fe1120a054d80a6538d669765ff856c18fc81cf4d511fe"
 dependencies = [
  "crc32fast",
  "flate2",
