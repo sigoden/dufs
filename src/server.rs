@@ -1439,8 +1439,11 @@ impl Server {
         if path_prefix.is_empty() {
             return Some(new_path);
         }
+        if new_path == path_prefix {
+            return Some(String::new());
+        }
         new_path
-            .strip_prefix(path_prefix.trim_start_matches('/'))
+            .strip_prefix(&format!("{path_prefix}/"))
             .map(|v| v.trim_matches('/').to_string())
     }
 

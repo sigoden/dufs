@@ -22,6 +22,24 @@ fn path_prefix_file(#[with(&["--path-prefix", "xyz"])] server: TestServer) -> Re
 }
 
 #[rstest]
+fn path_prefix_reject_same_component(
+    #[with(&["--path-prefix", "xyz"])] server: TestServer,
+) -> Result<(), Error> {
+    let resp = reqwest::blocking::get(format!("{}xyzpublic.txt", server.url()))?;
+    assert_eq!(resp.status(), 400);
+    Ok(())
+}
+
+#[rstest]
+fn path_prefix_reject_extra_component_text(
+    #[with(&["--path-prefix", "xyz"])] server: TestServer,
+) -> Result<(), Error> {
+    let resp = reqwest::blocking::get(format!("{}xyzevil/public.txt", server.url()))?;
+    assert_eq!(resp.status(), 400);
+    Ok(())
+}
+
+#[rstest]
 fn path_prefix_propfind(
     #[with(&["--path-prefix", "xyz"])] server: TestServer,
 ) -> Result<(), Error> {
