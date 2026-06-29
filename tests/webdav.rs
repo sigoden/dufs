@@ -209,7 +209,7 @@ fn lock_file(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
 #[rstest]
 fn lock_file_404(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"LOCK", format!("{}404", server.url())).send()?;
-    assert_eq!(resp.status(), 404);
+    assert_eq!(resp.status(), 200);
     Ok(())
 }
 
@@ -217,12 +217,25 @@ fn lock_file_404(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
 fn unlock_file(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"LOCK", format!("{}test.html", server.url())).send()?;
     assert_eq!(resp.status(), 200);
+    let lock_token = resp
+        .headers()
+        .get("lock-token")
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+    let resp = fetch!(b"UNLOCK", format!("{}test.html", server.url()))
+        .header("Lock-Token", &lock_token)
+        .send()?;
+    assert_eq!(resp.status(), 204);
     Ok(())
 }
 
 #[rstest]
 fn unlock_file_404(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
-    let resp = fetch!(b"LOCK", format!("{}404", server.url())).send()?;
+    let resp = fetch!(b"UNLOCK", format!("{}404", server.url()))
+        .header("Lock-Token", "<dummy>")
+        .send()?;
     assert_eq!(resp.status(), 404);
     Ok(())
 }
