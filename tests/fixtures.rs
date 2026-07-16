@@ -4,11 +4,17 @@ use port_check::free_local_port;
 use reqwest::Url;
 use rstest::fixture;
 use std::process::{Child, Command, Stdio};
+use std::sync::Mutex;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 #[allow(dead_code)]
 pub type Error = Box<dyn std::error::Error>;
+
+// Keep the free-port lookup and child startup together. `free_local_port` has
+// to release a port before the test server can bind it, so parallel fixtures
+// can otherwise select the same port in that window.
+static PORT_SELECTION_LOCK: Mutex<()> = Mutex::new(());
 
 #[allow(dead_code)]
 pub const BIN_FILE: &str = "😀.bin";
@@ -126,6 +132,9 @@ where
     I: IntoIterator + Clone,
     I::Item: AsRef<std::ffi::OsStr>,
 {
+    let _port_selection = PORT_SELECTION_LOCK
+        .lock()
+        .expect("test port selection lock was poisoned");
     let port = port();
     let tmpdir = tmpdir();
     let child = Command::new(assert_cmd::cargo::cargo_bin!())
@@ -141,6 +150,7 @@ where
         .any(|x| x.as_ref().to_str().unwrap().contains("tls"));
 
     wait_for_port(port);
+    drop(_port_selection);
     TestServer::new(port, tmpdir, child, is_tls)
 }
 
