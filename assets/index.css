@@ -161,6 +161,11 @@ svg {
   padding-left: 0.6em;
 }
 
+.upload-size {
+  margin-left: 0.5em;
+  color: var(--text-secondary);
+}
+
 .cell-status span {
   display: inline-block;
 }

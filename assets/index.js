@@ -198,7 +198,7 @@ class Uploader {
     $uploadersTable.classList.remove("hidden");
     $emptyFolder.classList.add("hidden");
     this.$uploadStatus = document.getElementById(`uploadStatus${idx}`);
-    this.$uploadStatus.innerHTML = '-';
+    this.$uploadStatus.innerHTML = `<span class="upload-size">0 B / ${formatFileSize(this.file.size).join(" ")}</span>`;
     this.$uploadStatus.addEventListener("click", e => {
       const nodeId = e.target.id;
       const matches = /^retry(\d+)$/.exec(nodeId);
@@ -265,9 +265,11 @@ class Uploader {
     const speed = (event.loaded - this.uploaded) / elapsed * 1000;
     const [speedValue, speedUnit] = formatFileSize(speed);
     const speedText = `${speedValue} ${speedUnit}/s`;
-    const progress = formatPercent(((event.loaded + this.uploadOffset) / this.file.size) * 100);
+    const uploadedSize = event.loaded + this.uploadOffset;
+    const progress = formatPercent((uploadedSize / this.file.size) * 100);
     const duration = formatDuration((event.total - event.loaded) / speed);
-    this.$uploadStatus.innerHTML = `<span style="width: 80px;">${speedText}</span><span style="margin-left: 5px;">${progress} ${duration}</span>`;
+    const sizeText = `${formatFileSize(uploadedSize).join(" ")} / ${formatFileSize(this.file.size).join(" ")}`;
+    this.$uploadStatus.innerHTML = `<span style="width: 80px;">${speedText}</span><span style="margin-left: 5px;">${progress} ${duration}</span><span class="upload-size">${sizeText}</span>`;
     this.uploaded = event.loaded;
     this.lastUptime = now;
   }
