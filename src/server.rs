@@ -1261,7 +1261,9 @@ impl Server {
                 .map(|v| v == "desc")
                 .unwrap_or_default()
             {
-                paths.reverse()
+                paths.reverse();
+                // keep directories grouped on top, in reverse order within the group
+                paths.sort_by_key(|v| !v.path_type.is_dir());
             }
         } else {
             paths.sort_by(|v1, v2| v1.sort_by_name(v2))
