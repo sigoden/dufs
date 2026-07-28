@@ -164,6 +164,8 @@ jobs:
             linux/arm64
             linux/arm/v7
           push: ${{ needs.release.outputs.rc == 'false' }}
+          provenance: mode=max
+          sbom: true
           tags: ${{ github.repository }}:latest, ${{ github.repository }}:${{ github.ref_name }}
 
   publish-crate:
