@@ -153,7 +153,7 @@ impl Server {
             }
         };
 
-        if method == Method::GET
+        if (method == Method::GET || method == Method::HEAD)
             && self
                 .handle_internal(&relative_path, headers, &mut res)
                 .await?

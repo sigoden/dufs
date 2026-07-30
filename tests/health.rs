@@ -15,6 +15,14 @@ fn normal_health(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn head_health(server: TestServer) -> Result<(), Error> {
+    let resp = fetch!(b"HEAD", format!("{}{HEALTH_CHECK_PATH}", server.url())).send()?;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.text()?, "");
+    Ok(())
+}
+
+#[rstest]
 fn auth_health(
     #[with(&["--auth", "user:pass@/:rw", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
