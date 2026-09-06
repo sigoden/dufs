@@ -48,6 +48,7 @@ use tokio_util::io::{ReaderStream, StreamReader};
 use uuid::Uuid;
 use walkdir::{DirEntry, WalkDir};
 use xml::escape::escape_str_pcdata;
+use xml::reader::{EventReader, XmlEvent};
 
 pub type Request = hyper::Request<Incoming>;
 pub type Response = hyper::Response<BoxBody<Bytes, anyhow::Error>>;
@@ -468,6 +469,14 @@ impl Server {
                 "PROPPATCH" => {
                     if is_file {
                         self.handle_proppatch(req_path, &mut res).await?;
+                    } else {
+                        status_not_found(&mut res);
+                    }
+                }
+                "SEARCH" => {
+                    if allow_search && is_dir {
+                        self.handle_search_dav(path, req, access_paths, &mut res)
+                            .await?;
                     } else {
                         status_not_found(&mut res);
                     }
@@ -1157,6 +1166,58 @@ impl Server {
         } else {
             status_not_found(res);
         }
+        Ok(())
+    }
+
+    async fn handle_search_dav(
+        &self,
+        path: &Path,
+        req: Request,
+        access_paths: AccessPaths,
+        res: &mut Response,
+    ) -> Result<()> {
+        let body = req.into_body().collect().await?.to_bytes();
+        let query = match parse_dasl_query(&String::from_utf8_lossy(&body)) {
+            Some(v) => v.to_lowercase(),
+            None => {
+                res_multistatus(res, "");
+                return Ok(());
+            }
+        };
+        if query.is_empty() {
+            res_multistatus(res, "");
+            return Ok(());
+        }
+
+        let search_paths = match &self.search_index {
+            Some(index) => index.search(&access_paths.entry_paths(path), &query),
+            None => {
+                let path_buf = path.to_path_buf();
+                let hidden = Arc::new(self.args.hidden.to_vec());
+                let search = query.clone();
+                tokio::spawn(collect_dir_entries(
+                    access_paths,
+                    self.running.clone(),
+                    path_buf,
+                    hidden,
+                    self.args.allow_symlink,
+                    self.args.serve_path.clone(),
+                    move |x| get_file_name(x.path()).to_lowercase().contains(&search),
+                ))
+                .await?
+            }
+        };
+
+        let mut output = String::new();
+        for search_path in search_paths.into_iter() {
+            if let Ok(Some(item)) = self
+                .to_pathitem(search_path, self.args.serve_path.clone())
+                .await
+            {
+                output.push_str(&item.to_dav_xml(self.args.uri_prefix.as_str()));
+            }
+        }
+        res_multistatus(res, &output);
         Ok(())
     }
 
@@ -1876,11 +1937,85 @@ pub(crate) fn is_hidden(hidden: &[String], file_name: &str, is_dir: bool) -> boo
     })
 }
 
+/// Extract the search term from a WebDAV SEARCH (DASL basicsearch) request body.
+/// It looks for a `D:like` or `D:contains` condition on `D:displayname` (the
+/// pattern Windows Explorer uses) and returns the bare literal without
+/// wildcard characters.
+fn parse_dasl_query(body: &str) -> Option<String> {
+    struct Ctx {
+        op: String,
+        prop: Option<String>,
+        literal: Option<String>,
+    }
+
+    let parser = EventReader::from_str(body);
+    let mut stack: Vec<Ctx> = Vec::new();
+    let mut result: Option<String> = None;
+
+    for event in parser.into_iter().flatten() {
+        match event {
+            XmlEvent::StartElement { name, .. } => {
+                let local = name.local_name;
+                match local.as_str() {
+                    "like" | "contains" | "eq" | "gt" | "lt" | "ge" | "le" => {
+                        stack.push(Ctx {
+                            op: local.clone(),
+                            prop: None,
+                            literal: None,
+                        });
+                    }
+                    "displayname" | "getcontentlength" | "getlastmodified"
+                    | "getcontenttype" | "getetag" | "creationdate" | "resourcetype"
+                    | "iscollection" => {
+                        if let Some(ctx) = stack.last_mut() {
+                            if ctx.prop.is_none() {
+                                ctx.prop = Some(local.clone());
+                            }
+                        }
+                    }
+                    "literal" => {
+                        if let Some(ctx) = stack.last_mut() {
+                            ctx.literal = Some(String::new());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            XmlEvent::Characters(text) => {
+                if let Some(ctx) = stack.last_mut() {
+                    if let Some(literal) = ctx.literal.as_mut() {
+                        literal.push_str(&text);
+                    }
+                }
+            }
+            XmlEvent::EndElement { name } => {
+                if stack.last().map(|ctx| ctx.op == name.local_name).unwrap_or(false) {
+                    let ctx = stack.pop().unwrap();
+                    if (ctx.op == "like" || ctx.op == "contains")
+                        && ctx.prop.as_deref() == Some("displayname")
+                    {
+                        if let Some(literal) = ctx.literal {
+                            let q = literal
+                                .trim_matches(|c| c == '*' || c == '%')
+                                .to_string();
+                            if !q.is_empty() {
+                                result = Some(q);
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    result
+}
+
 fn set_webdav_headers(res: &mut Response) {
     res.headers_mut().insert(
         "Allow",
         HeaderValue::from_static(
-            "GET,HEAD,PUT,OPTIONS,DELETE,PATCH,PROPFIND,COPY,MOVE,CHECKAUTH,LOGOUT",
+            "GET,HEAD,PUT,OPTIONS,DELETE,PATCH,PROPFIND,COPY,MOVE,CHECKAUTH,LOGOUT,SEARCH",
         ),
     );
     res.headers_mut()
