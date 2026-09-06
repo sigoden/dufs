@@ -422,7 +422,9 @@ Your assets folder must contains a `index.html` file.
 - `__INDEX_DATA__`: directory listing data
 - `__ASSETS_PREFIX__`: assets url prefix
 
-> A customized 404.html page is also supported.
+> A customized `404.html` page is also supported. UTF-8 error pages can use
+> `__ASSETS_PREFIX__` for asset URLs, including the configured `--path-prefix`.
+> Unlike `index.html`, error pages do not receive `__INDEX_DATA__`.
 
 Here are some Third-party customize UI project:
 

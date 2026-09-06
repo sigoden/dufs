@@ -125,34 +125,76 @@ fn assets_override(tmpdir: TempDir, port: u16) -> Result<(), Error> {
 }
 
 #[rstest]
-fn assets_override_not_found_page(tmpdir: TempDir, port: u16) -> Result<(), Error> {
-    let not_found_html = "<html><body>custom 404 page</body></html>";
+#[case("", true)]
+#[case("drive/nested", true)]
+#[case("", false)]
+fn assets_override_not_found_page(
+    tmpdir: TempDir,
+    port: u16,
+    #[case] prefix: &str,
+    #[case] has_placeholder: bool,
+) -> Result<(), Error> {
+    let template = "<html><head><link href=\"__ASSETS_PREFIX__favicon.ico\"></head><body>世界 <a href=\"__ASSETS_PREFIX__index.js\">asset</a></body></html>";
+    let not_found_html = if has_placeholder {
+        template
+    } else {
+        "<html><body>custom 404 page</body></html>"
+    };
     std::fs::write(
         tmpdir.join(format!("{}404.html", DIR_ASSETS)),
         not_found_html,
     )?;
 
-    let mut child = Command::new(assert_cmd::cargo::cargo_bin!())
+    std::fs::write(tmpdir.join(format!("{}favicon.ico", DIR_ASSETS)), b"icon")?;
+
+    let child = Command::new(assert_cmd::cargo::cargo_bin!())
         .arg(tmpdir.path())
         .arg("-p")
         .arg(port.to_string())
         .arg("--assets")
         .arg(tmpdir.join(DIR_ASSETS))
-        .stdout(Stdio::piped())
+        .arg("--path-prefix")
+        .arg(prefix)
+        .stdout(Stdio::null())
         .spawn()?;
-
+    let server = TestServer::new(port, tmpdir, child, false);
     wait_for_port(port);
 
-    let url = format!("http://localhost:{port}/missing-path");
-    let resp = reqwest::blocking::get(&url)?;
+    let uri_prefix = if prefix.is_empty() {
+        "/".to_string()
+    } else {
+        format!("/{prefix}/")
+    };
+    let assets_prefix = format!("{uri_prefix}__dufs_v{}__/", env!("CARGO_PKG_VERSION"));
+    let expected = not_found_html.replace("__ASSETS_PREFIX__", &assets_prefix);
+    let url = format!("http://localhost:{port}{uri_prefix}missing-path");
+    let client = reqwest::blocking::Client::new();
+    let resp = client.get(&url).send()?;
     assert_eq!(resp.status(), 404);
-    assert_eq!(resp.text()?, not_found_html);
+    assert_eq!(resp.headers()["content-length"], expected.len().to_string());
+    assert_eq!(
+        resp.headers()["content-type"]
+            .to_str()?
+            .to_ascii_lowercase(),
+        "text/html; charset=utf-8"
+    );
+    assert_eq!(resp.text()?, expected);
 
-    let url = format!("http://localhost:{port}/missing-path?noscript");
-    let resp = reqwest::blocking::get(&url)?;
+    let resp = client.head(&url).send()?;
+    assert_eq!(resp.status(), 404);
+    assert_eq!(resp.headers()["content-length"], expected.len().to_string());
+    assert!(resp.bytes()?.is_empty());
+
+    let resp = client.get(format!("{url}?noscript")).send()?;
     assert_eq!(resp.status(), 404);
     assert_eq!(resp.text()?, "Not Found");
 
-    child.kill()?;
+    // The same prefix must resolve to a real asset, not just look plausible in HTML.
+    let resp = client
+        .get(format!("http://localhost:{port}{assets_prefix}favicon.ico"))
+        .send()?;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.bytes()?.as_ref(), b"icon");
+    drop(server);
     Ok(())
 }
