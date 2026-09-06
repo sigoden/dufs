@@ -3,6 +3,7 @@
 use crate::auth::{www_authenticate, AccessPaths, AccessPerm};
 use crate::http_utils::{body_full, IncomingStream, LengthLimitedStream};
 use crate::noscript::{detect_noscript, generate_noscript_html};
+use crate::search::SearchIndex;
 use crate::utils::{decode_uri, encode_uri, get_file_name, glob, parse_range, try_get_file_name};
 use crate::Args;
 
@@ -47,6 +48,7 @@ use tokio_util::io::{ReaderStream, StreamReader};
 use uuid::Uuid;
 use walkdir::{DirEntry, WalkDir};
 use xml::escape::escape_str_pcdata;
+use xml::reader::{EventReader, XmlEvent};
 
 pub type Request = hyper::Request<Incoming>;
 pub type Response = hyper::Response<BoxBody<Bytes, anyhow::Error>>;
@@ -68,6 +70,7 @@ pub struct Server {
     html: Cow<'static, str>,
     single_file_req_paths: Vec<String>,
     running: Arc<AtomicBool>,
+    search_index: Option<Arc<SearchIndex>>,
 }
 
 impl Server {
@@ -90,12 +93,23 @@ impl Server {
             Some(path) => Cow::Owned(std::fs::read_to_string(path.join("index.html"))?),
             None => Cow::Borrowed(INDEX_HTML),
         };
+        let search_index = if args.allow_search && !args.path_is_file {
+            let serve_path = args.serve_path.clone();
+            let hidden = Arc::new(args.hidden.clone());
+            let allow_symlink = args.allow_symlink;
+            let index = Arc::new(SearchIndex::build(serve_path, hidden, allow_symlink));
+            SearchIndex::spawn_watcher(&index, running.clone());
+            Some(index)
+        } else {
+            None
+        };
         Ok(Self {
             args,
             running,
             single_file_req_paths,
             assets_prefix,
             html,
+            search_index,
         })
     }
 
@@ -459,6 +473,14 @@ impl Server {
                         status_not_found(&mut res);
                     }
                 }
+                "SEARCH" => {
+                    if allow_search && is_dir {
+                        self.handle_search_dav(path, req, access_paths, &mut res)
+                            .await?;
+                    } else {
+                        status_not_found(&mut res);
+                    }
+                }
                 "MKCOL" => {
                     if !allow_upload {
                         status_forbid(&mut res);
@@ -618,20 +640,24 @@ impl Server {
         }
 
         if !head_only {
-            let path_buf = path.to_path_buf();
-            let hidden = Arc::new(self.args.hidden.to_vec());
-            let search = search.clone();
-
-            let search_paths = tokio::spawn(collect_dir_entries(
-                access_paths.clone(),
-                self.running.clone(),
-                path_buf,
-                hidden,
-                self.args.allow_symlink,
-                self.args.serve_path.clone(),
-                move |x| get_file_name(x.path()).to_lowercase().contains(&search),
-            ))
-            .await?;
+            let search_paths = match &self.search_index {
+                Some(index) => index.search(&access_paths.entry_paths(path), &search),
+                None => {
+                    let path_buf = path.to_path_buf();
+                    let hidden = Arc::new(self.args.hidden.to_vec());
+                    let search = search.clone();
+                    tokio::spawn(collect_dir_entries(
+                        access_paths.clone(),
+                        self.running.clone(),
+                        path_buf,
+                        hidden,
+                        self.args.allow_symlink,
+                        self.args.serve_path.clone(),
+                        move |x| get_file_name(x.path()).to_lowercase().contains(&search),
+                    ))
+                    .await?
+                }
+            };
 
             for search_path in search_paths.into_iter() {
                 if let Ok(Some(item)) = self.to_pathitem(search_path, path.to_path_buf()).await {
@@ -1140,6 +1166,58 @@ impl Server {
         } else {
             status_not_found(res);
         }
+        Ok(())
+    }
+
+    async fn handle_search_dav(
+        &self,
+        path: &Path,
+        req: Request,
+        access_paths: AccessPaths,
+        res: &mut Response,
+    ) -> Result<()> {
+        let body = req.into_body().collect().await?.to_bytes();
+        let query = match parse_dasl_query(&String::from_utf8_lossy(&body)) {
+            Some(v) => v.to_lowercase(),
+            None => {
+                res_multistatus(res, "");
+                return Ok(());
+            }
+        };
+        if query.is_empty() {
+            res_multistatus(res, "");
+            return Ok(());
+        }
+
+        let search_paths = match &self.search_index {
+            Some(index) => index.search(&access_paths.entry_paths(path), &query),
+            None => {
+                let path_buf = path.to_path_buf();
+                let hidden = Arc::new(self.args.hidden.to_vec());
+                let search = query.clone();
+                tokio::spawn(collect_dir_entries(
+                    access_paths,
+                    self.running.clone(),
+                    path_buf,
+                    hidden,
+                    self.args.allow_symlink,
+                    self.args.serve_path.clone(),
+                    move |x| get_file_name(x.path()).to_lowercase().contains(&search),
+                ))
+                .await?
+            }
+        };
+
+        let mut output = String::new();
+        for search_path in search_paths.into_iter() {
+            if let Ok(Some(item)) = self
+                .to_pathitem(search_path, self.args.serve_path.clone())
+                .await
+            {
+                output.push_str(&item.to_dav_xml(self.args.uri_prefix.as_str()));
+            }
+        }
+        res_multistatus(res, &output);
         Ok(())
     }
 
@@ -1848,7 +1926,7 @@ fn set_content_disposition(res: &mut Response, inline: bool, filename: &str) -> 
     Ok(())
 }
 
-fn is_hidden(hidden: &[String], file_name: &str, is_dir: bool) -> bool {
+pub(crate) fn is_hidden(hidden: &[String], file_name: &str, is_dir: bool) -> bool {
     hidden.iter().any(|v| {
         if is_dir {
             if let Some(x) = v.strip_suffix('/') {
@@ -1859,11 +1937,85 @@ fn is_hidden(hidden: &[String], file_name: &str, is_dir: bool) -> bool {
     })
 }
 
+/// Extract the search term from a WebDAV SEARCH (DASL basicsearch) request body.
+/// It looks for a `D:like` or `D:contains` condition on `D:displayname` (the
+/// pattern Windows Explorer uses) and returns the bare literal without
+/// wildcard characters.
+fn parse_dasl_query(body: &str) -> Option<String> {
+    struct Ctx {
+        op: String,
+        prop: Option<String>,
+        literal: Option<String>,
+    }
+
+    let parser = EventReader::from_str(body);
+    let mut stack: Vec<Ctx> = Vec::new();
+    let mut result: Option<String> = None;
+
+    for event in parser.into_iter().flatten() {
+        match event {
+            XmlEvent::StartElement { name, .. } => {
+                let local = name.local_name;
+                match local.as_str() {
+                    "like" | "contains" | "eq" | "gt" | "lt" | "ge" | "le" => {
+                        stack.push(Ctx {
+                            op: local.clone(),
+                            prop: None,
+                            literal: None,
+                        });
+                    }
+                    "displayname" | "getcontentlength" | "getlastmodified"
+                    | "getcontenttype" | "getetag" | "creationdate" | "resourcetype"
+                    | "iscollection" => {
+                        if let Some(ctx) = stack.last_mut() {
+                            if ctx.prop.is_none() {
+                                ctx.prop = Some(local.clone());
+                            }
+                        }
+                    }
+                    "literal" => {
+                        if let Some(ctx) = stack.last_mut() {
+                            ctx.literal = Some(String::new());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            XmlEvent::Characters(text) => {
+                if let Some(ctx) = stack.last_mut() {
+                    if let Some(literal) = ctx.literal.as_mut() {
+                        literal.push_str(&text);
+                    }
+                }
+            }
+            XmlEvent::EndElement { name } => {
+                if stack.last().map(|ctx| ctx.op == name.local_name).unwrap_or(false) {
+                    let ctx = stack.pop().unwrap();
+                    if (ctx.op == "like" || ctx.op == "contains")
+                        && ctx.prop.as_deref() == Some("displayname")
+                    {
+                        if let Some(literal) = ctx.literal {
+                            let q = literal
+                                .trim_matches(|c| c == '*' || c == '%')
+                                .to_string();
+                            if !q.is_empty() {
+                                result = Some(q);
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    result
+}
+
 fn set_webdav_headers(res: &mut Response) {
     res.headers_mut().insert(
         "Allow",
         HeaderValue::from_static(
-            "GET,HEAD,PUT,OPTIONS,DELETE,PATCH,PROPFIND,COPY,MOVE,CHECKAUTH,LOGOUT",
+            "GET,HEAD,PUT,OPTIONS,DELETE,PATCH,PROPFIND,COPY,MOVE,CHECKAUTH,LOGOUT,SEARCH",
         ),
     );
     res.headers_mut()

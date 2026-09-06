@@ -35,6 +35,8 @@ log = { version = "0.4", features = ["std"] }
 socket2 = "0.6"
 async-stream = "0.3"
 walkdir = "2.3"
+ignore = "0.4"
+notify = "6"
 form_urlencoded = "1.2"
 alphanumeric-sort = "1.4"
 content_inspector = "0.2"
