@@ -3,6 +3,7 @@
 use crate::auth::{www_authenticate, AccessPaths, AccessPerm};
 use crate::http_utils::{body_full, IncomingStream, LengthLimitedStream};
 use crate::noscript::{detect_noscript, generate_noscript_html};
+use crate::search::SearchIndex;
 use crate::utils::{decode_uri, encode_uri, get_file_name, glob, parse_range, try_get_file_name};
 use crate::Args;
 
@@ -68,6 +69,7 @@ pub struct Server {
     html: Cow<'static, str>,
     single_file_req_paths: Vec<String>,
     running: Arc<AtomicBool>,
+    search_index: Option<Arc<SearchIndex>>,
 }
 
 impl Server {
@@ -90,12 +92,23 @@ impl Server {
             Some(path) => Cow::Owned(std::fs::read_to_string(path.join("index.html"))?),
             None => Cow::Borrowed(INDEX_HTML),
         };
+        let search_index = if args.allow_search && !args.path_is_file {
+            let serve_path = args.serve_path.clone();
+            let hidden = Arc::new(args.hidden.clone());
+            let allow_symlink = args.allow_symlink;
+            let index = Arc::new(SearchIndex::build(serve_path, hidden, allow_symlink));
+            SearchIndex::spawn_watcher(&index, running.clone());
+            Some(index)
+        } else {
+            None
+        };
         Ok(Self {
             args,
             running,
             single_file_req_paths,
             assets_prefix,
             html,
+            search_index,
         })
     }
 
@@ -618,20 +631,24 @@ impl Server {
         }
 
         if !head_only {
-            let path_buf = path.to_path_buf();
-            let hidden = Arc::new(self.args.hidden.to_vec());
-            let search = search.clone();
-
-            let search_paths = tokio::spawn(collect_dir_entries(
-                access_paths.clone(),
-                self.running.clone(),
-                path_buf,
-                hidden,
-                self.args.allow_symlink,
-                self.args.serve_path.clone(),
-                move |x| get_file_name(x.path()).to_lowercase().contains(&search),
-            ))
-            .await?;
+            let search_paths = match &self.search_index {
+                Some(index) => index.search(&access_paths.entry_paths(path), &search),
+                None => {
+                    let path_buf = path.to_path_buf();
+                    let hidden = Arc::new(self.args.hidden.to_vec());
+                    let search = search.clone();
+                    tokio::spawn(collect_dir_entries(
+                        access_paths.clone(),
+                        self.running.clone(),
+                        path_buf,
+                        hidden,
+                        self.args.allow_symlink,
+                        self.args.serve_path.clone(),
+                        move |x| get_file_name(x.path()).to_lowercase().contains(&search),
+                    ))
+                    .await?
+                }
+            };
 
             for search_path in search_paths.into_iter() {
                 if let Ok(Some(item)) = self.to_pathitem(search_path, path.to_path_buf()).await {
@@ -1848,7 +1865,7 @@ fn set_content_disposition(res: &mut Response, inline: bool, filename: &str) -> 
     Ok(())
 }
 
-fn is_hidden(hidden: &[String], file_name: &str, is_dir: bool) -> bool {
+pub(crate) fn is_hidden(hidden: &[String], file_name: &str, is_dir: bool) -> bool {
     hidden.iter().any(|v| {
         if is_dir {
             if let Some(x) = v.strip_suffix('/') {
