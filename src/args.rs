@@ -344,7 +344,7 @@ impl Args {
         args.uri_prefix = if args.path_prefix.is_empty() {
             "/".to_owned()
         } else {
-            format!("/{}/", &encode_uri(&args.path_prefix))
+            format!("/{}/", encode_uri(&args.path_prefix))
         };
 
         if let Some(hidden) = matches.get_many::<String>("hidden") {
