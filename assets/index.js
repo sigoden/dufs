@@ -106,6 +106,8 @@ let $logoutBtn;
  */
 let $userName;
 
+let pathsRefreshVersion = 0;
+
 // manage unload event to prevent leaving with uploads in progress
 const beforeUnloadHandler = (event) => {
   if (Uploader.queues.length > 0 || Uploader.runnings > 0) {
@@ -272,14 +274,17 @@ class Uploader {
     this.lastUptime = now;
   }
 
-  complete() {
+  async complete() {
     const $uploadStatusNew = this.$uploadStatus.cloneNode(true);
     $uploadStatusNew.innerHTML = `✓`;
     this.$uploadStatus.parentNode.replaceChild($uploadStatusNew, this.$uploadStatus);
+    document.getElementById(`upload${this.idx}`).classList.add("upload-complete");
+    $emptyFolder.classList.add("hidden");
     this.$uploadStatus = null;
     failUploaders.delete(this.idx);
     Uploader.runnings--;
     Uploader.runQueue();
+    await refreshPaths();
   }
 
   fail(reason = "") {
@@ -448,6 +453,31 @@ function renderPathsTableBody() {
   }
 }
 
+async function refreshPaths() {
+  const version = ++pathsRefreshVersion;
+  const completedUploads = document.querySelectorAll(".upload-complete");
+  const url = new URL(location.href);
+  url.searchParams.set("json", "");
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (res.status !== 200) return;
+    const data = await res.json();
+    if (version !== pathsRefreshVersion || data.kind !== "Index" || !Array.isArray(data.paths)) return;
+    if (!data.paths.every(path => typeof path?.name === "string" && ["File", "Dir", "SymlinkFile", "SymlinkDir"].includes(path.path_type))) return;
+    DATA = data;
+    DIR_EMPTY_NOTE = PARAMS.q ? 'No results' : DATA.dir_exists ? 'Empty folder' : 'Folder will be created when a file is uploaded';
+    $pathsTableBody.innerHTML = "";
+    $pathsTable.classList.add("hidden");
+    $emptyFolder.classList.add("hidden");
+    renderPathsTableBody();
+    if (DATA.user) setupDownloadWithToken($pathsTableBody);
+    completedUploads.forEach(row => row.remove());
+    if (!$uploadersTable.querySelector(".uploader")) $uploadersTable.classList.add("hidden");
+  } catch {
+    // The upload succeeded; keep its completed row if the listing cannot be refreshed.
+  }
+}
+
 /**
  * Add pathitem
  * @param {PathItem} file
@@ -554,8 +584,8 @@ async function setupAuth() {
   }
 }
 
-function setupDownloadWithToken() {
-  document.querySelectorAll("a.dlwt").forEach(link => {
+function setupDownloadWithToken(root = document) {
+  root.querySelectorAll("a.dlwt").forEach(link => {
     link.addEventListener("click", async e => {
       e.preventDefault();
       try {
@@ -704,13 +734,15 @@ async function deletePath(index) {
   const file = DATA.paths[index];
   if (!file) return;
   await doDeletePath(file.name, newUrl(file.name), () => {
-    document.getElementById(`addPath${index}`)?.remove();
-    DATA.paths[index] = null;
+    const currentIndex = DATA.paths.findIndex(path => path?.name === file.name);
+    document.getElementById(`addPath${currentIndex}`)?.remove();
+    if (currentIndex !== -1) DATA.paths[currentIndex] = null;
     if (!DATA.paths.find(v => !!v)) {
       $pathsTable.classList.add("hidden");
       $emptyFolder.textContent = DIR_EMPTY_NOTE;
       $emptyFolder.classList.remove("hidden");
     }
+    refreshPaths();
   });
 }
 
