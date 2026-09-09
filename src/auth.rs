@@ -267,7 +267,7 @@ impl AccessPaths {
             self.perm = perm;
             return;
         }
-        let child = self.children.entry(parts[0].to_string()).or_default();
+        let child = self.children.entry(parts[0].to_ascii_lowercase()).or_default();
         child.add_impl(&parts[1..], perm)
     }
 
@@ -327,7 +327,8 @@ impl AccessPaths {
                 return Some(AccessPaths::new(perm));
             }
         }
-        let child = match self.children.get(parts[0]) {
+        let key = parts[0].to_ascii_lowercase();
+        let child = match self.children.get(&key) {
             Some(v) => v,
             None => {
                 if perm.indexonly() {
