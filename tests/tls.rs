@@ -34,7 +34,9 @@ fn tls_works(#[case] server: TestServer) -> Result<(), Error> {
 /// Wrong path for cert throws error.
 #[rstest]
 fn wrong_path_cert() -> Result<(), Error> {
-    let port = port().to_string();
+    // Hold the port reservation until the child process has run: dufs binds
+    // before it loads the cert, so the port must not be handed to another test.
+    let port = port();
     assert_cmd::cargo::cargo_bin_cmd!()
         .args([
             "--tls-cert",
@@ -42,7 +44,7 @@ fn wrong_path_cert() -> Result<(), Error> {
             "--tls-key",
             "tests/data/key.pem",
             "--port",
-            &port,
+            &port.to_string(),
         ])
         .assert()
         .failure()
@@ -54,7 +56,7 @@ fn wrong_path_cert() -> Result<(), Error> {
 /// Wrong paths for key throws errors.
 #[rstest]
 fn wrong_path_key() -> Result<(), Error> {
-    let port = port().to_string();
+    let port = port();
     assert_cmd::cargo::cargo_bin_cmd!()
         .args([
             "--tls-cert",
@@ -62,7 +64,7 @@ fn wrong_path_key() -> Result<(), Error> {
             "--tls-key",
             "wrong",
             "--port",
-            &port,
+            &port.to_string(),
         ])
         .assert()
         .failure()

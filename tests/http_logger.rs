@@ -3,7 +3,7 @@ mod fixtures;
 mod utils;
 
 use digest_auth_util::send_with_digest_auth;
-use fixtures::{port, tmpdir, wait_for_port, Error};
+use fixtures::{port, tmpdir, wait_for_port, Error, Port};
 
 use assert_fs::fixture::TempDir;
 use rstest::rstest;
@@ -15,7 +15,7 @@ use std::process::{Command, Stdio};
 #[case(&["-a", "user:pass@/:rw", "--log-format", "$remote_user"], true)]
 fn log_remote_user(
     tmpdir: TempDir,
-    port: u16,
+    port: Port,
     #[case] args: &[&str],
     #[case] is_basic: bool,
 ) -> Result<(), Error> {
@@ -27,7 +27,7 @@ fn log_remote_user(
         .stdout(Stdio::piped())
         .spawn()?;
 
-    wait_for_port(port);
+    wait_for_port(&port);
 
     let stdout = child.stdout.as_mut().expect("Failed to get stdout");
 
@@ -53,7 +53,7 @@ fn log_remote_user(
 
 #[rstest]
 #[case(&["--log-format", ""])]
-fn no_log(tmpdir: TempDir, port: u16, #[case] args: &[&str]) -> Result<(), Error> {
+fn no_log(tmpdir: TempDir, port: Port, #[case] args: &[&str]) -> Result<(), Error> {
     let mut child = Command::new(assert_cmd::cargo::cargo_bin!())
         .arg(tmpdir.path())
         .arg("-p")
@@ -62,7 +62,7 @@ fn no_log(tmpdir: TempDir, port: u16, #[case] args: &[&str]) -> Result<(), Error
         .stdout(Stdio::piped())
         .spawn()?;
 
-    wait_for_port(port);
+    wait_for_port(&port);
 
     let stdout = child.stdout.as_mut().expect("Failed to get stdout");
 

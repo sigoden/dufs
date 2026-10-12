@@ -4,13 +4,13 @@ mod fixtures;
 mod utils;
 
 use assert_fs::fixture::TempDir;
-use fixtures::{port, tmpdir, wait_for_port, Error};
+use fixtures::{port, tmpdir, wait_for_port, Error, Port};
 use rstest::rstest;
 use std::process::{Command, Stdio};
 
 #[rstest]
 #[case("index.html")]
-fn single_file(tmpdir: TempDir, port: u16, #[case] file: &str) -> Result<(), Error> {
+fn single_file(tmpdir: TempDir, port: Port, #[case] file: &str) -> Result<(), Error> {
     let mut child = Command::new(assert_cmd::cargo::cargo_bin!())
         .arg(tmpdir.path().join(file))
         .arg("-p")
@@ -18,7 +18,7 @@ fn single_file(tmpdir: TempDir, port: u16, #[case] file: &str) -> Result<(), Err
         .stdout(Stdio::piped())
         .spawn()?;
 
-    wait_for_port(port);
+    wait_for_port(&port);
 
     let resp = reqwest::blocking::get(format!("http://localhost:{port}"))?;
     assert_eq!(resp.text()?, "This is index.html");
@@ -33,7 +33,7 @@ fn single_file(tmpdir: TempDir, port: u16, #[case] file: &str) -> Result<(), Err
 
 #[rstest]
 #[case("index.html")]
-fn path_prefix_single_file(tmpdir: TempDir, port: u16, #[case] file: &str) -> Result<(), Error> {
+fn path_prefix_single_file(tmpdir: TempDir, port: Port, #[case] file: &str) -> Result<(), Error> {
     let mut child = Command::new(assert_cmd::cargo::cargo_bin!())
         .arg(tmpdir.path().join(file))
         .arg("-p")
@@ -43,7 +43,7 @@ fn path_prefix_single_file(tmpdir: TempDir, port: u16, #[case] file: &str) -> Re
         .stdout(Stdio::piped())
         .spawn()?;
 
-    wait_for_port(port);
+    wait_for_port(&port);
 
     let resp = reqwest::blocking::get(format!("http://localhost:{port}/xyz"))?;
     assert_eq!(resp.text()?, "This is index.html");

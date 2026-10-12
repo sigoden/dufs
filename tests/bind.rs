@@ -1,6 +1,6 @@
 mod fixtures;
 
-use fixtures::{port, server, tmpdir, wait_for_port, Error, TestServer};
+use fixtures::{port, server, tmpdir, wait_for_port, Error, Port, TestServer};
 
 use assert_cmd::prelude::*;
 use assert_fs::fixture::TempDir;
@@ -11,7 +11,7 @@ use std::process::{Command, Stdio};
 
 #[rstest]
 #[case(&["-b", "20.205.243.166"])]
-fn bind_fails(tmpdir: TempDir, port: u16, #[case] args: &[&str]) -> Result<(), Error> {
+fn bind_fails(tmpdir: TempDir, port: Port, #[case] args: &[&str]) -> Result<(), Error> {
     Command::new(assert_cmd::cargo::cargo_bin!())
         .arg(tmpdir.path())
         .arg("-p")
@@ -48,7 +48,7 @@ fn bind_ipv4_ipv6(
 #[rstest]
 #[case(&[] as &[&str])]
 #[case(&["--path-prefix", "/prefix"])]
-fn validate_printed_urls(tmpdir: TempDir, port: u16, #[case] args: &[&str]) -> Result<(), Error> {
+fn validate_printed_urls(tmpdir: TempDir, port: Port, #[case] args: &[&str]) -> Result<(), Error> {
     let mut child = Command::new(assert_cmd::cargo::cargo_bin!())
         .arg(tmpdir.path())
         .arg("-p")
@@ -57,7 +57,7 @@ fn validate_printed_urls(tmpdir: TempDir, port: u16, #[case] args: &[&str]) -> R
         .stdout(Stdio::piped())
         .spawn()?;
 
-    wait_for_port(port);
+    wait_for_port(&port);
 
     let stdout = child.stdout.as_mut().expect("Failed to get stdout");
     let mut buf = [0; 1000];
