@@ -2,7 +2,7 @@ mod fixtures;
 mod utils;
 
 use assert_fs::fixture::TempDir;
-use fixtures::{port, server, tmpdir, wait_for_port, Error, TestServer, DIR_ASSETS};
+use fixtures::{port, server, tmpdir, wait_for_port, Error, Port, TestServer, DIR_ASSETS};
 use rstest::rstest;
 use std::process::{Command, Stdio};
 
@@ -99,7 +99,7 @@ fn asset_js_with_prefix(
 }
 
 #[rstest]
-fn assets_override(tmpdir: TempDir, port: u16) -> Result<(), Error> {
+fn assets_override(tmpdir: TempDir, port: Port) -> Result<(), Error> {
     let mut child = Command::new(assert_cmd::cargo::cargo_bin!())
         .arg(tmpdir.path())
         .arg("-p")
@@ -109,7 +109,7 @@ fn assets_override(tmpdir: TempDir, port: u16) -> Result<(), Error> {
         .stdout(Stdio::piped())
         .spawn()?;
 
-    wait_for_port(port);
+    wait_for_port(&port);
 
     let url = format!("http://localhost:{port}");
     let resp = reqwest::blocking::get(&url)?;
@@ -125,7 +125,7 @@ fn assets_override(tmpdir: TempDir, port: u16) -> Result<(), Error> {
 }
 
 #[rstest]
-fn assets_override_not_found_page(tmpdir: TempDir, port: u16) -> Result<(), Error> {
+fn assets_override_not_found_page(tmpdir: TempDir, port: Port) -> Result<(), Error> {
     let not_found_html = "<html><body>custom 404 page</body></html>";
     std::fs::write(
         tmpdir.join(format!("{}404.html", DIR_ASSETS)),
@@ -141,7 +141,7 @@ fn assets_override_not_found_page(tmpdir: TempDir, port: u16) -> Result<(), Erro
         .stdout(Stdio::piped())
         .spawn()?;
 
-    wait_for_port(port);
+    wait_for_port(&port);
 
     let url = format!("http://localhost:{port}/missing-path");
     let resp = reqwest::blocking::get(&url)?;

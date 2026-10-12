@@ -4,13 +4,13 @@ mod utils;
 
 use assert_fs::TempDir;
 use digest_auth_util::send_with_digest_auth;
-use fixtures::{port, tmpdir, wait_for_port, Error};
+use fixtures::{port, tmpdir, wait_for_port, Error, Port};
 use rstest::rstest;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 #[rstest]
-fn use_config_file(tmpdir: TempDir, port: u16) -> Result<(), Error> {
+fn use_config_file(tmpdir: TempDir, port: Port) -> Result<(), Error> {
     let config_path = get_config_path().display().to_string();
     let mut child = Command::new(assert_cmd::cargo::cargo_bin!())
         .arg(tmpdir.path())
@@ -20,7 +20,7 @@ fn use_config_file(tmpdir: TempDir, port: u16) -> Result<(), Error> {
         .stdout(Stdio::piped())
         .spawn()?;
 
-    wait_for_port(port);
+    wait_for_port(&port);
 
     let url = format!("http://localhost:{port}/dufs/index.html");
     let resp = fetch!(b"GET", &url).send()?;
