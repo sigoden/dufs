@@ -106,8 +106,9 @@ pub fn parse_range(range: &str, size: u64) -> Option<Vec<(u64, u64)>> {
                     result.push((start, size - 1));
                 } else {
                     let end = end.parse::<u64>().ok()?;
-                    if end < size && start <= end {
-                        result.push((start, end));
+                    if start <= end {
+                        // RFC 9110 §14.1.2: clamp last-pos to size - 1
+                        result.push((start, end.min(size - 1)));
                     } else {
                         return None;
                     }
@@ -165,9 +166,19 @@ mod tests {
             parse_range("bytes=0-199, 100-399, 400-, -200", 500),
             Some(vec![(0, 199), (100, 399), (400, 499), (300, 499)])
         );
-        assert_eq!(parse_range("bytes=500-", 500), None);
+        // RFC 9110 §14.1.2: last-pos >= size is clamped to size - 1
+        assert_eq!(parse_range("bytes=0-500", 500), Some(vec![(0, 499)]));
+        assert_eq!(parse_range("bytes=0-999", 500), Some(vec![(0, 499)]));
+        assert_eq!(parse_range("bytes=300-999", 500), Some(vec![(300, 499)]));
+        assert_eq!(
+            parse_range("bytes=0-199, 300-999", 500),
+            Some(vec![(0, 199), (300, 499)])
+        );
+        // issue #735: 5-byte file
+        assert_eq!(parse_range("bytes=0-5", 5), Some(vec![(0, 4)]));
+        assert_eq!(parse_range("bytes=0-9", 5), Some(vec![(0, 4)]));
+        assert_eq!(parse_range("bytes=5-", 5), None);
         assert_eq!(parse_range("bytes=-501", 500), None);
-        assert_eq!(parse_range("bytes=0-500", 500), None);
         assert_eq!(parse_range("bytes=0-199,", 500), None);
         assert_eq!(parse_range("bytes=0-199, 500-", 500), None);
     }
