@@ -79,7 +79,7 @@ impl Server {
                 args.uri_prefix[0..args.uri_prefix.len() - 1].to_string(),
                 encode_uri(&format!(
                     "{}{}",
-                    &args.uri_prefix,
+                    args.uri_prefix,
                     get_file_name(&args.serve_path)
                 )),
             ]
@@ -1585,7 +1585,7 @@ impl PathItem {
             LocalResult::Single(v) => format!("{}", v.format("%a, %d %b %Y %H:%M:%S GMT")),
             _ => String::new(),
         };
-        let mut href = encode_uri(&format!("{}{}", prefix, &self.name));
+        let mut href = encode_uri(&format!("{}{}", prefix, self.name));
         if self.is_dir() && !href.ends_with('/') {
             href.push('/');
         }
