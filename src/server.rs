@@ -1221,6 +1221,22 @@ impl Server {
 
         ensure_path_parent(&dest).await?;
 
+        let overwrite = req
+            .headers()
+            .get("overwrite")
+            .map(|v| v.as_bytes() != b"F")
+            .unwrap_or(true);
+        if fs::symlink_metadata(&dest).await.is_ok() {
+            if !overwrite {
+                *res.status_mut() = StatusCode::PRECONDITION_FAILED;
+                return Ok(());
+            }
+            if !self.args.allow_delete {
+                status_forbid(res);
+                return Ok(());
+            }
+        }
+
         fs::copy(path, &dest).await?;
 
         status_no_content(res);
