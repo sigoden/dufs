@@ -184,7 +184,7 @@ impl Server {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
 
-        let guard = self.args.auth.guard(
+        let (user, access_paths, via_token) = self.args.auth.guard(
             &relative_path,
             &method,
             authorization,
@@ -192,7 +192,7 @@ impl Server {
             is_microsoft_webdav,
         );
 
-        let (user, access_paths) = match guard {
+        let (user, access_paths) = match (user, access_paths) {
             (None, None) => {
                 self.auth_reject(&mut res)?;
                 return Ok(res);
@@ -230,6 +230,12 @@ impl Server {
         let head_only = method == Method::HEAD || method == Method::OPTIONS;
 
         if has_query_flag(&query_params, "tokengen") {
+            // A share token must not be able to mint another token, otherwise a
+            // short-lived link could be renewed forever regardless of expiry.
+            if via_token {
+                self.auth_reject(&mut res)?;
+                return Ok(res);
+            }
             self.handle_tokengen(&relative_path, user, head_only, &mut res)
                 .await?;
             return Ok(res);
@@ -1494,7 +1500,7 @@ impl Server {
             .guard(&dest_path, req.method(), authorization, None, false);
 
         match guard {
-            (_, Some(_)) => {}
+            (_, Some(_), _) => {}
             _ => {
                 status_forbid(res);
                 return None;

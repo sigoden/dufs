@@ -113,6 +113,9 @@ impl AccessControl {
         !self.users.is_empty()
     }
 
+    /// Returns the guarded `(user, access_paths, via_token)`. `via_token` is
+    /// true only when the identity was established by a share token rather than
+    /// primary credentials or anonymous access.
     pub fn guard(
         &self,
         path: &str,
@@ -120,15 +123,15 @@ impl AccessControl {
         authorization: Option<&HeaderValue>,
         token: Option<&String>,
         guard_options: bool,
-    ) -> (Option<String>, Option<AccessPaths>) {
+    ) -> (Option<String>, Option<AccessPaths>, bool) {
         if self.empty {
-            return (None, Some(AccessPaths::new(AccessPerm::ReadWrite)));
+            return (None, Some(AccessPaths::new(AccessPerm::ReadWrite)), false);
         }
 
         if method == Method::GET {
             if let Some(token) = token {
                 if let Ok((user, ap)) = self.verify_token(token, path) {
-                    return (Some(user), ap.guard(path, method));
+                    return (Some(user), ap.guard(path, method), true);
                 }
             }
         }
@@ -138,25 +141,29 @@ impl AccessControl {
                 if let Some((pass, ap)) = self.users.get(&user) {
                     if check_auth(authorization, method.as_str(), &user, pass).is_some() {
                         if method == Method::OPTIONS {
-                            return (Some(user), Some(AccessPaths::new(AccessPerm::ReadOnly)));
+                            return (
+                                Some(user),
+                                Some(AccessPaths::new(AccessPerm::ReadOnly)),
+                                false,
+                            );
                         }
-                        return (Some(user), ap.guard(path, method));
+                        return (Some(user), ap.guard(path, method), false);
                     }
                 }
             }
 
-            return (None, None);
+            return (None, None, false);
         }
 
         if !guard_options && method == Method::OPTIONS {
-            return (None, Some(AccessPaths::new(AccessPerm::ReadOnly)));
+            return (None, Some(AccessPaths::new(AccessPerm::ReadOnly)), false);
         }
 
         if let Some(ap) = self.anonymous.as_ref() {
-            return (None, ap.guard(path, method));
+            return (None, ap.guard(path, method), false);
         }
 
-        (None, None)
+        (None, None, false)
     }
 
     pub fn generate_token(&self, path: &str, user: &str) -> Result<String> {

@@ -407,6 +407,31 @@ fn token_auth(#[with(&["-a", "user:pass@/"])] server: TestServer) -> Result<(), 
 }
 
 #[rstest]
+fn token_auth_cannot_renew(
+    #[with(&["-a", "user:pass@/"])] server: TestServer,
+) -> Result<(), Error> {
+    // A share token must not be able to mint another token, otherwise a
+    // short-lived link could be renewed forever.
+    let url = format!("{}index.html?tokengen", server.url());
+    let token = fetch!(b"GET", &url)
+        .basic_auth("user", Some("pass"))
+        .send()?
+        .text()?;
+
+    // The token is still accepted for a normal request.
+    let url = format!("{}index.html?token={token}", server.url());
+    let resp = fetch!(b"GET", &url).send()?;
+    assert_eq!(resp.status(), 200);
+
+    // But it must not be able to renew itself.
+    let url = format!("{}index.html?token={token}&tokengen", server.url());
+    let resp = fetch!(b"GET", &url).send()?;
+    assert_eq!(resp.status(), 401);
+
+    Ok(())
+}
+
+#[rstest]
 fn auth_digest_malformed_header(
     #[with(&["--auth", "user:pass@/:rw", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
