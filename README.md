@@ -421,6 +421,7 @@ Your assets folder must contains a `index.html` file.
 
 - `__INDEX_DATA__`: directory listing data
 - `__ASSETS_PREFIX__`: assets url prefix
+- `__PATH_PREFIX__`: path prefix
 
 > A customized 404.html page is also supported.
 

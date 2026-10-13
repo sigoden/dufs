@@ -275,3 +275,36 @@ fn assets_override_not_found_page(tmpdir: TempDir, port: Port) -> Result<(), Err
     child.kill()?;
     Ok(())
 }
+
+#[rstest]
+fn assets_override_not_found_page_with_prefix(tmpdir: TempDir, port: Port) -> Result<(), Error> {
+    let ver = env!("CARGO_PKG_VERSION");
+    std::fs::write(
+        tmpdir.join(format!("{}404.html", DIR_ASSETS)),
+        r#"<link href="__ASSETS_PREFIX__logo.svg"><a href="__PATH_PREFIX__">home</a>"#,
+    )?;
+
+    let mut child = Command::new(assert_cmd::cargo::cargo_bin!())
+        .arg(tmpdir.path())
+        .arg("-p")
+        .arg(port.to_string())
+        .arg("--assets")
+        .arg(tmpdir.join(DIR_ASSETS))
+        .arg("--path-prefix")
+        .arg("xyz")
+        .stdout(Stdio::piped())
+        .spawn()?;
+
+    wait_for_port(&port);
+
+    let url = format!("http://localhost:{port}/xyz/missing-path");
+    let resp = reqwest::blocking::get(&url)?;
+    assert_eq!(resp.status(), 404);
+    assert_eq!(
+        resp.text()?,
+        format!(r#"<link href="/xyz/__dufs_v{ver}__/logo.svg"><a href="/xyz/">home</a>"#)
+    );
+
+    child.kill()?;
+    Ok(())
+}
