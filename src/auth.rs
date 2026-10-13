@@ -523,25 +523,24 @@ fn derive_secret_key(user: &str, pass: &str) -> SigningKey {
 /// Check if a nonce is still valid.
 /// Return an error if it was never valid
 fn validate_nonce(nonce: &[u8]) -> Result<bool> {
-    if nonce.len() != 34 {
+    if nonce.len() != 34 || !nonce.iter().all(u8::is_ascii_hexdigit) {
         bail!("invalid nonce");
     }
     //parse hex
-    if let Ok(n) = std::str::from_utf8(nonce) {
-        //get time
-        if let Ok(secs_nonce) = u32::from_str_radix(&n[..8], 16) {
-            //check time
-            let now = unix_now();
-            let secs_now = now.as_secs() as u32;
+    let n = std::str::from_utf8(nonce)?;
+    //get time
+    if let Ok(secs_nonce) = u32::from_str_radix(&n[..8], 16) {
+        //check time
+        let now = unix_now();
+        let secs_now = now.as_secs() as u32;
 
-            if let Some(dur) = secs_now.checked_sub(secs_nonce) {
-                //check hash
-                let mut h = NONCESTARTHASH.clone();
-                h.consume(secs_nonce.to_be_bytes());
-                let h = format!("{:x}", h.finalize());
-                if h[..26] == n[8..34] {
-                    return Ok(dur < DIGEST_AUTH_TIMEOUT);
-                }
+        if let Some(dur) = secs_now.checked_sub(secs_nonce) {
+            //check hash
+            let mut h = NONCESTARTHASH.clone();
+            h.consume(secs_nonce.to_be_bytes());
+            let h = format!("{:x}", h.finalize());
+            if h[..26] == n[8..34] {
+                return Ok(dur < DIGEST_AUTH_TIMEOUT);
             }
         }
     }
@@ -589,16 +588,19 @@ fn to_headermap(header: &[u8]) -> Result<HashMap<&[u8], &[u8]>, ()> {
     i = 0;
     let mut ret = HashMap::new();
     for (&k, &a) in sep.iter().zip(assign.iter()) {
-        while header[i] == b' ' {
+        while header.get(i) == Some(&b' ') {
             i += 1;
         }
-        if a <= i || k <= 1 + a {
+        if a <= i || k <= 1 + a || k > header.len() {
             //keys and values must contain one char
             return Err(());
         }
         let key = &header[i..a];
         let val = if header[1 + a] == b'"' && header[k - 1] == b'"' {
             //escaped
+            if 2 + a > k - 1 {
+                return Err(());
+            }
             &header[2 + a..k - 1]
         } else {
             //not escaped
@@ -749,5 +751,51 @@ mod tests {
             paths.find("dir2/dir23//dir231/file"),
             Some(AccessPaths::new(AccessPerm::ReadWrite))
         );
+    }
+
+    #[test]
+    fn test_to_headermap() {
+        let map = to_headermap(br#"username="user", realm="DUFS", nonce="abc""#).unwrap();
+        assert_eq!(map.get(b"username".as_ref()), Some(&b"user".as_ref()));
+        assert_eq!(map.get(b"realm".as_ref()), Some(&b"DUFS".as_ref()));
+        assert_eq!(map.get(b"nonce".as_ref()), Some(&b"abc".as_ref()));
+    }
+
+    #[test]
+    fn test_to_headermap_malformed_no_panic() {
+        for header in [
+            &b"a=\""[..],
+            b"a==,",
+            b"a=",
+            b"=,",
+            b"a=\"b",
+            b"a=\"\"",
+            b"a=\"b\",",
+            b"a=\"b\" , c",
+            b" , =, \"",
+            b"",
+            b",",
+            b"\"",
+        ] {
+            // must not panic; the caller treats Err as invalid credentials
+            let _ = to_headermap(header);
+        }
+    }
+
+    #[test]
+    fn test_validate_nonce_no_panic() {
+        // a multi-byte UTF-8 char straddling the byte-8 boundary must not panic
+        let mut nonce = b"0000000".to_vec();
+        nonce.extend_from_slice("é".as_bytes());
+        nonce.extend_from_slice(&[b'A'; 25]);
+        assert_eq!(nonce.len(), 34);
+        assert!(validate_nonce(&nonce).is_err());
+
+        assert!(validate_nonce(b"short").is_err());
+        assert!(validate_nonce(&[0xff; 34]).is_err());
+
+        // a freshly created nonce still validates
+        let nonce = create_nonce().unwrap();
+        assert!(matches!(validate_nonce(nonce.as_bytes()), Ok(true)));
     }
 }

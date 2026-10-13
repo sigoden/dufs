@@ -407,6 +407,47 @@ fn token_auth(#[with(&["-a", "user:pass@/"])] server: TestServer) -> Result<(), 
 }
 
 #[rstest]
+fn auth_digest_malformed_header(
+    #[with(&["--auth", "user:pass@/:rw", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    for authorization in [
+        "Digest a=\"",
+        "Digest a==,",
+        "Digest a=",
+        "Digest =,\"",
+        "Digest a=\"b\",",
+        "Digest a=\"b\" , c",
+    ] {
+        let resp = fetch!(b"GET", server.url())
+            .header("Authorization", authorization)
+            .send()?;
+        assert_eq!(resp.status(), 401);
+    }
+
+    let url = format!("{}index.html", server.url());
+    let resp = fetch!(b"GET", &url)
+        .basic_auth("user", Some("pass"))
+        .send()?;
+    assert_eq!(resp.status(), 200);
+    Ok(())
+}
+
+#[rstest]
+fn auth_digest_malformed_header_without_auth(
+    #[with(&[
+        "--log-format",
+        "$remote_addr $remote_user \"$request\" $status",
+    ])]
+    server: TestServer,
+) -> Result<(), Error> {
+    let resp = fetch!(b"GET", server.url())
+        .header("Authorization", "Digest a=\"")
+        .send()?;
+    assert_eq!(resp.status(), 200);
+    Ok(())
+}
+
+#[rstest]
 fn token_auth_rejects(#[with(&["-a", "user:pass@/"])] server: TestServer) -> Result<(), Error> {
     let url = format!("{}index.html?tokengen", server.url());
 
