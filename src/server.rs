@@ -1207,12 +1207,12 @@ impl Server {
             return Ok(());
         }
 
-        ensure_path_parent(&dest).await?;
-
         if self.guard_root_contained(&dest).await {
             status_bad_request(res, "Invalid Destination");
             return Ok(());
         }
+
+        ensure_path_parent(&dest).await?;
 
         fs::copy(path, &dest).await?;
 
@@ -1228,12 +1228,12 @@ impl Server {
             }
         };
 
-        ensure_path_parent(&dest).await?;
-
         if self.guard_root_contained(&dest).await {
             status_bad_request(res, "Invalid Destination");
             return Ok(());
         }
+
+        ensure_path_parent(&dest).await?;
 
         fs::rename(path, &dest).await?;
 
@@ -1397,7 +1397,7 @@ impl Server {
             return false;
         }
         let mut check_path = path.to_path_buf();
-        while !fs::try_exists(&check_path).await.unwrap_or_default() {
+        while fs::symlink_metadata(&check_path).await.is_err() {
             match check_path.parent() {
                 Some(parent) => check_path = parent.to_path_buf(),
                 None => return true,
