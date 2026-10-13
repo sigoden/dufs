@@ -157,12 +157,20 @@ svg {
 }
 
 .uploaders-table .cell-status {
-  width: 80px;
   padding-left: 0.6em;
 }
 
-.cell-status span {
+.uploaders-table .cell-status span {
   display: inline-block;
+}
+
+.uploaders-table .cell-size,
+.uploaders-table .cell-percent,
+.uploaders-table .cell-speed,
+.uploaders-table .cell-eta {
+  text-align: right;
+  padding-left: 0.6em;
+  font-variant-numeric: tabular-nums;
 }
 
 .paths-table thead a {
