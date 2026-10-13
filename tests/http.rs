@@ -393,6 +393,65 @@ fn get_file_content_type(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn active_content_not_rendered_inline(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    // An uploaded HTML/SVG/XML file must not be rendered on the serve origin,
+    // otherwise its script could run same-origin and read other files.
+    let cases: &[(&str, &[u8], &str)] = &[
+        ("page.html", b"<script>alert(1)</script>", "text/html"),
+        (
+            "image.svg",
+            b"<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>",
+            "image/svg+xml",
+        ),
+        ("data.xml", b"<root/>", ""),
+    ];
+    for (name, body, content_type) in cases {
+        let url = format!("{}{name}", server.url());
+        let resp = fetch!(b"PUT", &url).body(body.to_vec()).send()?;
+        assert_eq!(resp.status(), 201);
+        let resp = reqwest::blocking::get(url)?;
+        assert_eq!(
+            resp.headers().get("x-content-type-options").unwrap(),
+            "nosniff"
+        );
+        if !content_type.is_empty() {
+            assert!(resp
+                .headers()
+                .get("content-type")
+                .unwrap()
+                .to_str()?
+                .starts_with(content_type));
+        }
+        let disposition = resp
+            .headers()
+            .get("content-disposition")
+            .unwrap()
+            .to_str()?;
+        assert!(
+            disposition.starts_with("attachment"),
+            "{name}: {disposition}"
+        );
+    }
+
+    // Ordinary files stay inline, but still never get sniffed.
+    let url = format!("{}note.txt", server.url());
+    let resp = fetch!(b"PUT", &url).body(b"hello".to_vec()).send()?;
+    assert_eq!(resp.status(), 201);
+    let resp = reqwest::blocking::get(url)?;
+    assert_eq!(
+        resp.headers().get("x-content-type-options").unwrap(),
+        "nosniff"
+    );
+    let disposition = resp
+        .headers()
+        .get("content-disposition")
+        .unwrap()
+        .to_str()?;
+    assert!(disposition.starts_with("inline"), "{disposition}");
+    Ok(())
+}
+
+#[rstest]
 fn resumable_upload(#[with(&["--allow-upload"])] server: TestServer) -> Result<(), Error> {
     let url = format!("{}file1", server.url());
     let resp = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
