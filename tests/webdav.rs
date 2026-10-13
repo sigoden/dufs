@@ -141,6 +141,35 @@ fn copy_not_allow_upload(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn copy_no_overwrite_without_delete(
+    #[with(&["--allow-upload"])] server: TestServer,
+) -> Result<(), Error> {
+    let dest_url = format!("{}test.html", server.url());
+    let resp = fetch!(b"COPY", format!("{}test.txt", server.url()))
+        .header("Destination", &dest_url)
+        .send()?;
+    assert_eq!(resp.status(), 403);
+    let resp = reqwest::blocking::get(dest_url)?;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.text()?, "This is test.html");
+    Ok(())
+}
+
+#[rstest]
+fn copy_overwrite_false(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let dest_url = format!("{}test.html", server.url());
+    let resp = fetch!(b"COPY", format!("{}test.txt", server.url()))
+        .header("Destination", &dest_url)
+        .header("Overwrite", "F")
+        .send()?;
+    assert_eq!(resp.status(), 412);
+    let resp = reqwest::blocking::get(dest_url)?;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.text()?, "This is test.html");
+    Ok(())
+}
+
+#[rstest]
 fn copy_file_404(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let new_url = format!("{}test2.html", server.url());
     let resp = fetch!(b"COPY", format!("{}404", server.url()))

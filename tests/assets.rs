@@ -308,3 +308,46 @@ fn assets_override_not_found_page_with_prefix(tmpdir: TempDir, port: Port) -> Re
     child.kill()?;
     Ok(())
 }
+
+#[cfg(windows)]
+#[rstest]
+fn asset_drive_relative_path_is_not_served(tmpdir: TempDir, port: Port) -> Result<(), Error> {
+    use std::path::Component;
+
+    let ver = env!("CARGO_PKG_VERSION");
+
+    // Run the server from a directory whose drive-relative form resolves to a
+    // canary that is outside both the assets directory and the served root.
+    let cwd = assert_fs::TempDir::new()?;
+    std::fs::write(cwd.join("canary.txt"), "canary-secret")?;
+
+    let mut child = Command::new(assert_cmd::cargo::cargo_bin!())
+        .arg(tmpdir.path())
+        .arg("-p")
+        .arg(port.to_string())
+        .arg("--assets")
+        .arg(tmpdir.join(DIR_ASSETS))
+        .current_dir(cwd.path())
+        .stdout(Stdio::piped())
+        .spawn()?;
+
+    wait_for_port(&port);
+
+    let drive = match cwd.path().components().next() {
+        Some(Component::Prefix(prefix)) => prefix.as_os_str().to_string_lossy().into_owned(),
+        // e.g. a UNC path; the drive-relative form does not apply.
+        _ => {
+            child.kill()?;
+            return Ok(());
+        }
+    };
+
+    let url = format!("http://localhost:{port}/__dufs_v{ver}__/{drive}canary.txt");
+    let resp = reqwest::blocking::get(&url)?;
+    // Not found, and never the canary that lives outside the assets directory.
+    assert_eq!(resp.status(), 404);
+    assert_ne!(resp.text()?, "canary-secret");
+
+    child.kill()?;
+    Ok(())
+}

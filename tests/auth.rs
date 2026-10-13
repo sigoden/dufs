@@ -405,3 +405,97 @@ fn token_auth(#[with(&["-a", "user:pass@/"])] server: TestServer) -> Result<(), 
     assert_eq!(resp.status(), 200);
     Ok(())
 }
+
+#[rstest]
+fn token_auth_cannot_renew(
+    #[with(&["-a", "user:pass@/"])] server: TestServer,
+) -> Result<(), Error> {
+    // A share token must not be able to mint another token, otherwise a
+    // short-lived link could be renewed forever.
+    let url = format!("{}index.html?tokengen", server.url());
+    let token = fetch!(b"GET", &url)
+        .basic_auth("user", Some("pass"))
+        .send()?
+        .text()?;
+
+    // The token is still accepted for a normal request.
+    let url = format!("{}index.html?token={token}", server.url());
+    let resp = fetch!(b"GET", &url).send()?;
+    assert_eq!(resp.status(), 200);
+
+    // But it must not be able to renew itself.
+    let url = format!("{}index.html?token={token}&tokengen", server.url());
+    let resp = fetch!(b"GET", &url).send()?;
+    assert_eq!(resp.status(), 401);
+
+    Ok(())
+}
+
+#[rstest]
+fn auth_digest_malformed_header(
+    #[with(&["--auth", "user:pass@/:rw", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    for authorization in [
+        "Digest a=\"",
+        "Digest a==,",
+        "Digest a=",
+        "Digest =,\"",
+        "Digest a=\"b\",",
+        "Digest a=\"b\" , c",
+    ] {
+        let resp = fetch!(b"GET", server.url())
+            .header("Authorization", authorization)
+            .send()?;
+        assert_eq!(resp.status(), 401);
+    }
+
+    let url = format!("{}index.html", server.url());
+    let resp = fetch!(b"GET", &url)
+        .basic_auth("user", Some("pass"))
+        .send()?;
+    assert_eq!(resp.status(), 200);
+    Ok(())
+}
+
+#[rstest]
+fn auth_digest_malformed_header_without_auth(
+    #[with(&[
+        "--log-format",
+        "$remote_addr $remote_user \"$request\" $status",
+    ])]
+    server: TestServer,
+) -> Result<(), Error> {
+    let resp = fetch!(b"GET", server.url())
+        .header("Authorization", "Digest a=\"")
+        .send()?;
+    assert_eq!(resp.status(), 200);
+    Ok(())
+}
+
+#[rstest]
+fn token_auth_rejects(#[with(&["-a", "user:pass@/"])] server: TestServer) -> Result<(), Error> {
+    let url = format!("{}index.html?tokengen", server.url());
+
+    let resp = fetch!(b"GET", &url).send()?;
+    assert_eq!(resp.status(), 401);
+
+    let resp = fetch!(b"GET", &url)
+        .basic_auth("user", Some("wrong"))
+        .send()?;
+    assert_eq!(resp.status(), 401);
+
+    let resp = fetch!(b"OPTIONS", &url).send()?;
+    assert_eq!(resp.status(), 401);
+
+    let resp = fetch!(b"OPTIONS", &url)
+        .basic_auth("user", Some("wrong"))
+        .send()?;
+    assert_eq!(resp.status(), 401);
+
+    let resp = fetch!(b"OPTIONS", &url)
+        .basic_auth("no-such-user", Some("wrong"))
+        .send()?;
+    assert_eq!(resp.status(), 401);
+
+    Ok(())
+}

@@ -3,7 +3,9 @@
 use crate::auth::{www_authenticate, AccessPaths, AccessPerm};
 use crate::http_utils::{body_full, IncomingStream, LengthLimitedStream};
 use crate::noscript::{detect_noscript, generate_noscript_html};
-use crate::utils::{decode_uri, encode_uri, get_file_name, glob, parse_range, try_get_file_name};
+use crate::utils::{
+    decode_uri, encode_uri, get_file_name, glob, join_within, parse_range, try_get_file_name,
+};
 use crate::Args;
 
 use anyhow::{anyhow, Result};
@@ -182,7 +184,7 @@ impl Server {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
 
-        let guard = self.args.auth.guard(
+        let (user, access_paths, via_token) = self.args.auth.guard(
             &relative_path,
             &method,
             authorization,
@@ -190,7 +192,7 @@ impl Server {
             is_microsoft_webdav,
         );
 
-        let (user, access_paths) = match guard {
+        let (user, access_paths) = match (user, access_paths) {
             (None, None) => {
                 self.auth_reject(&mut res)?;
                 return Ok(res);
@@ -225,12 +227,19 @@ impl Server {
             return Ok(res);
         }
 
+        let head_only = method == Method::HEAD || method == Method::OPTIONS;
+
         if has_query_flag(&query_params, "tokengen") {
-            self.handle_tokengen(&relative_path, user, &mut res).await?;
+            // A share token must not be able to mint another token, otherwise a
+            // short-lived link could be renewed forever regardless of expiry.
+            if via_token {
+                self.auth_reject(&mut res)?;
+                return Ok(res);
+            }
+            self.handle_tokengen(&relative_path, user, head_only, &mut res)
+                .await?;
             return Ok(res);
         }
-
-        let head_only = method == Method::HEAD;
 
         if self.args.path_is_file {
             if self
@@ -831,7 +840,13 @@ impl Server {
         if let Some(name) = req_path.strip_prefix(&self.assets_prefix) {
             match self.args.assets.as_ref() {
                 Some(assets_path) => {
-                    let path = assets_path.join(name);
+                    let path = match join_within(assets_path, name) {
+                        Some(path) => path,
+                        None => {
+                            status_not_found(res);
+                            return Ok(true);
+                        }
+                    };
                     if path.exists() {
                         self.handle_send_file(&path, headers, head_only, res)
                             .await?;
@@ -965,13 +980,17 @@ impl Server {
             None
         };
 
+        let content_type = get_content_type(path).await?;
+        // Never let the browser sniff a more dangerous type than we declare.
         res.headers_mut().insert(
-            CONTENT_TYPE,
-            HeaderValue::from_str(&get_content_type(path).await?)?,
+            "x-content-type-options",
+            HeaderValue::from_static("nosniff"),
         );
+        res.headers_mut()
+            .insert(CONTENT_TYPE, HeaderValue::from_str(&content_type)?);
 
         let filename = try_get_file_name(path)?;
-        set_content_disposition(res, true, filename)?;
+        set_content_disposition(res, !is_active_content_type(&content_type), filename)?;
 
         res.headers_mut().typed_insert(AcceptRanges::bytes());
 
@@ -1001,32 +1020,57 @@ impl Server {
                 } else {
                     *res.status_mut() = StatusCode::PARTIAL_CONTENT;
                     let boundary = Uuid::new_v4();
-                    let mut body = Vec::new();
                     let content_type = get_content_type(path).await?;
-                    for (start, end) in ranges {
-                        file.seek(SeekFrom::Start(start)).await?;
+                    let footer = format!("--{boundary}--\r\n");
+
+                    // Compute the exact length up front, so a HEAD request (and
+                    // the Content-Length header) never has to read the file.
+                    let mut content_length = footer.len();
+                    for (start, end) in &ranges {
                         let range_size = end - start + 1;
-                        let content_range = format!("bytes {start}-{end}/{size}");
                         let part_header = format!(
-                            "--{boundary}\r\nContent-Type: {content_type}\r\nContent-Range: {content_range}\r\n\r\n",
+                            "--{boundary}\r\nContent-Type: {content_type}\r\nContent-Range: bytes {start}-{end}/{size}\r\n\r\n",
                         );
-                        body.extend_from_slice(part_header.as_bytes());
-                        let mut buffer = vec![0; range_size as usize];
-                        file.read_exact(&mut buffer).await?;
-                        body.extend_from_slice(&buffer);
-                        body.extend_from_slice(b"\r\n");
+                        content_length += part_header.len() + range_size as usize + 2;
                     }
-                    body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+
                     res.headers_mut().insert(
                         CONTENT_TYPE,
                         format!("multipart/byteranges; boundary={boundary}").parse()?,
                     );
                     res.headers_mut()
-                        .insert(CONTENT_LENGTH, format!("{}", body.len()).parse()?);
+                        .insert(CONTENT_LENGTH, format!("{content_length}").parse()?);
                     if head_only {
                         return Ok(());
                     }
-                    *res.body_mut() = body_full(body);
+
+                    // Stream the parts instead of materializing the whole body
+                    // in memory.
+                    let stream = async_stream::try_stream! {
+                        let mut buffer = vec![0; BUF_SIZE];
+                        for (start, end) in ranges {
+                            file.seek(SeekFrom::Start(start)).await?;
+                            let part_header = format!(
+                                "--{boundary}\r\nContent-Type: {content_type}\r\nContent-Range: bytes {start}-{end}/{size}\r\n\r\n",
+                            );
+                            yield Bytes::from(part_header);
+                            let mut remaining = end - start + 1;
+                            while remaining > 0 {
+                                let want = remaining.min(BUF_SIZE as u64) as usize;
+                                file.read_exact(&mut buffer[..want]).await?;
+                                yield Bytes::copy_from_slice(&buffer[..want]);
+                                remaining -= want as u64;
+                            }
+                            yield Bytes::from_static(b"\r\n");
+                        }
+                        yield Bytes::from(footer);
+                    };
+                    let stream_body = StreamBody::new(
+                        stream
+                            .map_ok(Frame::data)
+                            .map_err(|err: io::Error| anyhow::Error::new(err)),
+                    );
+                    *res.body_mut() = stream_body.boxed();
                 }
             } else {
                 *res.status_mut() = StatusCode::RANGE_NOT_SATISFIABLE;
@@ -1108,10 +1152,9 @@ impl Server {
             .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
         res.headers_mut()
             .typed_insert(ContentLength(output.len() as u64));
-        if head_only {
-            return Ok(());
+        if !head_only {
+            *res.body_mut() = body_full(output);
         }
-        *res.body_mut() = body_full(output);
         Ok(())
     }
 
@@ -1119,17 +1162,24 @@ impl Server {
         &self,
         relative_path: &str,
         user: Option<String>,
+        head_only: bool,
         res: &mut Response,
     ) -> Result<()> {
-        let output = self
-            .args
-            .auth
-            .generate_token(relative_path, &user.unwrap_or_default())?;
+        let user = match user {
+            Some(user) => user,
+            None => {
+                self.auth_reject(res)?;
+                return Ok(());
+            }
+        };
+        let output = self.args.auth.generate_token(relative_path, &user)?;
         res.headers_mut()
             .typed_insert(ContentType::from(mime_guess::mime::TEXT_PLAIN_UTF_8));
         res.headers_mut()
             .typed_insert(ContentLength(output.len() as u64));
-        *res.body_mut() = body_full(output);
+        if !head_only {
+            *res.body_mut() = body_full(output);
+        }
         Ok(())
     }
 
@@ -1207,11 +1257,27 @@ impl Server {
             return Ok(());
         }
 
-        ensure_path_parent(&dest).await?;
-
         if self.guard_root_contained(&dest).await {
             status_bad_request(res, "Invalid Destination");
             return Ok(());
+        }
+
+        ensure_path_parent(&dest).await?;
+
+        let overwrite = req
+            .headers()
+            .get("overwrite")
+            .map(|v| v.as_bytes() != b"F")
+            .unwrap_or(true);
+        if fs::symlink_metadata(&dest).await.is_ok() {
+            if !overwrite {
+                *res.status_mut() = StatusCode::PRECONDITION_FAILED;
+                return Ok(());
+            }
+            if !self.args.allow_delete {
+                status_forbid(res);
+                return Ok(());
+            }
         }
 
         fs::copy(path, &dest).await?;
@@ -1228,12 +1294,12 @@ impl Server {
             }
         };
 
-        ensure_path_parent(&dest).await?;
-
         if self.guard_root_contained(&dest).await {
             status_bad_request(res, "Invalid Destination");
             return Ok(());
         }
+
+        ensure_path_parent(&dest).await?;
 
         fs::rename(path, &dest).await?;
 
@@ -1397,7 +1463,7 @@ impl Server {
             return false;
         }
         let mut check_path = path.to_path_buf();
-        while !fs::try_exists(&check_path).await.unwrap_or_default() {
+        while fs::symlink_metadata(&check_path).await.is_err() {
             match check_path.parent() {
                 Some(parent) => check_path = parent.to_path_buf(),
                 None => return true,
@@ -1434,7 +1500,7 @@ impl Server {
             .guard(&dest_path, req.method(), authorization, None, false);
 
         match guard {
-            (_, Some(_)) => {}
+            (_, Some(_), _) => {}
             _ => {
                 status_forbid(res);
                 return None;
@@ -1498,7 +1564,7 @@ impl Server {
         } else {
             path.to_string()
         };
-        Some(self.args.serve_path.join(path))
+        join_within(&self.args.serve_path, &path)
     }
 
     async fn list_dir(
@@ -1910,6 +1976,20 @@ fn set_webdav_headers(res: &mut Response) {
     );
     res.headers_mut()
         .insert("DAV", HeaderValue::from_static("1, 2, 3"));
+}
+
+/// Whether a browser may execute a response of this content type as active
+/// content (e.g. HTML, SVG or XML/XSLT) when it is rendered on the dufs origin.
+/// Files with such a type are served as downloads so uploaded content can never
+/// run same-origin script.
+fn is_active_content_type(content_type: &str) -> bool {
+    let mime = content_type
+        .split(';')
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase();
+    mime == "text/html" || mime == "application/xml" || mime == "text/xml" || mime.ends_with("+xml")
 }
 
 async fn get_content_type(path: &Path) -> Result<String> {
