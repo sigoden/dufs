@@ -3,7 +3,9 @@
 use crate::auth::{www_authenticate, AccessPaths, AccessPerm};
 use crate::http_utils::{body_full, IncomingStream, LengthLimitedStream};
 use crate::noscript::{detect_noscript, generate_noscript_html};
-use crate::utils::{decode_uri, encode_uri, get_file_name, glob, parse_range, try_get_file_name};
+use crate::utils::{
+    decode_uri, encode_uri, get_file_name, glob, join_within, parse_range, try_get_file_name,
+};
 use crate::Args;
 
 use anyhow::{anyhow, Result};
@@ -832,7 +834,13 @@ impl Server {
         if let Some(name) = req_path.strip_prefix(&self.assets_prefix) {
             match self.args.assets.as_ref() {
                 Some(assets_path) => {
-                    let path = assets_path.join(name);
+                    let path = match join_within(assets_path, name) {
+                        Some(path) => path,
+                        None => {
+                            status_not_found(res);
+                            return Ok(true);
+                        }
+                    };
                     if path.exists() {
                         self.handle_send_file(&path, headers, head_only, res)
                             .await?;
@@ -1546,7 +1554,7 @@ impl Server {
         } else {
             path.to_string()
         };
-        Some(self.args.serve_path.join(path))
+        join_within(&self.args.serve_path, &path)
     }
 
     async fn list_dir(

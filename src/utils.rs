@@ -4,7 +4,7 @@ use anyhow::{anyhow, Context, Result};
 use rustls_pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer};
 use std::{
     borrow::Cow,
-    path::Path,
+    path::{Component, Path, PathBuf},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -50,6 +50,17 @@ pub fn glob(pattern: &str, target: &str) -> bool {
         Err(_) => return false,
     };
     pat.matches(target)
+}
+
+pub fn join_within(base: &Path, relative: &str) -> Option<PathBuf> {
+    if Path::new(relative)
+        .components()
+        .any(|c| !matches!(c, Component::Normal(_) | Component::CurDir))
+    {
+        return None;
+    }
+    let path = base.join(relative);
+    path.starts_with(base).then_some(path)
 }
 
 // Load public certificate from file.
@@ -166,6 +177,31 @@ mod tests {
         assert!(glob("*.log", "a.log"));
         assert!(glob("*/", "abc/"));
         assert!(!glob("*/", "abc"));
+    }
+
+    #[test]
+    fn test_join_within() {
+        let base = if cfg!(windows) {
+            Path::new(r"C:\srv\assets")
+        } else {
+            Path::new("/srv/assets")
+        };
+        assert_eq!(join_within(base, "index.js"), Some(base.join("index.js")));
+        assert_eq!(
+            join_within(base, "css/index.css"),
+            Some(base.join("css/index.css"))
+        );
+        // An operand that `Path::join` treats as replacing the base is refused.
+        let escape = if cfg!(windows) {
+            "C:secret"
+        } else {
+            "/etc/passwd"
+        };
+        assert_eq!(join_within(base, escape), None);
+        // `starts_with` is lexical, so `..` must be rejected explicitly.
+        assert_eq!(join_within(base, ".."), None);
+        assert_eq!(join_within(base, "a/../secret"), None);
+        assert_eq!(join_within(base, "a/../../secret"), None);
     }
 
     #[test]
