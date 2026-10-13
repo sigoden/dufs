@@ -172,8 +172,30 @@ class Uploader {
     /**
      * @type Element
      */
-    this.$uploadStatus = null
-    this.uploaded = 0;
+    this.$status = null;
+    /**
+     * @type Element
+     */
+    this.$size = null;
+    /**
+     * @type Element
+     */
+    this.$percent = null;
+    /**
+     * @type Element
+     */
+    this.$speed = null;
+    /**
+     * @type Element
+     */
+    this.$eta = null;
+    // speed ring buffer, mirrors curl's progress meter (6 records, one per
+    // second, giving a 5-second window) so the displayed speed stays stable
+    this.startTime = 0;
+    this.speedRecords = 0;
+    this.speedAmounts = [];
+    this.speedTimes = [];
+    this.currentSpeed = 0;
     this.uploadOffset = 0;
     this.lastUptime = 0;
     this.name = [...pathParts, file.name].join("/");
@@ -193,13 +215,23 @@ class Uploader {
     <td class="path cell-name">
       <a href="${url}">${encodedName}</a>
     </td>
-    <td class="cell-status upload-status" id="uploadStatus${idx}"></td>
+    <td class="cell-status" id="uploadStatus${idx}"></td>
+    <td class="cell-size" id="uploadSize${idx}"></td>
+    <td class="cell-percent" id="uploadPercent${idx}"></td>
+    <td class="cell-speed" id="uploadSpeed${idx}"></td>
+    <td class="cell-eta" id="uploadEta${idx}"></td>
   </tr>`);
     $uploadersTable.classList.remove("hidden");
     $emptyFolder.classList.add("hidden");
-    this.$uploadStatus = document.getElementById(`uploadStatus${idx}`);
-    this.$uploadStatus.innerHTML = '-';
-    this.$uploadStatus.addEventListener("click", e => {
+    this.$status = document.getElementById(`uploadStatus${idx}`);
+    this.$percent = document.getElementById(`uploadPercent${idx}`);
+    this.$size = document.getElementById(`uploadSize${idx}`);
+    this.$speed = document.getElementById(`uploadSpeed${idx}`);
+    this.$eta = document.getElementById(`uploadEta${idx}`);
+    this.$status.textContent = "-";
+    this.$percent.textContent = formatPercent(0);
+    this.$size.textContent = formatUploadSize(0, this.file.size);
+    this.$status.addEventListener("click", e => {
       const nodeId = e.target.id;
       const matches = /^retry(\d+)$/.exec(nodeId);
       if (matches) {
@@ -215,8 +247,13 @@ class Uploader {
   ajax() {
     const { url } = this;
 
-    this.uploaded = 0;
-    this.lastUptime = Date.now();
+    this.startTime = Date.now();
+    this.lastUptime = this.startTime;
+    this.speedRecords = 1;
+    this.speedAmounts = [0];
+    this.speedTimes = [0];
+    this.currentSpeed = 0;
+    this.$status.textContent = "↑";
 
     const ajax = new XMLHttpRequest();
     ajax.upload.addEventListener("progress", e => this.progress(e), false);
@@ -260,30 +297,55 @@ class Uploader {
 
   progress(event) {
     const now = Date.now();
-    const elapsed = now - this.lastUptime;
-    if (elapsed < 300) return; // throttle update for safari
-    const speed = (event.loaded - this.uploaded) / elapsed * 1000;
-    const [speedValue, speedUnit] = formatFileSize(speed);
-    const speedText = `${speedValue} ${speedUnit}/s`;
-    const progress = formatPercent(((event.loaded + this.uploadOffset) / this.file.size) * 100);
-    const duration = formatDuration((event.total - event.loaded) / speed);
-    this.$uploadStatus.innerHTML = `<span style="width: 80px;">${speedText}</span><span style="margin-left: 5px;">${progress} ${duration}</span>`;
-    this.uploaded = event.loaded;
+    this.calcSpeed(now - this.startTime, event.loaded);
+    if (now - this.lastUptime < 300) return; // throttle update for safari
     this.lastUptime = now;
+    const uploadedSize = event.loaded + this.uploadOffset;
+    const [speedValue, speedUnit] = formatFileSize(this.currentSpeed);
+    this.$status.textContent = "↑";
+    this.$percent.textContent = formatPercent((uploadedSize / this.file.size) * 100);
+    this.$size.textContent = formatUploadSize(uploadedSize, this.file.size);
+    this.$speed.textContent = `${speedValue} ${speedUnit}/s`;
+    this.$eta.textContent = formatDuration(this.currentSpeed > 0 ? (event.total - event.loaded) / this.currentSpeed : Infinity);
+  }
+
+  /**
+   * Update the smoothed speed using curl's progress meter algorithm: keep a
+   * 6-record ring buffer (one record per second, a 5-second window), add a
+   * record at most once per second, and average over the buffered window.
+   * @param {number} elapsed milliseconds since the transfer started
+   * @param {number} amount bytes transferred so far
+   */
+  calcSpeed(elapsed, amount) {
+    const records = 6;
+    const iNext = this.speedRecords % records;
+    let iLatest = iNext > 0 ? iNext - 1 : records - 1;
+    if (elapsed - this.speedTimes[iLatest] < 1000) return;
+    this.speedRecords++;
+    iLatest = iNext;
+    this.speedAmounts[iLatest] = amount;
+    this.speedTimes[iLatest] = elapsed;
+    const iOldest = this.speedRecords < records ? 0 : (iLatest + 1) % records;
+    const duration = this.speedTimes[iLatest] - this.speedTimes[iOldest];
+    const delta = this.speedAmounts[iLatest] - this.speedAmounts[iOldest];
+    this.currentSpeed = duration > 0 ? delta / duration * 1000 : 0;
   }
 
   complete() {
-    const $uploadStatusNew = this.$uploadStatus.cloneNode(true);
-    $uploadStatusNew.innerHTML = `✓`;
-    this.$uploadStatus.parentNode.replaceChild($uploadStatusNew, this.$uploadStatus);
-    this.$uploadStatus = null;
+    this.$status.textContent = "✓";
+    this.$percent.textContent = formatPercent(100);
+    this.$size.textContent = formatUploadSize(this.file.size, this.file.size);
+    this.$speed.textContent = "";
+    this.$eta.textContent = "";
     failUploaders.delete(this.idx);
     Uploader.runnings--;
     Uploader.runQueue();
   }
 
   fail(reason = "") {
-    this.$uploadStatus.innerHTML = `<span style="width: 20px;" title="${reason}">✗</span><span class="retry-btn" id="retry${this.idx}" title="Retry">↻</span>`;
+    this.$status.innerHTML = `<span title="${reason}">✗</span><span class="retry-btn" id="retry${this.idx}" title="Retry">↻</span>`;
+    this.$speed.textContent = "";
+    this.$eta.textContent = "";
     failUploaders.set(this.idx, this);
     Uploader.runnings--;
     Uploader.runQueue();
@@ -932,35 +994,33 @@ function formatDirSize(size) {
   return ` ${num} ${unit}`;
 }
 
-function formatFileSize(size) {
-  if (size == null) return [0, "B"];
+function formatFileSize(size, unit) {
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  if (size == 0) return [0, "B"];
-  const i = parseInt(Math.floor(Math.log(size) / Math.log(1024)));
-  const raw = size / Math.pow(1024, i);
-  let value;
-  if (i > 0 && raw < 999.95) {
-    value = Math.round(raw * 10) / 10;
-  } else {
-    value = Math.round(raw);
-  }
-  return [value, sizes[i]];
+  const i = Math.max(0, unit ? sizes.indexOf(unit) : (size > 0 ? parseInt(Math.floor(Math.log(size) / Math.log(1024))) : 0));
+  const raw = size > 0 ? size / Math.pow(1024, i) : 0;
+  if (i === 0) return [Math.round(raw), "B"];
+  return [raw.toFixed(1), sizes[i]];
 }
 
 function formatDuration(seconds) {
+  if (!isFinite(seconds) || seconds <= 0) return "--:--";
   seconds = Math.ceil(seconds);
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds - h * 3600) / 60);
   const s = seconds - h * 3600 - m * 60;
-  return `${padZero(h, 2)}:${padZero(m, 2)}:${padZero(s, 2)}`;
+  if (h > 0) return `${padZero(h, 2)}:${padZero(m, 2)}:${padZero(s, 2)}`;
+  return `${padZero(m, 2)}:${padZero(s, 2)}`;
+}
+
+function formatUploadSize(uploaded, total) {
+  const unit = formatFileSize(total)[1];
+  const [uploadedValue] = formatFileSize(uploaded, unit);
+  const [totalValue] = formatFileSize(total, unit);
+  return `${uploadedValue}/${totalValue} ${unit}`;
 }
 
 function formatPercent(percent) {
-  if (percent > 10) {
-    return percent.toFixed(1) + "%";
-  } else {
-    return percent.toFixed(2) + "%";
-  }
+  return Math.round(percent) + "%";
 }
 
 function encodedStr(rawStr) {
