@@ -181,6 +181,7 @@ where
         service_fn(move |request: Request<Incoming>| handle.clone().call(request, addr));
 
     match Builder::new(TokioExecutor::new())
+        .title_case_headers(true)
         .serve_connection_with_upgrades(stream, hyper_service)
         .await
     {
