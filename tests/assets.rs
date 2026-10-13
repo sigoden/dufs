@@ -67,6 +67,125 @@ fn asset_ico(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn head_asset_js(server: TestServer) -> Result<(), Error> {
+    let url = format!(
+        "{}__dufs_v{}__/index.js",
+        server.url(),
+        env!("CARGO_PKG_VERSION")
+    );
+    let len = reqwest::blocking::get(&url)?.text()?.len();
+    let resp = fetch!(b"HEAD", &url).send()?;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(
+        resp.headers().get("content-type").unwrap(),
+        "application/javascript; charset=UTF-8"
+    );
+    assert_eq!(
+        resp.headers()
+            .get("content-length")
+            .unwrap()
+            .to_str()?
+            .parse::<usize>()?,
+        len
+    );
+    assert_eq!(resp.text()?, "");
+    Ok(())
+}
+
+#[rstest]
+fn head_asset_css(server: TestServer) -> Result<(), Error> {
+    let url = format!(
+        "{}__dufs_v{}__/index.css",
+        server.url(),
+        env!("CARGO_PKG_VERSION")
+    );
+    let len = reqwest::blocking::get(&url)?.text()?.len();
+    let resp = fetch!(b"HEAD", &url).send()?;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(
+        resp.headers().get("content-type").unwrap(),
+        "text/css; charset=UTF-8"
+    );
+    assert_eq!(
+        resp.headers()
+            .get("content-length")
+            .unwrap()
+            .to_str()?
+            .parse::<usize>()?,
+        len
+    );
+    assert_eq!(resp.text()?, "");
+    Ok(())
+}
+
+#[rstest]
+fn head_asset_ico(server: TestServer) -> Result<(), Error> {
+    let url = format!(
+        "{}__dufs_v{}__/favicon.ico",
+        server.url(),
+        env!("CARGO_PKG_VERSION")
+    );
+    let len = reqwest::blocking::get(&url)?.bytes()?.len();
+    let resp = fetch!(b"HEAD", &url).send()?;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.headers().get("content-type").unwrap(), "image/x-icon");
+    assert_eq!(
+        resp.headers()
+            .get("content-length")
+            .unwrap()
+            .to_str()?
+            .parse::<usize>()?,
+        len
+    );
+    assert_eq!(resp.text()?, "");
+    Ok(())
+}
+
+#[rstest]
+fn head_asset_missing(server: TestServer) -> Result<(), Error> {
+    let url = format!(
+        "{}__dufs_v{}__/not-found.js",
+        server.url(),
+        env!("CARGO_PKG_VERSION")
+    );
+    let resp = fetch!(b"HEAD", &url).send()?;
+    assert_eq!(resp.status(), 404);
+    assert_eq!(resp.text()?, "");
+    Ok(())
+}
+
+#[rstest]
+fn head_asset_override(tmpdir: TempDir, port: Port) -> Result<(), Error> {
+    std::fs::write(
+        tmpdir.join(format!("{}index.js", DIR_ASSETS)),
+        "console.log(1)",
+    )?;
+
+    let mut child = Command::new(assert_cmd::cargo::cargo_bin!())
+        .arg(tmpdir.path())
+        .arg("-p")
+        .arg(port.to_string())
+        .arg("--assets")
+        .arg(tmpdir.join(DIR_ASSETS))
+        .stdout(Stdio::piped())
+        .spawn()?;
+
+    wait_for_port(&port);
+
+    let url = format!(
+        "http://localhost:{port}/__dufs_v{}__/index.js",
+        env!("CARGO_PKG_VERSION")
+    );
+    let resp = fetch!(b"HEAD", &url).send()?;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.headers().get("content-length").unwrap(), "14");
+    assert_eq!(resp.text()?, "");
+
+    child.kill()?;
+    Ok(())
+}
+
+#[rstest]
 fn assets_with_prefix(#[with(&["--path-prefix", "xyz"])] server: TestServer) -> Result<(), Error> {
     let ver = env!("CARGO_PKG_VERSION");
     let resp = reqwest::blocking::get(format!("{}xyz/", server.url()))?;

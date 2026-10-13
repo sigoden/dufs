@@ -153,9 +153,9 @@ impl Server {
             }
         };
 
-        if method == Method::GET
+        if (method == Method::GET || method == Method::HEAD)
             && self
-                .handle_internal(&relative_path, headers, &mut res)
+                .handle_internal(&relative_path, method == Method::HEAD, headers, &mut res)
                 .await?
         {
             return Ok(res);
@@ -794,6 +794,7 @@ impl Server {
     async fn handle_internal(
         &self,
         req_path: &str,
+        head_only: bool,
         headers: &HeaderMap<HeaderValue>,
         res: &mut Response,
     ) -> Result<bool> {
@@ -802,7 +803,8 @@ impl Server {
                 Some(assets_path) => {
                     let path = assets_path.join(name);
                     if path.exists() {
-                        self.handle_send_file(&path, headers, false, res).await?;
+                        self.handle_send_file(&path, headers, head_only, res)
+                            .await?;
                     } else {
                         status_not_found(res);
                         return Ok(true);
@@ -810,23 +812,35 @@ impl Server {
                 }
                 None => match name {
                     "index.js" => {
-                        *res.body_mut() = body_full(INDEX_JS);
                         res.headers_mut().insert(
                             "content-type",
                             HeaderValue::from_static("application/javascript; charset=UTF-8"),
                         );
+                        res.headers_mut()
+                            .typed_insert(ContentLength(INDEX_JS.len() as u64));
+                        if !head_only {
+                            *res.body_mut() = body_full(INDEX_JS);
+                        }
                     }
                     "index.css" => {
-                        *res.body_mut() = body_full(INDEX_CSS);
                         res.headers_mut().insert(
                             "content-type",
                             HeaderValue::from_static("text/css; charset=UTF-8"),
                         );
+                        res.headers_mut()
+                            .typed_insert(ContentLength(INDEX_CSS.len() as u64));
+                        if !head_only {
+                            *res.body_mut() = body_full(INDEX_CSS);
+                        }
                     }
                     "favicon.ico" => {
-                        *res.body_mut() = body_full(FAVICON_ICO);
                         res.headers_mut()
                             .insert("content-type", HeaderValue::from_static("image/x-icon"));
+                        res.headers_mut()
+                            .typed_insert(ContentLength(FAVICON_ICO.len() as u64));
+                        if !head_only {
+                            *res.body_mut() = body_full(FAVICON_ICO);
+                        }
                     }
                     _ => {
                         status_not_found(res);
@@ -845,8 +859,12 @@ impl Server {
         } else if req_path == HEALTH_CHECK_PATH {
             res.headers_mut()
                 .typed_insert(ContentType::from(mime_guess::mime::APPLICATION_JSON));
-
-            *res.body_mut() = body_full(r#"{"status":"OK"}"#);
+            let body = r#"{"status":"OK"}"#;
+            res.headers_mut()
+                .typed_insert(ContentLength(body.len() as u64));
+            if !head_only {
+                *res.body_mut() = body_full(body);
+            }
             Ok(true)
         } else {
             Ok(false)
