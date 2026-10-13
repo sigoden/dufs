@@ -208,6 +208,96 @@ fn get_file_multipart_range(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn get_file_range_suffix_zero(server: TestServer) -> Result<(), Error> {
+    // a zero-length suffix range is unsatisfiable (and used to underflow)
+    let resp = fetch!(b"GET", format!("{}index.html", server.url()))
+        .header("range", HeaderValue::from_static("bytes=-0"))
+        .send()?;
+    assert_eq!(resp.status(), 416);
+    assert_eq!(resp.headers().get("content-range").unwrap(), "bytes */18");
+    Ok(())
+}
+
+#[rstest]
+fn get_file_multipart_range_too_many(server: TestServer) -> Result<(), Error> {
+    // more than 32 ranges would let a client amplify a small request
+    let ranges = (0..18)
+        .map(|end| format!("0-{end}"))
+        .chain((0..16).map(|end| format!("1-{end}")))
+        .collect::<Vec<_>>()
+        .join(",");
+    let resp = fetch!(b"GET", format!("{}index.html", server.url()))
+        .header("range", format!("bytes={ranges}"))
+        .send()?;
+    assert_eq!(resp.status(), 416);
+    assert_eq!(resp.headers().get("content-range").unwrap(), "bytes */18");
+    Ok(())
+}
+
+#[rstest]
+fn head_file_multipart_range(server: TestServer) -> Result<(), Error> {
+    // HEAD must report the same headers as GET without transferring a body
+    let get = fetch!(b"GET", format!("{}index.html", server.url()))
+        .header("range", HeaderValue::from_static("bytes=0-11, 6-17"))
+        .send()?;
+    assert_eq!(get.status(), 206);
+    let content_type = get
+        .headers()
+        .get("content-type")
+        .unwrap()
+        .to_str()?
+        .to_string();
+    assert!(content_type.starts_with("multipart/byteranges; boundary="));
+    let body_len = get.text()?.len();
+
+    let resp = fetch!(b"HEAD", format!("{}index.html", server.url()))
+        .header("range", HeaderValue::from_static("bytes=0-11, 6-17"))
+        .send()?;
+    assert_eq!(resp.status(), 206);
+    let head_content_type = resp.headers().get("content-type").unwrap().to_str()?;
+    assert!(head_content_type.starts_with("multipart/byteranges; boundary="));
+    assert_eq!(
+        resp.headers().get("content-length").unwrap(),
+        &body_len.to_string()
+    );
+    assert_eq!(resp.text()?, "");
+    Ok(())
+}
+
+#[rstest]
+fn get_file_multipart_range_large(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    // a range larger than the read buffer must be streamed back intact
+    let data: String = (0..200_000u32)
+        .map(|i| (b'a' + (i % 26) as u8) as char)
+        .collect();
+    let url = format!("{}big.txt", server.url());
+    let resp = fetch!(b"PUT", &url).body(data.clone()).send()?;
+    assert_eq!(resp.status(), 201);
+
+    let resp = fetch!(b"GET", &url)
+        .header(
+            "range",
+            HeaderValue::from_static("bytes=0-149999, 100000-199999"),
+        )
+        .send()?;
+    assert_eq!(resp.status(), 206);
+
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .unwrap()
+        .to_str()?
+        .to_string();
+    let boundary = content_type.split_once('=').unwrap().1.trim_ascii_start();
+    let body = resp.text()?;
+    let parts = parse_multipart_body(&body, boundary);
+    assert_eq!(parts.len(), 2);
+    assert_eq!(parts[0].1, &data[0..150_000]);
+    assert_eq!(parts[1].1, &data[100_000..200_000]);
+    Ok(())
+}
+
+#[rstest]
 fn get_file_multipart_range_invalid(server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"GET", format!("{}index.html", server.url()))
         .header("range", HeaderValue::from_static("bytes=0-6, 20-30"))

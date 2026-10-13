@@ -1002,32 +1002,57 @@ impl Server {
                 } else {
                     *res.status_mut() = StatusCode::PARTIAL_CONTENT;
                     let boundary = Uuid::new_v4();
-                    let mut body = Vec::new();
                     let content_type = get_content_type(path).await?;
-                    for (start, end) in ranges {
-                        file.seek(SeekFrom::Start(start)).await?;
+                    let footer = format!("--{boundary}--\r\n");
+
+                    // Compute the exact length up front, so a HEAD request (and
+                    // the Content-Length header) never has to read the file.
+                    let mut content_length = footer.len();
+                    for (start, end) in &ranges {
                         let range_size = end - start + 1;
-                        let content_range = format!("bytes {start}-{end}/{size}");
                         let part_header = format!(
-                            "--{boundary}\r\nContent-Type: {content_type}\r\nContent-Range: {content_range}\r\n\r\n",
+                            "--{boundary}\r\nContent-Type: {content_type}\r\nContent-Range: bytes {start}-{end}/{size}\r\n\r\n",
                         );
-                        body.extend_from_slice(part_header.as_bytes());
-                        let mut buffer = vec![0; range_size as usize];
-                        file.read_exact(&mut buffer).await?;
-                        body.extend_from_slice(&buffer);
-                        body.extend_from_slice(b"\r\n");
+                        content_length += part_header.len() + range_size as usize + 2;
                     }
-                    body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+
                     res.headers_mut().insert(
                         CONTENT_TYPE,
                         format!("multipart/byteranges; boundary={boundary}").parse()?,
                     );
                     res.headers_mut()
-                        .insert(CONTENT_LENGTH, format!("{}", body.len()).parse()?);
+                        .insert(CONTENT_LENGTH, format!("{content_length}").parse()?);
                     if head_only {
                         return Ok(());
                     }
-                    *res.body_mut() = body_full(body);
+
+                    // Stream the parts instead of materializing the whole body
+                    // in memory.
+                    let stream = async_stream::try_stream! {
+                        let mut buffer = vec![0; BUF_SIZE];
+                        for (start, end) in ranges {
+                            file.seek(SeekFrom::Start(start)).await?;
+                            let part_header = format!(
+                                "--{boundary}\r\nContent-Type: {content_type}\r\nContent-Range: bytes {start}-{end}/{size}\r\n\r\n",
+                            );
+                            yield Bytes::from(part_header);
+                            let mut remaining = end - start + 1;
+                            while remaining > 0 {
+                                let want = remaining.min(BUF_SIZE as u64) as usize;
+                                file.read_exact(&mut buffer[..want]).await?;
+                                yield Bytes::copy_from_slice(&buffer[..want]);
+                                remaining -= want as u64;
+                            }
+                            yield Bytes::from_static(b"\r\n");
+                        }
+                        yield Bytes::from(footer);
+                    };
+                    let stream_body = StreamBody::new(
+                        stream
+                            .map_ok(Frame::data)
+                            .map_err(|err: io::Error| anyhow::Error::new(err)),
+                    );
+                    *res.body_mut() = stream_body.boxed();
                 }
             } else {
                 *res.status_mut() = StatusCode::RANGE_NOT_SATISFIABLE;
