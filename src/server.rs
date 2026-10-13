@@ -241,7 +241,7 @@ impl Server {
                 self.handle_send_file(&self.args.serve_path, headers, head_only, &mut res)
                     .await?;
             } else {
-                self.handle_not_found(&query_params, headers, head_only, &mut res)
+                self.handle_not_found(&query_params, head_only, &mut res)
                     .await?;
             }
             return Ok(res);
@@ -270,7 +270,7 @@ impl Server {
         let render_try_index = self.args.render_try_index;
 
         if self.guard_root_contained(path).await {
-            self.handle_not_found(&query_params, headers, head_only, &mut res)
+            self.handle_not_found(&query_params, head_only, &mut res)
                 .await?;
             return Ok(res);
         }
@@ -281,7 +281,7 @@ impl Server {
                     if render_try_index {
                         if allow_archive && has_query_flag(&query_params, "zip") {
                             if !allow_archive {
-                                self.handle_not_found(&query_params, headers, head_only, &mut res)
+                                self.handle_not_found(&query_params, head_only, &mut res)
                                     .await?;
                                 return Ok(res);
                             }
@@ -383,7 +383,7 @@ impl Server {
                     )
                     .await?;
                 } else {
-                    self.handle_not_found(&query_params, headers, head_only, &mut res)
+                    self.handle_not_found(&query_params, head_only, &mut res)
                         .await?;
                 }
             }
@@ -722,8 +722,7 @@ impl Server {
             self.handle_ls_dir(path, true, query_params, head_only, user, access_paths, res)
                 .await?;
         } else {
-            self.handle_not_found(query_params, headers, head_only, res)
-                .await?;
+            self.handle_not_found(query_params, head_only, res).await?;
         }
         Ok(())
     }
@@ -766,8 +765,7 @@ impl Server {
             self.handle_send_file(&path, headers, head_only, res)
                 .await?;
         } else {
-            self.handle_not_found(query_params, headers, head_only, res)
-                .await?;
+            self.handle_not_found(query_params, head_only, res).await?;
         }
         Ok(())
     }
@@ -775,13 +773,12 @@ impl Server {
     async fn handle_not_found(
         &self,
         query_params: &HashMap<String, String>,
-        headers: &HeaderMap<HeaderValue>,
         head_only: bool,
         res: &mut Response,
     ) -> Result<()> {
         if let Some(error_page) = &self.args.error_page {
             if !has_query_flag(query_params, "noscript") {
-                self.handle_send_file(error_page, headers, head_only, res)
+                self.handle_send_error_page(error_page, head_only, res)
                     .await?;
                 *res.status_mut() = StatusCode::NOT_FOUND;
                 return Ok(());
@@ -789,6 +786,39 @@ impl Server {
         }
         status_not_found(res);
         Ok(())
+    }
+
+    async fn handle_send_error_page(
+        &self,
+        path: &Path,
+        head_only: bool,
+        res: &mut Response,
+    ) -> Result<()> {
+        let html = fs::read_to_string(path).await?;
+        let output = self.render_html(&html);
+        res.headers_mut()
+            .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
+        res.headers_mut()
+            .typed_insert(ContentLength(output.len() as u64));
+        res.headers_mut()
+            .typed_insert(CacheControl::new().with_no_cache());
+        res.headers_mut().insert(
+            "x-content-type-options",
+            HeaderValue::from_static("nosniff"),
+        );
+        if head_only {
+            return Ok(());
+        }
+        *res.body_mut() = body_full(output);
+        Ok(())
+    }
+
+    fn render_html(&self, html: &str) -> String {
+        html.replace(
+            "__ASSETS_PREFIX__",
+            &format!("{}{}", self.args.uri_prefix, self.assets_prefix),
+        )
+        .replace("__PATH_PREFIX__", &self.args.uri_prefix)
     }
 
     async fn handle_internal(
@@ -1054,11 +1084,7 @@ impl Server {
             .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
         let index_data = STANDARD.encode(serde_json::to_string(&data)?);
         let output = self
-            .html
-            .replace(
-                "__ASSETS_PREFIX__",
-                &format!("{}{}", self.args.uri_prefix, self.assets_prefix),
-            )
+            .render_html(&self.html)
             .replace("__INDEX_DATA__", &index_data);
         res.headers_mut()
             .typed_insert(ContentLength(output.len() as u64));
@@ -1340,11 +1366,7 @@ impl Server {
                 .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
 
             let index_data = STANDARD.encode(serde_json::to_string(&data)?);
-            self.html
-                .replace(
-                    "__ASSETS_PREFIX__",
-                    &format!("{}{}", self.args.uri_prefix, self.assets_prefix),
-                )
+            self.render_html(&self.html)
                 .replace("__INDEX_DATA__", &index_data)
         };
         res.headers_mut()
