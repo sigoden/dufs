@@ -136,10 +136,10 @@ impl AccessControl {
         if let Some(authorization) = authorization {
             if let Some(user) = get_auth_user(authorization) {
                 if let Some((pass, ap)) = self.users.get(&user) {
-                    if method == Method::OPTIONS {
-                        return (Some(user), Some(AccessPaths::new(AccessPerm::ReadOnly)));
-                    }
                     if check_auth(authorization, method.as_str(), &user, pass).is_some() {
+                        if method == Method::OPTIONS {
+                            return (Some(user), Some(AccessPaths::new(AccessPerm::ReadOnly)));
+                        }
                         return (Some(user), ap.guard(path, method));
                     }
                 }

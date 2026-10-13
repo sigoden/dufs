@@ -405,3 +405,31 @@ fn token_auth(#[with(&["-a", "user:pass@/"])] server: TestServer) -> Result<(), 
     assert_eq!(resp.status(), 200);
     Ok(())
 }
+
+#[rstest]
+fn token_auth_rejects(#[with(&["-a", "user:pass@/"])] server: TestServer) -> Result<(), Error> {
+    let url = format!("{}index.html?tokengen", server.url());
+
+    let resp = fetch!(b"GET", &url).send()?;
+    assert_eq!(resp.status(), 401);
+
+    let resp = fetch!(b"GET", &url)
+        .basic_auth("user", Some("wrong"))
+        .send()?;
+    assert_eq!(resp.status(), 401);
+
+    let resp = fetch!(b"OPTIONS", &url).send()?;
+    assert_eq!(resp.status(), 401);
+
+    let resp = fetch!(b"OPTIONS", &url)
+        .basic_auth("user", Some("wrong"))
+        .send()?;
+    assert_eq!(resp.status(), 401);
+
+    let resp = fetch!(b"OPTIONS", &url)
+        .basic_auth("no-such-user", Some("wrong"))
+        .send()?;
+    assert_eq!(resp.status(), 401);
+
+    Ok(())
+}

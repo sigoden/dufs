@@ -225,12 +225,13 @@ impl Server {
             return Ok(res);
         }
 
+        let head_only = method == Method::HEAD || method == Method::OPTIONS;
+
         if has_query_flag(&query_params, "tokengen") {
-            self.handle_tokengen(&relative_path, user, &mut res).await?;
+            self.handle_tokengen(&relative_path, user, head_only, &mut res)
+                .await?;
             return Ok(res);
         }
-
-        let head_only = method == Method::HEAD;
 
         if self.args.path_is_file {
             if self
@@ -1108,10 +1109,9 @@ impl Server {
             .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
         res.headers_mut()
             .typed_insert(ContentLength(output.len() as u64));
-        if head_only {
-            return Ok(());
+        if !head_only {
+            *res.body_mut() = body_full(output);
         }
-        *res.body_mut() = body_full(output);
         Ok(())
     }
 
@@ -1119,17 +1119,24 @@ impl Server {
         &self,
         relative_path: &str,
         user: Option<String>,
+        head_only: bool,
         res: &mut Response,
     ) -> Result<()> {
-        let output = self
-            .args
-            .auth
-            .generate_token(relative_path, &user.unwrap_or_default())?;
+        let user = match user {
+            Some(user) => user,
+            None => {
+                self.auth_reject(res)?;
+                return Ok(());
+            }
+        };
+        let output = self.args.auth.generate_token(relative_path, &user)?;
         res.headers_mut()
             .typed_insert(ContentType::from(mime_guess::mime::TEXT_PLAIN_UTF_8));
         res.headers_mut()
             .typed_insert(ContentLength(output.len() as u64));
-        *res.body_mut() = body_full(output);
+        if !head_only {
+            *res.body_mut() = body_full(output);
+        }
         Ok(())
     }
 
