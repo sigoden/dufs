@@ -1,5 +1,5 @@
 use anyhow::{bail, Context, Result};
-use async_deflate_zip::Compression;
+use async_deflate_zip::CompressionLevel;
 use clap::builder::{PossibleValue, PossibleValuesParser};
 use clap::{value_parser, Arg, ArgAction, ArgMatches, Command, ValueEnum};
 use clap_complete::{generate, Generator, Shell};
@@ -316,7 +316,7 @@ impl Args {
         if let Some(config_path) = matches.get_one::<PathBuf>("config") {
             let contents = std::fs::read_to_string(config_path)
                 .with_context(|| format!("Failed to read config at {}", config_path.display()))?;
-            args = serde_yaml::from_str(&contents)
+            args = serde_saphyr::from_str(&contents)
                 .with_context(|| format!("Failed to load config at {}", config_path.display()))?;
         }
 
@@ -538,12 +538,12 @@ impl ValueEnum for Compress {
 }
 
 impl Compress {
-    pub fn to_compression(self) -> Compression {
+    pub fn to_compression(self) -> CompressionLevel {
         match self {
-            Compress::None => Compression::none(),
-            Compress::Low => Compression::fast(),
-            Compress::Medium => Compression::default(),
-            Compress::High => Compression::best(),
+            Compress::None => CompressionLevel::none(),
+            Compress::Low => CompressionLevel::fast(),
+            Compress::Medium => CompressionLevel::default(),
+            Compress::High => CompressionLevel::best(),
         }
     }
 }
