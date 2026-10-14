@@ -377,6 +377,146 @@ fn auth_precedence(
 }
 
 #[rstest]
+fn auth_alias_case_file(
+    #[with(&["--auth", "user:pass@/dir1:rw,/dir1/test.txt:ro", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    if !utils::fs_folds_case(server.path()) {
+        return Ok(());
+    }
+
+    let url = format!("{}dir1/test.txt", server.url());
+    let resp = send_with_digest_auth(fetch!(b"PUT", &url).body(b"abc".to_vec()), "user", "pass")?;
+    assert_eq!(resp.status(), 403);
+
+    let url = format!("{}dir1/TEST.TXT", server.url());
+    let resp = send_with_digest_auth(fetch!(b"PUT", &url).body(b"abc".to_vec()), "user", "pass")?;
+    assert_eq!(resp.status(), 403);
+
+    let url = format!("{}dir1/test.txt", server.url());
+    let resp = fetch!(b"GET", &url)
+        .basic_auth("user", Some("pass"))
+        .send()?;
+    assert_eq!(resp.status(), 200);
+
+    let url = format!("{}dir1/other.txt", server.url());
+    let resp = send_with_digest_auth(fetch!(b"PUT", &url).body(b"abc".to_vec()), "user", "pass")?;
+    assert_eq!(resp.status(), 201);
+
+    Ok(())
+}
+
+#[rstest]
+fn auth_alias_case_directory(
+    #[with(&["--auth", "user:pass@/:rw,/Protected:ro", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    std::fs::create_dir_all(server.path().join("Protected"))?;
+    std::fs::write(server.path().join("Protected/file.txt"), "TOP SECRET")?;
+
+    let url = format!("{}Protected/new.txt", server.url());
+    let resp = send_with_digest_auth(fetch!(b"PUT", &url).body(b"abc".to_vec()), "user", "pass")?;
+    assert_eq!(resp.status(), 403);
+
+    if utils::fs_folds_case(server.path()) {
+        for alias in [
+            "protected/new.txt",
+            "PROTECTED/new.txt",
+            "pRoTeCtEd/new.txt",
+        ] {
+            let url = format!("{}{alias}", server.url());
+            let resp =
+                send_with_digest_auth(fetch!(b"PUT", &url).body(b"abc".to_vec()), "user", "pass")?;
+            assert_eq!(resp.status(), 403, "alias `{alias}` was not guarded");
+        }
+        let url = format!("{}PROTECTED/file.txt", server.url());
+        let resp = send_with_digest_auth(fetch!(b"DELETE", &url), "user", "pass")?;
+        assert_eq!(resp.status(), 403);
+    } else {
+        let url = format!("{}protected/new.txt", server.url());
+        let resp =
+            send_with_digest_auth(fetch!(b"PUT", &url).body(b"abc".to_vec()), "user", "pass")?;
+        assert_eq!(resp.status(), 201);
+    }
+
+    Ok(())
+}
+
+#[rstest]
+fn auth_alias_webdav_destination(
+    #[with(&["--auth", "user:pass@/:rw,/Protected:ro", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    if !utils::fs_folds_case(server.path()) {
+        return Ok(());
+    }
+    std::fs::create_dir_all(server.path().join("Protected"))?;
+
+    let origin_url = format!("{}test.txt", server.url());
+    let dest_url = format!("{}protected/moved.txt", server.url());
+
+    let resp = send_with_digest_auth(
+        fetch!(b"MOVE", &origin_url).header("Destination", &dest_url),
+        "user",
+        "pass",
+    )?;
+    assert_eq!(resp.status(), 403);
+
+    let resp = send_with_digest_auth(
+        fetch!(b"COPY", &origin_url).header("Destination", &dest_url),
+        "user",
+        "pass",
+    )?;
+    assert_eq!(resp.status(), 403);
+
+    Ok(())
+}
+
+/// On Windows an NTFS data stream suffix (`file.txt::$DATA`) names the same
+/// data as `file.txt`, and so must be authorized as it.
+///
+/// A trailing dot is *not* covered here: dufs canonicalizes the served path to
+/// a verbatim (`\\?\`) form, under which `file.txt.` is a distinct file rather
+/// than an alias of `file.txt` (matching the discovery report).
+#[cfg(windows)]
+#[rstest]
+fn auth_alias_windows_stream(
+    #[with(&["--auth", "user:pass@/dir1:rw,/dir1/test.txt:ro", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    for alias in ["dir1/test.txt::$DATA", "dir1/TEST.TXT::$DATA"] {
+        let url = format!("{}{alias}", server.url());
+        let resp =
+            send_with_digest_auth(fetch!(b"PUT", &url).body(b"abc".to_vec()), "user", "pass")?;
+        assert_eq!(resp.status(), 403, "alias `{alias}` was not guarded");
+    }
+    let resp = fetch!(b"GET", format!("{}dir1/test.txt", server.url()))
+        .basic_auth("user", Some("pass"))
+        .send()?;
+    assert_eq!(resp.status(), 200);
+    Ok(())
+}
+
+/// On Windows a volume may also report an NTFS 8.3 short name for a long name;
+/// requests using it must be authorized as the configured long name.
+#[cfg(windows)]
+#[rstest]
+fn auth_alias_windows_short_name(
+    #[with(&["--auth", "user:pass@/:rw,/supersecretstorage:ro", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    let dir = server.path().join("supersecretstorage");
+    std::fs::create_dir_all(&dir)?;
+    std::fs::write(dir.join("file.txt"), "TOP SECRET")?;
+
+    let Some(short) = utils::short_name(&dir) else {
+        // 8.3 name generation is disabled for this volume
+        return Ok(());
+    };
+
+    let url = format!("{}{short}/new.txt", server.url());
+    let resp = send_with_digest_auth(fetch!(b"PUT", &url).body(b"abc".to_vec()), "user", "pass")?;
+    assert_eq!(resp.status(), 403);
+
+    Ok(())
+}
+
+#[rstest]
 fn auth_anonymous_no_precedence(
     #[with(&["--auth", "user:pass@/:rw", "-a", "@/dir1", "-A"])] server: TestServer,
 ) -> Result<(), Error> {
