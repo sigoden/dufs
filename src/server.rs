@@ -9,7 +9,7 @@ use crate::utils::{
 use crate::Args;
 
 use anyhow::{anyhow, Result};
-use async_deflate_zip::{Compression, WriterOptions, ZipWriter};
+use async_deflate_zip::{CompressionLevel, ZipWriter};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use bytes::Bytes;
 use chrono::{LocalResult, TimeZone, Utc};
@@ -41,7 +41,6 @@ use std::path::{Component, Path, PathBuf, MAIN_SEPARATOR};
 use std::sync::atomic::{self, AtomicBool};
 use std::sync::Arc;
 use std::time::SystemTime;
-use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWrite};
 use tokio::{fs, io};
 
@@ -1877,7 +1876,7 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
     dir: &Path,
     access_paths: AccessPaths,
     hidden: &[String],
-    compression: Compression,
+    compression: CompressionLevel,
     follow_symlinks: bool,
     serve_path: PathBuf,
     running: Arc<AtomicBool>,
@@ -1893,7 +1892,7 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
         move |x| x.path().symlink_metadata().is_ok() && x.file_type().is_file(),
     ))
     .await?;
-    let mut zip = ZipWriter::new(&mut *writer).with_level(compression);
+    let mut zip = ZipWriter::new(&mut *writer).with_compression_level(compression);
     for zip_path in zip_paths.into_iter() {
         let filename = match zip_path
             .strip_prefix(dir)
@@ -1904,13 +1903,9 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
             Some(v) => v,
             None => continue,
         };
-        let options = WriterOptions::from_path(&zip_path).await?;
-        let mut file = File::open(&zip_path).await?;
-        let mut entry = zip.append_file(&filename, options).await?;
-        io::copy(&mut file, &mut entry).await?;
-        entry.close().await?;
+        zip.add_file(&filename, &zip_path).await?;
     }
-    zip.finalize().await?;
+    zip.finish().await?;
     Ok(())
 }
 

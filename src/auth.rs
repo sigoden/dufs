@@ -2,7 +2,7 @@ use crate::{args::Args, server::Response, utils::unix_now};
 
 use anyhow::{anyhow, bail, Result};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-use ed25519_dalek::{ed25519::signature::SignerMut, Signature, SigningKey};
+use ed25519_dalek::{ed25519::signature::Signer, Signature, SigningKey};
 use headers::HeaderValue;
 use hyper::{header::WWW_AUTHENTICATE, Method};
 use indexmap::IndexMap;
@@ -175,7 +175,7 @@ impl AccessControl {
             .ok_or_else(|| anyhow!("Not found user '{user}'"))?;
         let exp = unix_now().as_millis() as u64 + TOKEN_EXPIRATION;
         let message = format!("{path}:{exp}");
-        let mut signing_key = derive_secret_key(user, pass);
+        let signing_key = derive_secret_key(user, pass);
         let sig = signing_key.sign(message.as_bytes()).to_bytes();
 
         let mut raw = Vec::with_capacity(64 + 8 + user.len());
