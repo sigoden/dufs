@@ -184,13 +184,18 @@ impl Server {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
 
-        let (user, access_paths, via_token) = self.args.auth.guard(
-            &relative_path,
-            &method,
-            authorization,
-            query_params.get("token"),
-            is_microsoft_webdav,
-        );
+        let (user, access_paths, via_token) = self
+            .args
+            .auth
+            .guard(
+                &relative_path,
+                &method,
+                authorization,
+                query_params.get("token"),
+                is_microsoft_webdav,
+                &self.args.serve_path,
+            )
+            .await;
 
         let (user, access_paths) = match (user, access_paths) {
             (None, None) => {
@@ -1244,7 +1249,7 @@ impl Server {
     }
 
     async fn handle_copy(&self, path: &Path, req: &Request, res: &mut Response) -> Result<()> {
-        let dest = match self.extract_dest(req, res) {
+        let dest = match self.extract_dest(req, res).await {
             Some(dest) => dest,
             None => {
                 return Ok(());
@@ -1287,7 +1292,7 @@ impl Server {
     }
 
     async fn handle_move(&self, path: &Path, req: &Request, res: &mut Response) -> Result<()> {
-        let dest = match self.extract_dest(req, res) {
+        let dest = match self.extract_dest(req, res).await {
             Some(dest) => dest,
             None => {
                 return Ok(());
@@ -1480,7 +1485,7 @@ impl Server {
             .unwrap_or_default()
     }
 
-    fn extract_dest(&self, req: &Request, res: &mut Response) -> Option<PathBuf> {
+    async fn extract_dest(&self, req: &Request, res: &mut Response) -> Option<PathBuf> {
         let headers = req.headers();
         let dest_path = match self
             .extract_destination_header(headers)
@@ -1497,7 +1502,15 @@ impl Server {
         let guard = self
             .args
             .auth
-            .guard(&dest_path, req.method(), authorization, None, false);
+            .guard(
+                &dest_path,
+                req.method(),
+                authorization,
+                None,
+                false,
+                &self.args.serve_path,
+            )
+            .await;
 
         match guard {
             (_, Some(_), _) => {}

@@ -61,6 +61,36 @@ pub fn encode_uri(v: &str) -> String {
 }
 
 #[allow(dead_code)]
+pub fn fs_folds_case(path: &std::path::Path) -> bool {
+    let probe = path.join("DufsCaseProbe.dufs");
+    if std::fs::write(&probe, b"").is_err() {
+        return false;
+    }
+    let folded = path.join("DUFSCASEPROBE.DUFS").exists();
+    let _ = std::fs::remove_file(&probe);
+    folded
+}
+
+#[cfg(windows)]
+#[allow(dead_code)]
+pub fn short_name(path: &std::path::Path) -> Option<String> {
+    let output = std::process::Command::new("cmd")
+        .arg("/C")
+        .arg(format!("for %I in (\"{}\") do @echo %~sI", path.display()))
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let short = String::from_utf8(output.stdout).ok()?;
+    let name = std::path::Path::new(short.trim())
+        .file_name()?
+        .to_str()?
+        .to_string();
+    name.contains('~').then_some(name)
+}
+
+#[allow(dead_code)]
 pub fn retrieve_json(content: &str) -> Option<Value> {
     let lines: Vec<&str> = content.lines().collect();
     let start_tag = "<template id=\"index-data\">";

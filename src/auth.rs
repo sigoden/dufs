@@ -115,14 +115,16 @@ impl AccessControl {
 
     /// Returns the guarded `(user, access_paths, via_token)`. `via_token` is
     /// true only when the identity was established by a share token rather than
-    /// primary credentials or anonymous access.
-    pub fn guard(
+    /// primary credentials or anonymous access. `root` is the served directory,
+    /// used to resolve filesystem aliases of configured names.
+    pub async fn guard(
         &self,
         path: &str,
         method: &Method,
         authorization: Option<&HeaderValue>,
         token: Option<&String>,
         guard_options: bool,
+        root: &Path,
     ) -> (Option<String>, Option<AccessPaths>, bool) {
         if self.empty {
             return (None, Some(AccessPaths::new(AccessPerm::ReadWrite)), false);
@@ -131,7 +133,7 @@ impl AccessControl {
         if method == Method::GET {
             if let Some(token) = token {
                 if let Ok((user, ap)) = self.verify_token(token, path) {
-                    return (Some(user), ap.guard(path, method), true);
+                    return (Some(user), ap.guard(path, method, Some(root)).await, true);
                 }
             }
         }
@@ -147,7 +149,7 @@ impl AccessControl {
                                 false,
                             );
                         }
-                        return (Some(user), ap.guard(path, method), false);
+                        return (Some(user), ap.guard(path, method, Some(root)).await, false);
                     }
                 }
             }
@@ -160,7 +162,7 @@ impl AccessControl {
         }
 
         if let Some(ap) = self.anonymous.as_ref() {
-            return (None, ap.guard(path, method), false);
+            return (None, ap.guard(path, method, Some(root)).await, false);
         }
 
         (None, None, false)
@@ -251,8 +253,8 @@ impl AccessPaths {
         Some(())
     }
 
-    pub fn guard(&self, path: &str, method: &Method) -> Option<Self> {
-        let target = self.find(path)?;
+    pub async fn guard(&self, path: &str, method: &Method, root: Option<&Path>) -> Option<Self> {
+        let target = self.find(path, root).await?;
         if !is_readonly_method(method) && !target.perm().readwrite() {
             return None;
         }
@@ -312,39 +314,84 @@ impl AccessPaths {
         }
     }
 
-    pub fn find(&self, path: &str) -> Option<AccessPaths> {
+    /// Resolve `path` against the permission tree.
+    ///
+    /// `root` is the on-disk directory the relative `path` resolves against. It
+    /// is used to recognize filesystem aliases of configured names: the backing
+    /// filesystem may resolve several different spellings (case variants, NTFS
+    /// 8.3 short names, NTFS data streams, ...) to the same object. Matching such
+    /// a request against the canonical rule instead of falling back to the parent
+    /// permission keeps a restrictive child rule enforceable. Pass `None` for
+    /// pure string matching.
+    pub async fn find(&self, path: &str, root: Option<&Path>) -> Option<AccessPaths> {
         let parts: Vec<&str> = path
             .trim_matches('/')
             .split('/')
             .filter(|v| !v.is_empty())
             .collect();
-        self.find_impl(&parts, self.perm)
+        let mut perm = self.perm;
+        let mut paths = self;
+        for (i, name) in parts.iter().enumerate() {
+            let name = *name;
+            if !paths.perm.indexonly() {
+                perm = paths.perm;
+            }
+            let child = match paths.children.get(name) {
+                Some(child) => child,
+                None => match paths.find_alias(name, &parts[..i], root).await {
+                    Some(child) => child,
+                    None => {
+                        return if perm.indexonly() {
+                            None
+                        } else {
+                            Some(AccessPaths::new(perm))
+                        }
+                    }
+                },
+            };
+            paths = child;
+        }
+        if !paths.perm.indexonly() {
+            perm = paths.perm;
+        }
+        if perm.indexonly() {
+            Some(paths.clone())
+        } else {
+            Some(AccessPaths::new(perm))
+        }
     }
 
-    fn find_impl(&self, parts: &[&str], perm: AccessPerm) -> Option<AccessPaths> {
-        let perm = if !self.perm.indexonly() {
-            self.perm
-        } else {
-            perm
-        };
-        if parts.is_empty() {
-            if perm.indexonly() {
-                return Some(self.clone());
-            } else {
-                return Some(AccessPaths::new(perm));
+    /// Find a configured child whose name the backing filesystem resolves to
+    /// the same object as `name` under `prefix` (a path relative to `root`).
+    async fn find_alias<'a>(
+        &'a self,
+        name: &str,
+        prefix: &[&str],
+        root: Option<&Path>,
+    ) -> Option<&'a AccessPaths> {
+        let root = root?;
+        // Cheap pre-filter: without a plausible alias there is no need to touch
+        // the filesystem at all, so precise requests stay on the fast path.
+        if !self.children.keys().any(|key| could_alias(name, key)) {
+            return None;
+        }
+        let name_ident = path_identity(root, prefix, name).await?;
+        // The identity exposes the on-disk spelling of `name`, so children that
+        // could not spell it can be skipped without a lookup of their own, which
+        // bounds the number of lookups however many children a rule has.
+        let real_name = name_ident.file_name().and_then(|v| v.to_str());
+        for (key, child) in &self.children {
+            if real_name.is_some_and(|real| !could_alias(real, key)) {
+                continue;
+            }
+            if path_identity(root, prefix, key)
+                .await
+                .is_some_and(|v| v == name_ident)
+            {
+                return Some(child);
             }
         }
-        let child = match self.children.get(parts[0]) {
-            Some(v) => v,
-            None => {
-                if perm.indexonly() {
-                    return None;
-                } else {
-                    return Some(AccessPaths::new(perm));
-                }
-            }
-        };
-        child.find_impl(&parts[1..], perm)
+        None
     }
 
     pub fn child_names(&self) -> Vec<&String> {
@@ -554,6 +601,32 @@ fn validate_nonce(nonce: &[u8]) -> Result<bool> {
     bail!("invalid nonce");
 }
 
+/// Resolve the on-disk identity of `root/<prefix...>/<name>`.
+async fn path_identity(root: &Path, prefix: &[&str], name: &str) -> Option<PathBuf> {
+    let mut path = root.to_path_buf();
+    for part in prefix {
+        path.push(part);
+    }
+    path.push(name);
+    tokio::fs::canonicalize(path).await.ok()
+}
+
+/// Whether `name` could be a filesystem alias of the configured child `key`.
+fn could_alias(name: &str, key: &str) -> bool {
+    if !is_plain_name(name) || !is_plain_name(key) {
+        return true;
+    }
+    name.eq_ignore_ascii_case(key)
+}
+
+fn is_plain_name(name: &str) -> bool {
+    name.is_ascii()
+        && !name.contains(':')
+        && !name.contains('~')
+        && !name.ends_with('.')
+        && !name.ends_with(' ')
+}
+
 fn is_readonly_method(method: &Method) -> bool {
     method == Method::GET
         || method == Method::OPTIONS
@@ -697,8 +770,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_access_paths() {
+    #[tokio::test]
+    async fn test_access_paths() {
         let mut paths = AccessPaths::default();
         paths.add("/dir1", AccessPerm::ReadWrite);
         paths.add("/dir2/dir21", AccessPerm::ReadWrite);
@@ -720,7 +793,8 @@ mod tests {
         );
         assert_eq!(
             paths
-                .find("dir2")
+                .find("dir2", None)
+                .await
                 .map(|v| v.entry_paths(Path::new("/tmp/dir2"))),
             Some(
                 [
@@ -734,30 +808,84 @@ mod tests {
             )
         );
         assert_eq!(
-            paths.find("dir1/file"),
+            paths.find("dir1/file", None).await,
             Some(AccessPaths::new(AccessPerm::ReadWrite))
         );
         assert_eq!(
-            paths.find("dir2/dir21/file"),
+            paths.find("dir2/dir21/file", None).await,
             Some(AccessPaths::new(AccessPerm::ReadWrite))
         );
         assert_eq!(
-            paths.find("dir2/dir21/dir211/file"),
+            paths.find("dir2/dir21/dir211/file", None).await,
             Some(AccessPaths::new(AccessPerm::ReadOnly))
         );
         assert_eq!(
-            paths.find("dir2/dir22/file"),
+            paths.find("dir2/dir22/file", None).await,
             Some(AccessPaths::new(AccessPerm::ReadOnly))
         );
         assert_eq!(
-            paths.find("dir2/dir22/dir221/file"),
+            paths.find("dir2/dir22/dir221/file", None).await,
             Some(AccessPaths::new(AccessPerm::ReadWrite))
         );
-        assert_eq!(paths.find("dir2/dir23/file"), None);
+        assert_eq!(paths.find("dir2/dir23/file", None).await, None);
         assert_eq!(
-            paths.find("dir2/dir23//dir231/file"),
+            paths.find("dir2/dir23//dir231/file", None).await,
             Some(AccessPaths::new(AccessPerm::ReadWrite))
         );
+    }
+
+    #[test]
+    fn test_could_alias() {
+        // case variants and alias-shaped names need the filesystem to decide
+        assert!(could_alias("TEST.TXT", "test.txt"));
+        assert!(could_alias("Dir1", "dir1"));
+        assert!(could_alias("test.txt::$DATA", "test.txt"));
+        assert!(could_alias("test.txt.", "test.txt"));
+        assert!(could_alias("test.txt ", "test.txt"));
+        assert!(could_alias("SUPERS~1", "supersecretstorage"));
+        assert!(could_alias("supersecretstorage", "SUPERS~1"));
+        assert!(could_alias("café", "cafe\u{301}"));
+        // plain ASCII names that differ by more than case never alias
+        assert!(!could_alias("other.txt", "test.txt"));
+        assert!(!could_alias("test.txt.bak", "test.txt"));
+    }
+
+    #[tokio::test]
+    async fn test_find_alias() {
+        use assert_fs::prelude::*;
+        let dir = assert_fs::TempDir::new().unwrap();
+        dir.child("dir1/test.txt").write_str("x").unwrap();
+        dir.child("dir1/other.txt").write_str("x").unwrap();
+        dir.child("Protected/file.txt").write_str("x").unwrap();
+
+        let mut paths = AccessPaths::default();
+        paths.add("/", AccessPerm::ReadWrite);
+        paths.add("/dir1/test.txt", AccessPerm::ReadOnly);
+        paths.add("/Protected", AccessPerm::ReadOnly);
+
+        let root = Some(dir.path());
+        // exact spellings
+        assert_eq!(
+            paths.find("dir1/test.txt", root).await,
+            Some(AccessPaths::new(AccessPerm::ReadOnly))
+        );
+        // an unrelated sibling still inherits the parent permission
+        assert_eq!(
+            paths.find("dir1/other.txt", root).await,
+            Some(AccessPaths::new(AccessPerm::ReadWrite))
+        );
+
+        // an alias of a configured name resolves to the configured rule when the
+        // backing filesystem itself folds the names together
+        let folds_case = dir.path().join("DIR1").is_dir();
+        let protected = if folds_case {
+            Some(AccessPaths::new(AccessPerm::ReadOnly))
+        } else {
+            Some(AccessPaths::new(AccessPerm::ReadWrite))
+        };
+        assert_eq!(paths.find("dir1/TEST.TXT", root).await, protected);
+        assert_eq!(paths.find("DIR1/test.txt", root).await, protected);
+        assert_eq!(paths.find("PROTECTED/file.txt", root).await, protected);
     }
 
     #[test]
