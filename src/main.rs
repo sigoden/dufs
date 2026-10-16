@@ -241,10 +241,7 @@ fn check_addrs(args: &Args) -> Result<(Vec<BindAddr>, Vec<BindAddr>)> {
                 }
             },
             #[cfg(unix)]
-            _ => {
-                new_addrs.push(bind_addr.clone());
-                print_addrs.push(bind_addr.clone())
-            }
+            _ => print_addrs.push(bind_addr.clone()),
         }
     }
     print_addrs.sort_unstable();
