@@ -984,17 +984,13 @@ impl Server {
             None
         };
 
-        let content_type = get_content_type(path).await?;
-        // Never let the browser sniff a more dangerous type than we declare.
         res.headers_mut().insert(
-            "x-content-type-options",
-            HeaderValue::from_static("nosniff"),
+            CONTENT_TYPE,
+            HeaderValue::from_str(&get_content_type(path).await?)?,
         );
-        res.headers_mut()
-            .insert(CONTENT_TYPE, HeaderValue::from_str(&content_type)?);
 
         let filename = try_get_file_name(path)?;
-        set_content_disposition(res, !is_active_content_type(&content_type), filename)?;
+        set_content_disposition(res, true, filename)?;
 
         res.headers_mut().typed_insert(AcceptRanges::bytes());
 
@@ -1984,20 +1980,6 @@ fn set_webdav_headers(res: &mut Response) {
     );
     res.headers_mut()
         .insert("DAV", HeaderValue::from_static("1, 2, 3"));
-}
-
-/// Whether a browser may execute a response of this content type as active
-/// content (e.g. HTML, SVG or XML/XSLT) when it is rendered on the dufs origin.
-/// Files with such a type are served as downloads so uploaded content can never
-/// run same-origin script.
-fn is_active_content_type(content_type: &str) -> bool {
-    let mime = content_type
-        .split(';')
-        .next()
-        .unwrap_or_default()
-        .trim()
-        .to_ascii_lowercase();
-    mime == "text/html" || mime == "application/xml" || mime == "text/xml" || mime.ends_with("+xml")
 }
 
 async fn get_content_type(path: &Path) -> Result<String> {
