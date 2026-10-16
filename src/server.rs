@@ -9,7 +9,7 @@ use crate::utils::{
 use crate::Args;
 
 use anyhow::{anyhow, Result};
-use async_deflate_zip::{CompressionLevel, ZipWriter};
+use async_deflate_zip::{CompressionLevel, EntryOptions, ZipWriter};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use bytes::Bytes;
 use chrono::{LocalResult, TimeZone, Utc};
@@ -1885,7 +1885,15 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
         hidden,
         follow_symlinks,
         serve_path,
-        move |x| x.path().symlink_metadata().is_ok() && x.file_type().is_file(),
+        move |x| {
+            // Include both files and directories. Symbolic links are already
+            // resolved by `follow_links`, so `file_type` reports the target's
+            // type.
+            x.path().symlink_metadata().is_ok() && {
+                let file_type = x.file_type();
+                file_type.is_file() || file_type.is_dir()
+            }
+        },
     ))
     .await?;
     let mut zip = ZipWriter::new(&mut *writer).with_compression_level(compression);
@@ -1899,7 +1907,18 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
             Some(v) => v,
             None => continue,
         };
-        zip.add_file(&filename, &zip_path).await?;
+        // Follow symlinks so that a symlinked entry records the permissions
+        // and modification time of its target.
+        let meta = match tokio::fs::metadata(&zip_path).await {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        if meta.is_dir() {
+            let options = EntryOptions::from_path_following(&zip_path).await?;
+            zip.add_directory(&filename, &options).await?;
+        } else {
+            zip.add_file(&filename, &zip_path).await?;
+        }
     }
     zip.finish().await?;
     Ok(())
