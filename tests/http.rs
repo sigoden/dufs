@@ -108,6 +108,54 @@ fn head_dir_zip(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     Ok(())
 }
 
+#[cfg(unix)]
+#[rstest]
+fn get_dir_zip_keeps_directories(
+    #[with(&["-A", "--allow-symlink"])] server: TestServer,
+) -> Result<(), Error> {
+    use std::os::unix::fs::{symlink, PermissionsExt};
+
+    // A regular subdirectory with distinctive permissions.
+    let dir = server.path().join("dir1");
+    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o750))?;
+
+    // A symlinked directory whose target has different permissions.
+    let target = server.path().join("link-target");
+    std::fs::create_dir(&target)?;
+    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o710))?;
+    symlink(&target, server.path().join("link-dir"))?;
+
+    let resp = reqwest::blocking::get(format!("{}?zip", server.url()))?;
+    assert_eq!(resp.status(), 200);
+    let bytes = resp.bytes()?;
+    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes))?;
+
+    {
+        let entry = archive.by_name("dir1/")?;
+        assert!(entry.is_dir(), "dir1/ should be a directory entry");
+        assert_eq!(
+            entry.unix_mode().unwrap() & 0o7777,
+            0o750,
+            "dir1/ should keep its permissions"
+        );
+        assert!(
+            entry.last_modified().unwrap().year() >= 2020,
+            "dir1/ should keep its modification time"
+        );
+    }
+    {
+        // A symlinked directory must record the metadata of its target.
+        let entry = archive.by_name("link-dir/")?;
+        assert!(entry.is_dir(), "link-dir/ should be a directory entry");
+        assert_eq!(
+            entry.unix_mode().unwrap() & 0o7777,
+            0o710,
+            "link-dir/ should keep the target's permissions"
+        );
+    }
+    Ok(())
+}
+
 #[rstest]
 fn get_dir_search(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let resp = reqwest::blocking::get(format!("{}?q={}", server.url(), "test.html"))?;
