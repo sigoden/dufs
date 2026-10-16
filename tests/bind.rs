@@ -82,3 +82,94 @@ fn validate_printed_urls(tmpdir: TempDir, port: Port, #[case] args: &[&str]) -> 
 
     Ok(())
 }
+
+/// Send a minimal HTTP/1.1 request over `stream` and return its status line.
+#[cfg(unix)]
+fn raw_http_status_line<S>(stream: &mut S) -> Result<String, Error>
+where
+    S: std::io::Read + std::io::Write,
+{
+    stream.write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")?;
+    let mut resp = String::new();
+    stream.read_to_string(&mut resp)?;
+    Ok(resp.lines().next().unwrap_or_default().to_string())
+}
+
+#[cfg(unix)]
+#[rstest]
+fn bind_unix_socket(tmpdir: TempDir, port: Port) -> Result<(), Error> {
+    use std::os::unix::net::UnixStream;
+    use std::time::{Duration, Instant};
+
+    let sock_path = tmpdir.path().join("dufs.sock");
+    let mut child = Command::new(assert_cmd::cargo::cargo_bin!())
+        .arg(tmpdir.path())
+        .arg("-p")
+        .arg(port.to_string())
+        .arg("-b")
+        .arg(&sock_path)
+        .stdout(Stdio::piped())
+        .spawn()?;
+
+    let deadline = Instant::now() + Duration::from_secs(2);
+    let mut stream = loop {
+        match UnixStream::connect(&sock_path) {
+            Ok(stream) => break stream,
+            Err(_) if Instant::now() < deadline => {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(err) => {
+                child.kill()?;
+                return Err(format!("failed to connect to {}: {err}", sock_path.display()).into());
+            }
+        }
+    };
+    assert_eq!(raw_http_status_line(&mut stream)?, "HTTP/1.1 200 OK");
+
+    child.kill()?;
+    Ok(())
+}
+
+/// A `@name` bind address selects a Linux abstract socket. Abstract sockets are
+/// not unlinked before binding, so a duplicated address makes the second bind
+/// fail with `EADDRINUSE` instead of silently going through.
+#[cfg(any(target_os = "linux", target_os = "android"))]
+#[rstest]
+fn bind_abstract_unix_socket(tmpdir: TempDir, port: Port) -> Result<(), Error> {
+    use std::os::linux::net::SocketAddrExt;
+    use std::os::unix::net::{SocketAddr, UnixStream};
+    use std::time::{Duration, Instant};
+
+    let name = format!("dufs-test-{}-{port}", std::process::id());
+    let addr = SocketAddr::from_abstract_name(name.as_bytes())?;
+
+    let mut child = Command::new(assert_cmd::cargo::cargo_bin!())
+        .arg(tmpdir.path())
+        .arg("-p")
+        .arg(port.to_string())
+        .arg("-b")
+        .arg(format!("@{name}"))
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    let deadline = Instant::now() + Duration::from_secs(2);
+    let mut stream = loop {
+        match UnixStream::connect_addr(&addr) {
+            Ok(stream) => break stream,
+            Err(_) if Instant::now() < deadline => {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(err) => {
+                child.kill()?;
+                return Err(
+                    format!("failed to connect to abstract socket `@{name}`: {err}").into(),
+                );
+            }
+        }
+    };
+    assert_eq!(raw_http_status_line(&mut stream)?, "HTTP/1.1 200 OK");
+
+    child.kill()?;
+    Ok(())
+}
