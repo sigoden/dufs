@@ -430,6 +430,7 @@ Here are some Third-party customize UI project:
 - https://github.com/TransparentLC/dufs-material-assets
 - https://github.com/cercky/dufs_web
 - https://github.com/52funny/dufs-tabler-web
+- https://github.com/mikigo/dufs-shadcn-assets
 
 </details>
 
