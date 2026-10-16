@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.47.0] - 2026-10-16
+## [0.47.0] - 2026-10-17
 
 ### Features
 
@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - Webui better uploaders ([#749](https://github.com/sigoden/dufs/issues/749))
 - Support HEAD requests for embedded assets and health check ([#750](https://github.com/sigoden/dufs/issues/750))
 - Render placeholders in custom 404 page ([#752](https://github.com/sigoden/dufs/issues/752))
+- Preserve directory entries and metadata when zipping a directory ([#760](https://github.com/sigoden/dufs/issues/760))
 
 ### Bug Fixes
 
@@ -21,6 +22,7 @@ All notable changes to this project will be documented in this file.
 - Keep directories grouped on top when sorting in descending order ([#732](https://github.com/sigoden/dufs/issues/732))
 - Enhance security ([#753](https://github.com/sigoden/dufs/issues/753))
 - Close path ACL bypass via filesystem name aliases ([#754](https://github.com/sigoden/dufs/issues/754))
+- Serve HTML/SVG/XML files inline again ([#759](https://github.com/sigoden/dufs/issues/759))
 
 ### Refactor
 
