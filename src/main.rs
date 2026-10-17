@@ -200,6 +200,10 @@ fn create_listener(addr: SocketAddr) -> Result<TcpListener> {
     if addr.is_ipv6() {
         socket.set_only_v6(true)?;
     }
+    // On Windows `SO_REUSEADDR` allows binding an address that is already in use,
+    // so a second instance would start successfully but never receive connections.
+    // Only set it elsewhere, where it just allows rebinding a port in `TIME_WAIT`.
+    #[cfg(not(windows))]
     socket.set_reuse_address(true)?;
     socket.bind(&addr.into())?;
     socket.listen(1024 /* Default backlog */)?;
