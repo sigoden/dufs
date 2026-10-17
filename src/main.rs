@@ -34,7 +34,10 @@ use std::time::Duration;
 use tokio::time::timeout;
 use tokio::{net::TcpListener, task::JoinHandle};
 #[cfg(feature = "tls")]
-use tokio_rustls::{rustls::ServerConfig, TlsAcceptor};
+use tokio_rustls::{
+    rustls::{crypto::ring, ServerConfig},
+    TlsAcceptor,
+};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -88,9 +91,14 @@ fn serve(args: Args, running: Arc<AtomicBool>) -> Result<Vec<JoinHandle<()>>> {
                     (Some(cert_file), Some(key_file)) => {
                         let certs = load_certs(cert_file)?;
                         let key = load_private_key(key_file)?;
-                        let mut config = ServerConfig::builder()
-                            .with_no_client_auth()
-                            .with_single_cert(certs, key)?;
+                        // Select the `ring` provider explicitly instead of relying on
+                        // rustls' feature-based auto-detection, which panics when more
+                        // than one provider is enabled (e.g. via dev-dependencies).
+                        let mut config =
+                            ServerConfig::builder_with_provider(Arc::new(ring::default_provider()))
+                                .with_safe_default_protocol_versions()?
+                                .with_no_client_auth()
+                                .with_single_cert(certs, key)?;
                         config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
                         let config = Arc::new(config);
                         let tls_accepter = TlsAcceptor::from(config);
