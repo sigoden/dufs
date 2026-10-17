@@ -23,6 +23,8 @@ All notable changes to this project will be documented in this file.
 - Enhance security ([#753](https://github.com/sigoden/dufs/issues/753))
 - Close path ACL bypass via filesystem name aliases ([#754](https://github.com/sigoden/dufs/issues/754))
 - Serve HTML/SVG/XML files inline again ([#759](https://github.com/sigoden/dufs/issues/759))
+- Bind unix socket address only once ([#761](https://github.com/sigoden/dufs/issues/761))
+- Don't set SO_REUSEADDR on Windows ([#762](https://github.com/sigoden/dufs/issues/762))
 
 ### Refactor
 
@@ -32,6 +34,7 @@ All notable changes to this project will be documented in this file.
 - Upgrade async-deflate-zip to v0.2.0 ([#723](https://github.com/sigoden/dufs/issues/723))
 - Improve server port selection ([#748](https://github.com/sigoden/dufs/issues/748))
 - Send title-case HTTP/1 response header names ([#751](https://github.com/sigoden/dufs/issues/751))
+- Reduce release binary size ([#763](https://github.com/sigoden/dufs/issues/763))
 
 ## [0.46.0] - 2026-05-07
 
