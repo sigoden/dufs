@@ -19,6 +19,10 @@ use uuid::Uuid;
 const REALM: &str = "DUFS";
 const DIGEST_AUTH_TIMEOUT: u32 = 60 * 60 * 24 * 7; // 7 days
 const TOKEN_EXPIRATION: u64 = 1000 * 60 * 60 * 24 * 3; // 3 days
+/// Upper bound on the depth of an auth rule path. The permission tree is built
+/// and traversed recursively, so an absurdly deep rule would otherwise risk a
+/// stack overflow (which aborts the process under `panic = "abort"`).
+const MAX_ACCESS_PATH_DEPTH: usize = 128;
 
 lazy_static! {
     static ref NONCESTARTHASH: Context = {
@@ -173,7 +177,7 @@ impl AccessControl {
             .users
             .get(user)
             .ok_or_else(|| anyhow!("Not found user '{user}'"))?;
-        let exp = unix_now().as_millis() as u64 + TOKEN_EXPIRATION;
+        let exp = (unix_now().as_millis() as u64).saturating_add(TOKEN_EXPIRATION);
         let message = format!("{path}:{exp}");
         let signing_key = derive_secret_key(user, pass);
         let sig = signing_key.sign(message.as_bytes()).to_bytes();
@@ -248,6 +252,10 @@ impl AccessPaths {
                 Some((path, "rw")) => (path, AccessPerm::ReadWrite),
                 _ => return None,
             };
+            let trimmed = path.trim_matches('/');
+            if !trimmed.is_empty() && trimmed.split('/').count() > MAX_ACCESS_PATH_DEPTH {
+                return None;
+            }
             self.add(path, perm);
         }
         Some(())

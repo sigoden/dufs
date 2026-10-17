@@ -77,7 +77,10 @@ impl Server {
         let single_file_req_paths = if args.path_is_file {
             vec![
                 args.uri_prefix.to_string(),
-                args.uri_prefix[0..args.uri_prefix.len() - 1].to_string(),
+                args.uri_prefix
+                    .strip_suffix('/')
+                    .unwrap_or(&args.uri_prefix)
+                    .to_string(),
                 encode_uri(&format!(
                     "{}{}",
                     args.uri_prefix,
@@ -1031,7 +1034,10 @@ impl Server {
                         let part_header = format!(
                             "--{boundary}\r\nContent-Type: {content_type}\r\nContent-Range: bytes {start}-{end}/{size}\r\n\r\n",
                         );
-                        content_length += part_header.len() + range_size as usize + 2;
+                        content_length = content_length
+                            .saturating_add(part_header.len())
+                            .saturating_add(usize::try_from(range_size).unwrap_or(usize::MAX))
+                            .saturating_add(2);
                     }
 
                     res.headers_mut().insert(
