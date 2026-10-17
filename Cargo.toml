@@ -25,7 +25,7 @@ async-deflate-zip = "0.5"
 headers = "0.4"
 mime_guess = "2.0"
 if-addrs = "0.15"
-tokio-rustls = { version = "0.26", optional = true }
+tokio-rustls = { version = "0.26", optional = true, default-features = false, features = ["ring", "tls12", "logging"] }
 md5 = "0.8"
 lazy_static = "1.5"
 uuid = { version = "1.28", features = ["v4", "fast-rng"] }
@@ -72,7 +72,7 @@ digest_auth = "0.3.1"
 zip = { version = "9", default-features = false, features = ["deflate"] }
 
 [profile.release]
-opt-level = 3
+opt-level = "s"
 lto = true
 codegen-units = 1
 panic = "abort"
