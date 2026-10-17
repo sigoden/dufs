@@ -25,6 +25,23 @@ fn bind_fails(tmpdir: TempDir, port: Port, #[case] args: &[&str]) -> Result<(), 
 }
 
 #[rstest]
+fn bind_fails_when_port_in_use(server: TestServer, tmpdir: TempDir) -> Result<(), Error> {
+    // `server` already holds the port; a second instance must not bind it.
+    Command::new(assert_cmd::cargo::cargo_bin!())
+        .arg(tmpdir.path())
+        .arg("-p")
+        .arg(server.port().to_string())
+        .assert()
+        .stderr(predicates::str::contains("Failed to bind"))
+        .failure();
+
+    // And the first instance keeps serving requests.
+    reqwest::blocking::get(server.url())?.error_for_status()?;
+
+    Ok(())
+}
+
+#[rstest]
 #[case(server(&[] as &[&str]), true, true)]
 #[case(server(&["-b", "0.0.0.0"]), true, false)]
 #[case(server(&["-b", "127.0.0.1", "-b", "::1"]), true, true)]
