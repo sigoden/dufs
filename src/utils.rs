@@ -18,7 +18,7 @@ const MAX_RANGES: usize = 32;
 pub fn unix_now() -> Duration {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .expect("Unable to get unix epoch time")
+        .unwrap_or_default()
 }
 
 pub fn encode_uri(v: &str) -> String {

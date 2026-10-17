@@ -15,7 +15,7 @@ use crate::server::Server;
 #[cfg(feature = "tls")]
 use crate::utils::{load_certs, load_private_key};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use args::BindAddr;
 use clap_complete::Shell;
 use futures_util::future::join_all;
@@ -145,7 +145,7 @@ fn serve(args: Args, running: Arc<AtomicBool>) -> Result<Vec<JoinHandle<()>>> {
                         handles.push(handle);
                     }
                     _ => {
-                        unreachable!()
+                        bail!("tls-cert and tls-key must be set together")
                     }
                 };
             }
@@ -313,7 +313,7 @@ fn print_listening(args: &Args, print_addrs: &[BindAddr]) -> Result<String> {
 }
 
 async fn shutdown_signal() {
-    tokio::signal::ctrl_c()
-        .await
-        .expect("Failed to install CTRL+C signal handler")
+    if let Err(e) = tokio::signal::ctrl_c().await {
+        error!("Failed to install CTRL+C signal handler, {e}");
+    }
 }

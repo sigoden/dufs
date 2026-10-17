@@ -18,7 +18,9 @@ pub struct HttpLogger {
 
 impl Default for HttpLogger {
     fn default() -> Self {
-        DEFAULT_LOG_FORMAT.parse().unwrap()
+        DEFAULT_LOG_FORMAT
+            .parse()
+            .expect("default log format is always valid")
     }
 }
 
