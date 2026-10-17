@@ -25,6 +25,7 @@ All notable changes to this project will be documented in this file.
 - Serve HTML/SVG/XML files inline again ([#759](https://github.com/sigoden/dufs/issues/759))
 - Bind unix socket address only once ([#761](https://github.com/sigoden/dufs/issues/761))
 - Don't set SO_REUSEADDR on Windows ([#762](https://github.com/sigoden/dufs/issues/762))
+- Eliminate panics that could abort the server ([#764](https://github.com/sigoden/dufs/issues/764))
 
 ### Refactor
 
