@@ -2,6 +2,41 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.47.0] - 2026-10-17
+
+### Features
+
+- Conditionally include default IPv6 addr ([#721](https://github.com/sigoden/dufs/issues/721))
+- Webui better uploaders ([#749](https://github.com/sigoden/dufs/issues/749))
+- Support HEAD requests for embedded assets and health check ([#750](https://github.com/sigoden/dufs/issues/750))
+- Render placeholders in custom 404 page ([#752](https://github.com/sigoden/dufs/issues/752))
+- Preserve directory entries and metadata when zipping a directory ([#760](https://github.com/sigoden/dufs/issues/760))
+
+### Bug Fixes
+
+- Liblzma dynamic linking issues on MacOS ([#712](https://github.com/sigoden/dufs/issues/712))
+- Guard_root_contained walks up to existing ancestor for non-existent paths ([#716](https://github.com/sigoden/dufs/issues/716))
+- Return response after forbid status ([#722](https://github.com/sigoden/dufs/issues/722))
+- Require path separator boundary when stripping --path-prefix ([#725](https://github.com/sigoden/dufs/issues/725))
+- Clamp range last-pos to EOF per RFC 9110 ([#738](https://github.com/sigoden/dufs/issues/738))
+- Keep directories grouped on top when sorting in descending order ([#732](https://github.com/sigoden/dufs/issues/732))
+- Enhance security ([#753](https://github.com/sigoden/dufs/issues/753))
+- Close path ACL bypass via filesystem name aliases ([#754](https://github.com/sigoden/dufs/issues/754))
+- Serve HTML/SVG/XML files inline again ([#759](https://github.com/sigoden/dufs/issues/759))
+- Bind unix socket address only once ([#761](https://github.com/sigoden/dufs/issues/761))
+- Don't set SO_REUSEADDR on Windows ([#762](https://github.com/sigoden/dufs/issues/762))
+- Eliminate panics that could abort the server ([#764](https://github.com/sigoden/dufs/issues/764))
+
+### Refactor
+
+- Handle unspecified ip addrs in check_addrs ([#708](https://github.com/sigoden/dufs/issues/708))
+- Webui add css color variables ([#710](https://github.com/sigoden/dufs/issues/710))
+- Replace async-zip with async-deflate-zip ([#720](https://github.com/sigoden/dufs/issues/720))
+- Upgrade async-deflate-zip to v0.2.0 ([#723](https://github.com/sigoden/dufs/issues/723))
+- Improve server port selection ([#748](https://github.com/sigoden/dufs/issues/748))
+- Send title-case HTTP/1 response header names ([#751](https://github.com/sigoden/dufs/issues/751))
+- Reduce release binary size ([#763](https://github.com/sigoden/dufs/issues/763))
+
 ## [0.46.0] - 2026-05-07
 
 ### Features
