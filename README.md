@@ -431,6 +431,7 @@ Here are some Third-party customize UI project:
 - https://github.com/cercky/dufs_web
 - https://github.com/52funny/dufs-tabler-web
 - https://github.com/mikigo/dufs-shadcn-assets
+- https://github.com/mcking-07/dufs-strata
 
 </details>
 
