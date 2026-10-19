@@ -115,7 +115,6 @@ const beforeUnloadHandler = (event) => {
   }
 };
 
-// Produce table when window loads
 async function initialize() {
   const $indexData = document.getElementById('index-data');
   if (!$indexData) {
@@ -134,7 +133,7 @@ if (document.readyState === "loading") {
     once: true,
   });
 } else {
-  initialize();
+  queueMicrotask(initialize);
 }
 
 async function ready() {
@@ -1072,4 +1071,3 @@ function decodeBase64(base64String) {
   }
   return new TextDecoder().decode(bytes);
 }
-
