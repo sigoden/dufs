@@ -115,8 +115,7 @@ const beforeUnloadHandler = (event) => {
   }
 };
 
-// Produce table when window loads
-window.addEventListener("DOMContentLoaded", async () => {
+async function initialize() {
   const $indexData = document.getElementById('index-data');
   if (!$indexData) {
     alert("No data");
@@ -127,7 +126,15 @@ window.addEventListener("DOMContentLoaded", async () => {
   DIR_EMPTY_NOTE = PARAMS.q ? 'No results' : DATA.dir_exists ? 'Empty folder' : 'Folder will be created when a file is uploaded';
 
   await ready();
-});
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initialize, {
+    once: true,
+  });
+} else {
+  queueMicrotask(initialize);
+}
 
 async function ready() {
   $pathsTable = document.querySelector(".paths-table");
