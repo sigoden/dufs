@@ -1,4 +1,5 @@
 use crate::{
+    i18n,
     server::{IndexData, PathItem, PathType, MAX_SUBPATHS_COUNT},
     utils::encode_uri,
 };
@@ -15,10 +16,14 @@ pub fn detect_noscript(user_agent: &str) -> bool {
     .any(|v| user_agent.starts_with(v))
 }
 
-pub fn generate_noscript_html(data: &IndexData) -> Result<String> {
+pub fn generate_noscript_html(data: &IndexData, lang: &str) -> Result<String> {
     let mut html = String::new();
 
-    let title = format!("Index of {}", escape_str_pcdata(&data.href));
+    let title = format!(
+        "{} {}",
+        i18n::t(lang, "index_of"),
+        escape_str_pcdata(&data.href)
+    );
 
     html.push_str("<html>\n");
     html.push_str("<head>\n");
@@ -43,7 +48,7 @@ pub fn generate_noscript_html(data: &IndexData) -> Result<String> {
     html.push_str(&format!("    {}\n", render_parent()));
 
     for path in &data.paths {
-        html.push_str(&format!("    {}\n", render_path_item(path)));
+        html.push_str(&format!("    {}\n", render_path_item(path, lang)));
     }
 
     html.push_str("  </tbody>\n");
@@ -58,7 +63,7 @@ fn render_parent() -> String {
     format!("<tr><td><a href=\"{value}?noscript\">{value}</a></td><td></td><td></td></tr>")
 }
 
-fn render_path_item(path: &PathItem) -> String {
+fn render_path_item(path: &PathItem, lang: &str) -> String {
     let mut href = encode_uri(&path.name);
     let mut name = escape_str_pcdata(&path.name).to_string();
     if path.path_type.is_dir() {
@@ -66,7 +71,7 @@ fn render_path_item(path: &PathItem) -> String {
         name.push('/');
     };
     let mtime = format_mtime(path.mtime).unwrap_or_default();
-    let size = format_size(path.size, path.path_type);
+    let size = format_size(path.size, path.path_type, lang);
 
     format!("<tr><td><a href=\"{href}\">{name}</a></td><td>{mtime}</td><td>{size}</td></tr>")
 }
@@ -76,9 +81,13 @@ fn format_mtime(mtime: u64) -> Option<String> {
     Some(datetime.format("%Y-%m-%dT%H:%M:%S.%3fZ").to_string())
 }
 
-fn format_size(size: u64, path_type: PathType) -> String {
+fn format_size(size: u64, path_type: PathType, lang: &str) -> String {
     if path_type.is_dir() {
-        let unit = if size == 1 { "item" } else { "items" };
+        let unit = if size == 1 {
+            i18n::t(lang, "item")
+        } else {
+            i18n::t(lang, "items")
+        };
         let num = match size >= MAX_SUBPATHS_COUNT {
             true => format!(">{}", MAX_SUBPATHS_COUNT - 1),
             false => size.to_string(),

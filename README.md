@@ -59,6 +59,7 @@ Options:
   -b, --bind <addrs>         Specify bind address or unix socket
   -p, --port <port>          Specify port to listen on [default: 5000]
       --path-prefix <path>   Specify a path prefix
+      --lang <lang>          Specify the default language, e.g. en, zh-CN, auto
       --hidden <value>       Hide paths from directory listings, e.g. tmp,*.log,*.lock
   -a, --auth <rules>         Add auth roles, e.g. user:pass@/dir1:rw,/dir2
   -A, --allow-all            Allow all operations
@@ -346,6 +347,7 @@ All options can be set using environment variables prefixed with `DUFS_`.
 -b, --bind <addrs>          DUFS_BIND=0.0.0.0
 -p, --port <port>           DUFS_PORT=5000
     --path-prefix <path>    DUFS_PATH_PREFIX=/dufs
+    --lang <lang>           DUFS_LANG=zh-CN
     --hidden <value>        DUFS_HIDDEN=tmp,*.log,*.lock
 -a, --auth <rules>          DUFS_AUTH="admin:admin@/:rw|@/" 
 -A, --allow-all             DUFS_ALLOW_ALL=true
@@ -378,6 +380,7 @@ serve-path: '.'
 bind: 0.0.0.0
 port: 5000
 path-prefix: /dufs
+lang: zh-CN
 hidden:
   - tmp
   - '*.log'
@@ -431,6 +434,28 @@ Here are some Third-party customize UI project:
 - https://github.com/cercky/dufs_web
 - https://github.com/52funny/dufs-tabler-web
 - https://github.com/mikigo/dufs-shadcn-assets
+
+### Languages
+
+Dufs supports multiple languages, `en` is used by default.
+
+```
+dufs --lang zh-CN
+```
+
+The default language can also be set in the configuration file.
+
+```yaml
+lang: zh-CN
+```
+
+The language of a request is resolved in the following order: the `lang` query parameter, the `dufs_lang` cookie, the `Accept-Language` header, and the default language. Use `auto` to always follow the `Accept-Language` header.
+
+```
+dufs --lang auto
+```
+
+The web ui provides a language switcher, the selected language is stored in the `dufs_lang` cookie.
 
 </details>
 

@@ -2,6 +2,7 @@ mod args;
 mod auth;
 mod http_logger;
 mod http_utils;
+mod i18n;
 mod logger;
 mod noscript;
 mod server;

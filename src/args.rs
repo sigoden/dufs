@@ -69,6 +69,15 @@ pub fn build_cli() -> Command {
                 .help("Specify a path prefix"),
         )
         .arg(
+            Arg::new("lang")
+                .env("DUFS_LANG")
+				.hide_env(true)
+                .long("lang")
+                .value_name("lang")
+                .value_parser(|value: &str| normalize_lang(value).map_err(|err| err.to_string()))
+                .help("Specify the default language, e.g. en, zh-CN, auto"),
+        )
+        .arg(
             Arg::new("hidden")
                 .env("DUFS_HIDDEN")
 				.hide_env(true)
@@ -277,6 +286,9 @@ pub struct Args {
     #[serde(skip)]
     pub path_is_file: bool,
     pub path_prefix: String,
+    #[serde(default = "default_lang")]
+    #[default(default_lang())]
+    pub lang: String,
     #[serde(skip)]
     pub uri_prefix: String,
     #[serde(deserialize_with = "deserialize_string_or_vec")]
@@ -340,6 +352,12 @@ impl Args {
             args.path_prefix.clone_from(path_prefix)
         }
         args.path_prefix = args.path_prefix.trim_matches('/').to_string();
+
+        if let Some(lang) = matches.get_one::<String>("lang") {
+            args.lang = lang.clone();
+        } else {
+            args.lang = normalize_lang(&args.lang)?;
+        }
 
         args.uri_prefix = if args.path_prefix.is_empty() {
             "/".to_owned()
@@ -643,6 +661,25 @@ fn default_addrs() -> Vec<BindAddr> {
 
 fn default_port() -> u16 {
     5000
+}
+
+fn default_lang() -> String {
+    crate::i18n::DEFAULT_LANG.to_string()
+}
+
+/// Normalize a language tag, `auto` follows the `Accept-Language` header.
+fn normalize_lang(lang: &str) -> Result<String> {
+    let lang = lang.trim();
+    if lang.eq_ignore_ascii_case("auto") {
+        return Ok("auto".to_string());
+    }
+    match crate::i18n::normalize(lang) {
+        Some(v) => Ok(v.to_string()),
+        None => bail!(
+            "Invalid language `{lang}`, expected one of {} or auto",
+            crate::i18n::LANGS.join(", ")
+        ),
+    }
 }
 
 #[cfg(test)]

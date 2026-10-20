@@ -35,6 +35,41 @@ var DATA;
 var DIR_EMPTY_NOTE;
 
 /**
+ * The translations of the current page
+ * @type {object}
+ * @typedef {object} I18N
+ * @property {string} lang
+ * @property {string[]} langs
+ * @property {object} dicts
+ */
+let I18N = {
+  lang: "en",
+  langs: [],
+  dicts: {},
+};
+
+/**
+ * Translate a key
+ * @param {string} key
+ * @param {object} [args] the values of the `{name}` placeholders
+ * @returns {string}
+ */
+function t(key, args) {
+  const dicts = I18N.dicts || {};
+  let text = (dicts[I18N.lang] || {})[key];
+  if (text === undefined) {
+    text = (dicts["en"] || {})[key];
+  }
+  if (text === undefined) return key;
+  if (args) {
+    for (const name of Object.keys(args)) {
+      text = text.split(`{${name}}`).join(args[name]);
+    }
+  }
+  return text;
+}
+
+/**
  * @type {PARAMS}
  * @typedef {object} PARAMS
  * @property {string} q
@@ -51,6 +86,9 @@ const IFRAME_FORMATS = [
 ];
 
 const MAX_SUBPATHS_COUNT = 1000;
+
+// keep in sync with `COOKIE_NAME` in src/i18n.rs
+const LANG_COOKIE = "dufs_lang";
 
 const ICONS = {
   dir: `<svg height="16" viewBox="0 0 14 16" width="14"><path fill-rule="evenodd" d="M13 4H7V3c0-.66-.31-1-1-1H1c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1V5c0-.55-.45-1-1-1zM6 4H1V3h5v1z"></path></svg>`,
@@ -118,12 +156,14 @@ const beforeUnloadHandler = (event) => {
 async function initialize() {
   const $indexData = document.getElementById('index-data');
   if (!$indexData) {
-    alert("No data");
+    alert(t("no_data"));
     return;
   }
 
   DATA = JSON.parse(decodeBase64($indexData.innerHTML));
-  DIR_EMPTY_NOTE = PARAMS.q ? 'No results' : DATA.dir_exists ? 'Empty folder' : 'Folder will be created when a file is uploaded';
+  I18N = DATA.i18n || I18N;
+  document.documentElement.lang = I18N.lang;
+  DIR_EMPTY_NOTE = PARAMS.q ? t("no_results") : DATA.dir_exists ? t("empty_folder") : t("folder_will_be_created");
 
   await ready();
 }
@@ -147,22 +187,25 @@ async function ready() {
   $logoutBtn = document.querySelector(".logout-btn");
   $userName = document.querySelector(".user-name");
 
+  setupTexts();
+  setupLangBtn();
+
   window.addEventListener('beforeunload', beforeUnloadHandler);
 
   addBreadcrumb(DATA.href, DATA.uri_prefix);
 
   if (DATA.kind === "Index") {
-    document.title = `Index of ${DATA.href} - Dufs`;
+    document.title = `${t("index_of")} ${DATA.href} - ${t("app_name")}`;
     document.querySelector(".index-page").classList.remove("hidden");
 
     await setupIndexPage();
   } else if (DATA.kind === "Edit") {
-    document.title = `Edit ${DATA.href} - Dufs`;
+    document.title = `${t("edit")} ${DATA.href} - ${t("app_name")}`;
     document.querySelector(".editor-page").classList.remove("hidden");
 
     await setupEditorPage();
   } else if (DATA.kind === "View") {
-    document.title = `View ${DATA.href} - Dufs`;
+    document.title = `${t("view")} ${DATA.href} - ${t("app_name")}`;
     document.querySelector(".editor-page").classList.remove("hidden");
 
     await setupEditorPage();
@@ -350,7 +393,7 @@ class Uploader {
   }
 
   fail(reason = "") {
-    this.$status.innerHTML = `<span title="${reason}">✗</span><span class="retry-btn" id="retry${this.idx}" title="Retry">↻</span>`;
+    this.$status.innerHTML = `<span title="${reason}">✗</span><span class="retry-btn" id="retry${this.idx}" title="${t("retry")}">↻</span>`;
     this.$speed.textContent = "";
     this.$eta.textContent = "";
     failUploaders.set(this.idx, this);
@@ -412,7 +455,7 @@ function addBreadcrumb(href, uri_prefix) {
     }
     const encodedName = encodedStr(name);
     if (i === 0) {
-      $breadcrumb.insertAdjacentHTML("beforeend", `<a href="${path}" title="Root"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M6.5 14.5v-3.505c0-.245.25-.495.5-.495h2c.25 0 .5.25.5.5v3.5a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5v-7a.5.5 0 0 0-.146-.354L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.293L8.354 1.146a.5.5 0 0 0-.708 0l-6 6A.5.5 0 0 0 1.5 7.5v7a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5z"/></svg></a>`);
+      $breadcrumb.insertAdjacentHTML("beforeend", `<a href="${path}" title="${t("root")}"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M6.5 14.5v-3.505c0-.245.25-.495.5-.495h2c.25 0 .5.25.5.5v3.5a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5v-7a.5.5 0 0 0-.146-.354L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.293L8.354 1.146a.5.5 0 0 0-.708 0l-6 6A.5.5 0 0 0 1.5 7.5v7a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5z"/></svg></a>`);
     } else if (i === len - 1) {
       $breadcrumb.insertAdjacentHTML("beforeend", `<b>${encodedName}</b>`);
     } else {
@@ -424,11 +467,59 @@ function addBreadcrumb(href, uri_prefix) {
   }
 }
 
+/**
+ * Translate the texts of the static elements
+ */
+function setupTexts() {
+  const titles = [
+    [".download", "download_file"],
+    [".move-file", "move_rename"],
+    [".delete-file", "delete"],
+    [".upload-file", "upload_files"],
+    [".new-folder", "new_folder"],
+    [".new-file", "new_file"],
+    [".login-btn", "login"],
+    [".logout-btn", "logout"],
+    [".save-btn", "save_file"],
+    ["#search", "search"],
+    ["#file", "upload_files"],
+  ];
+  for (const [selector, key] of titles) {
+    const el = document.querySelector(selector);
+    if (el) el.title = t(key);
+  }
+  const $editor = document.querySelector(".editor");
+  if ($editor) $editor.setAttribute("aria-label", t("editor"));
+  const $uploaders = document.querySelector(".uploaders-table th.cell-name");
+  if ($uploaders) $uploaders.textContent = t("uploaders");
+}
+
+/**
+ * Add the language switcher
+ */
+function setupLangBtn() {
+  const $toolboxRight = document.querySelector(".toolbox-right");
+  const langs = I18N.langs || [];
+  if (!$toolboxRight || langs.length < 2) return;
+  const $btn = document.createElement("div");
+  $btn.className = "control lang-btn";
+  $btn.title = t("language");
+  $btn.textContent = I18N.lang;
+  $btn.addEventListener("click", () => {
+    const lang = langs[(langs.indexOf(I18N.lang) + 1) % langs.length];
+    document.cookie = `${LANG_COOKIE}=${lang}; path=/; max-age=31536000; samesite=lax`;
+    const url = new URL(location.href);
+    url.searchParams.set("lang", lang);
+    location.href = url.toString();
+  });
+  $toolboxRight.insertBefore($btn, $toolboxRight.firstChild);
+}
+
 async function setupIndexPage() {
   if (DATA.allow_archive) {
     const $download = document.querySelector(".download");
     $download.href = baseUrl() + "?zip";
-    $download.title = "Download folder as a .zip file";
+    $download.title = t("download_folder_zip");
     $download.classList.add("dlwt");
     $download.classList.remove("hidden");
   }
@@ -464,17 +555,17 @@ function renderPathsTableHead() {
     {
       name: "name",
       props: `colspan="2"`,
-      text: "Name",
+      text: t("name"),
     },
     {
       name: "mtime",
       props: ``,
-      text: "Last Modified",
+      text: t("last_modified"),
     },
     {
       name: "size",
       props: ``,
-      text: "Size",
+      text: t("size"),
     }
   ];
   $pathsTableHead.insertAdjacentHTML("beforeend", `
@@ -494,7 +585,7 @@ function renderPathsTableHead() {
     const icon = `<span>${svg}</span>`
     return `<th class="cell-${item.name}" ${item.props}><a href="?${qs}">${item.text}${icon}</a></th>`
   }).join("\n")}
-      <th class="cell-actions">Actions</th>
+      <th class="cell-actions">${t("actions")}</th>
     </tr>
   `);
 }
@@ -536,27 +627,27 @@ function addPath(file, index) {
     if (DATA.allow_archive) {
       actionDownload = `
       <div class="action-btn">
-        <a class="dlwt" href="${url}?zip" title="Download folder as a .zip file" download>${ICONS.download}</a>
+        <a class="dlwt" href="${url}?zip" title="${t("download_folder_zip")}" download>${ICONS.download}</a>
       </div>`;
     }
   } else {
     actionDownload = `
     <div class="action-btn" >
-      <a class="dlwt" href="${url}" title="Download file" download>${ICONS.download}</a>
+      <a class="dlwt" href="${url}" title="${t("download_file")}" download>${ICONS.download}</a>
     </div>`;
   }
   if (DATA.allow_delete) {
     if (DATA.allow_upload) {
-      actionMove = `<div onclick="movePath(${index})" class="action-btn" id="moveBtn${index}" title="Move & Rename">${ICONS.move}</div>`;
+      actionMove = `<div onclick="movePath(${index})" class="action-btn" id="moveBtn${index}" title="${t("move_rename")}">${ICONS.move}</div>`;
       if (!isDir) {
-        actionEdit = `<a class="action-btn" title="Edit file" target="_blank" href="${url}?edit">${ICONS.edit}</a>`;
+        actionEdit = `<a class="action-btn" title="${t("edit_file")}" target="_blank" href="${url}?edit">${ICONS.edit}</a>`;
       }
     }
     actionDelete = `
-    <div onclick="deletePath(${index})" class="action-btn" id="deleteBtn${index}" title="Delete">${ICONS.delete}</div>`;
+    <div onclick="deletePath(${index})" class="action-btn" id="deleteBtn${index}" title="${t("delete")}">${ICONS.delete}</div>`;
   }
   if (!actionEdit && !isDir) {
-    actionView = `<a class="action-btn" title="View file" target="_blank" href="${url}?view">${ICONS.view}</a>`;
+    actionView = `<a class="action-btn" title="${t("view_file")}" target="_blank" href="${url}?view">${ICONS.view}</a>`;
   }
   let actionCell = `
   <td class="cell-actions">
@@ -644,7 +735,7 @@ function setupDownloadWithToken() {
         tempA.click();
         document.body.removeChild(tempA);
       } catch (err) {
-        alert(`Failed to download, ${err.message}`);
+        alert(t("failed_to_download", { error: err.message }));
       }
     });
   });
@@ -682,7 +773,7 @@ function setupNewFolder() {
   const $newFolder = document.querySelector(".new-folder");
   $newFolder.classList.remove("hidden");
   $newFolder.addEventListener("click", () => {
-    const name = prompt("Enter folder name");
+    const name = prompt(t("enter_folder_name"));
     if (name) createFolder(name);
   });
 }
@@ -691,7 +782,7 @@ function setupNewFile() {
   const $newFile = document.querySelector(".new-file");
   $newFile.classList.remove("hidden");
   $newFile.addEventListener("click", () => {
-    const name = prompt("Enter file name");
+    const name = prompt(t("enter_file_name"));
     if (name) createFile(name);
   });
 }
@@ -741,7 +832,7 @@ async function setupEditorPage() {
       $notEditable.insertAdjacentHTML("afterend", `<iframe src="${url}" sandbox width="100%" height="${window.innerHeight - 100}px"></iframe>`);
     } else {
       $notEditable.classList.remove("hidden");
-      $notEditable.textContent = "Cannot edit because file is too large or binary.";
+      $notEditable.textContent = t("cannot_edit_binary");
     }
     return;
   }
@@ -760,7 +851,7 @@ async function setupEditorPage() {
       $editor.value = decoder.decode(dataView);
     }
   } catch (err) {
-    alert(`Failed to get file, ${err.message}`);
+    alert(t("failed_to_get_file", { error: err.message }));
   }
 }
 
@@ -784,7 +875,7 @@ async function deletePath(index) {
 }
 
 async function doDeletePath(name, url, cb) {
-  if (!confirm(`Delete \`${name}\`?`)) return;
+  if (!confirm(t("delete_confirm", { name: name }))) return;
   try {
     await checkAuth();
     const res = await fetch(url, {
@@ -793,7 +884,7 @@ async function doDeletePath(name, url, cb) {
     await assertResOK(res);
     cb();
   } catch (err) {
-    alert(`Cannot delete \`${file.name}\`, ${err.message}`);
+    alert(t("cannot_delete", { name: name, error: err.message }));
   }
 }
 
@@ -819,7 +910,7 @@ async function doMovePath(fileUrl) {
 
   const filePath = decodeURIComponent(fileUrlObj.pathname.slice(prefix.length));
 
-  let newPath = prompt("Enter new path", filePath);
+  let newPath = prompt(t("enter_new_path"), filePath);
   if (!newPath) return;
   if (!newPath.startsWith("/")) newPath = "/" + newPath;
   if (filePath === newPath) return;
@@ -831,7 +922,7 @@ async function doMovePath(fileUrl) {
       method: "HEAD",
     });
     if (res1.status === 200) {
-      if (!confirm("Override existing file?")) {
+      if (!confirm(t("override_existing"))) {
         return;
       }
     }
@@ -844,7 +935,7 @@ async function doMovePath(fileUrl) {
     await assertResOK(res2);
     return newFileUrl;
   } catch (err) {
-    alert(`Cannot move \`${filePath}\` to \`${newPath}\`, ${err.message}`);
+    alert(t("cannot_move", { from: filePath, to: newPath, error: err.message }));
   }
 }
 
@@ -860,7 +951,7 @@ async function saveChange() {
     });
     location.reload();
   } catch (err) {
-    alert(`Failed to save file, ${err.message}`);
+    alert(t("failed_to_save_file", { error: err.message }));
   }
 }
 
@@ -901,7 +992,7 @@ async function createFolder(name) {
     await assertResOK(res);
     location.href = url;
   } catch (err) {
-    alert(`Cannot create folder \`${name}\`, ${err.message}`);
+    alert(t("cannot_create_folder", { name: name, error: err.message }));
   }
 }
 
@@ -916,7 +1007,7 @@ async function createFile(name) {
     await assertResOK(res);
     location.href = url + "?edit";
   } catch (err) {
-    alert(`Cannot create file \`${name}\`, ${err.message}`);
+    alert(t("cannot_create_file", { name: name, error: err.message }));
   }
 }
 
@@ -996,7 +1087,7 @@ function padZero(value, size) {
 }
 
 function formatDirSize(size) {
-  const unit = size === 1 ? "item" : "items";
+  const unit = size === 1 ? t("item") : t("items");
   const num = size >= MAX_SUBPATHS_COUNT ? `>${MAX_SUBPATHS_COUNT - 1}` : `${size}`;
   return ` ${num} ${unit}`;
 }

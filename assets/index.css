@@ -275,6 +275,13 @@ svg {
   align-items: center;
 }
 
+.lang-btn {
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  padding-left: 0.5em;
+}
+
 .user-name {
   padding-left: 3px;
 }

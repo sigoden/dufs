@@ -2,6 +2,7 @@
 
 use crate::auth::{www_authenticate, AccessPaths, AccessPerm};
 use crate::http_utils::{body_full, IncomingStream, LengthLimitedStream};
+use crate::i18n::{self, I18nData};
 use crate::noscript::{detect_noscript, generate_noscript_html};
 use crate::utils::{
     decode_uri, encode_uri, get_file_name, glob, join_within, parse_range, try_get_file_name,
@@ -186,6 +187,16 @@ impl Server {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
 
+        // Resolve the language of the request and keep it in the query params,
+        // so that the rendering handlers can pick it up.
+        let lang = i18n::resolve(
+            &self.args.lang,
+            query_params.get("lang").map(|v| v.as_str()),
+            i18n::cookie_lang(headers.get("cookie").and_then(|v| v.to_str().ok())),
+            headers.get("accept-language").and_then(|v| v.to_str().ok()),
+        );
+        query_params.insert("lang".to_string(), lang.to_string());
+
         let (user, access_paths, via_token) = self
             .args
             .auth
@@ -369,11 +380,25 @@ impl Server {
                     if has_query_flag(&query_params, "json") {
                         self.handle_file_json(path, head_only, &mut res).await?;
                     } else if has_query_flag(&query_params, "edit") {
-                        self.handle_edit_file(path, DataKind::Edit, head_only, user, &mut res)
-                            .await?;
+                        self.handle_edit_file(
+                            path,
+                            DataKind::Edit,
+                            head_only,
+                            user,
+                            lang,
+                            &mut res,
+                        )
+                        .await?;
                     } else if has_query_flag(&query_params, "view") {
-                        self.handle_edit_file(path, DataKind::View, head_only, user, &mut res)
-                            .await?;
+                        self.handle_edit_file(
+                            path,
+                            DataKind::View,
+                            head_only,
+                            user,
+                            lang,
+                            &mut res,
+                        )
+                        .await?;
                     } else if has_query_flag(&query_params, "hash") {
                         if self.args.allow_hash {
                             self.handle_hash_file(path, head_only, &mut res).await?;
@@ -1108,6 +1133,7 @@ impl Server {
         kind: DataKind,
         head_only: bool,
         user: Option<String>,
+        lang: &str,
         res: &mut Response,
     ) -> Result<()> {
         let (file, meta) = tokio::join!(fs::File::open(path), fs::metadata(path),);
@@ -1129,6 +1155,7 @@ impl Server {
             auth: self.args.auth.has_users(),
             user,
             editable,
+            i18n: i18n::data(lang),
         };
         res.headers_mut()
             .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
@@ -1412,7 +1439,7 @@ impl Server {
             normalize_path(path.strip_prefix(&self.args.serve_path)?)
         );
         let readwrite = access_paths.perm().readwrite();
-        let data = IndexData {
+        let mut data = IndexData {
             kind: DataKind::Index,
             href,
             uri_prefix: self.args.uri_prefix.clone(),
@@ -1424,6 +1451,7 @@ impl Server {
             auth: self.args.auth.has_users(),
             user,
             paths,
+            i18n: None,
         };
         let output = if has_query_flag(query_params, "json") {
             res.headers_mut()
@@ -1432,11 +1460,12 @@ impl Server {
         } else if has_query_flag(query_params, "noscript") {
             res.headers_mut()
                 .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
-            generate_noscript_html(&data)?
+            generate_noscript_html(&data, req_lang(query_params))?
         } else {
             res.headers_mut()
                 .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
 
+            data.i18n = Some(i18n::data(req_lang(query_params)));
             let index_data = STANDARD.encode(serde_json::to_string(&data)?);
             self.render_html(&self.html)
                 .replace("__INDEX_DATA__", &index_data)
@@ -1687,6 +1716,8 @@ pub struct IndexData {
     pub auth: bool,
     pub user: Option<String>,
     pub paths: Vec<PathItem>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub i18n: Option<I18nData>,
 }
 
 #[derive(Debug, Serialize, Eq, PartialEq, Ord, PartialOrd)]
@@ -1814,6 +1845,7 @@ struct EditData {
     auth: bool,
     user: Option<String>,
     editable: bool,
+    i18n: I18nData,
 }
 
 fn to_timestamp(time: &SystemTime) -> u64 {
@@ -1947,6 +1979,14 @@ fn status_forbid(res: &mut Response) {
 fn status_not_found(res: &mut Response) {
     *res.status_mut() = StatusCode::NOT_FOUND;
     *res.body_mut() = body_full("Not Found");
+}
+
+/// The language of the request, resolved by the request handler.
+fn req_lang(query_params: &HashMap<String, String>) -> &str {
+    query_params
+        .get("lang")
+        .map(|v| v.as_str())
+        .unwrap_or(i18n::DEFAULT_LANG)
 }
 
 fn status_no_content(res: &mut Response) {
