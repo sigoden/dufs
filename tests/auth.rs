@@ -677,6 +677,12 @@ fn token_auth_rejects(#[with(&["-a", "user:pass@/"])] server: TestServer) -> Res
     Ok(())
 }
 
+fn error_code(resp: &reqwest::blocking::Response) -> Option<&str> {
+    resp.headers()
+        .get("x-dufs-error-code")
+        .and_then(|v| v.to_str().ok())
+}
+
 /// Deleting an ancestor recursively must not remove a `:ro` child that a
 /// direct request to that child is forbidden to touch.
 #[rstest]
@@ -687,11 +693,13 @@ fn delete_ancestor_denied_with_restricted_child(
         .basic_auth("user", Some("pass"))
         .send()?;
     assert_eq!(resp.status(), 403);
+    assert_eq!(error_code(&resp), Some("forbidden"));
 
     let resp = fetch!(b"DELETE", server.url())
         .basic_auth("user", Some("pass"))
         .send()?;
     assert_eq!(resp.status(), 403);
+    assert_eq!(error_code(&resp), Some("readonly-descendant"));
     assert!(server.path().join("dir1/test.txt").exists());
     assert!(server.path().join("test.txt").exists());
     Ok(())
@@ -708,11 +716,13 @@ fn delete_ancestor_denied_with_restricted_nested_path(
         .basic_auth("user", Some("pass"))
         .send()?;
     assert_eq!(resp.status(), 403);
+    assert_eq!(error_code(&resp), Some("forbidden"));
 
     let resp = fetch!(b"DELETE", format!("{}dir1", server.url()))
         .basic_auth("user", Some("pass"))
         .send()?;
     assert_eq!(resp.status(), 403);
+    assert_eq!(error_code(&resp), Some("readonly-descendant"));
     assert!(server.path().join("dir1/sub/keep.txt").exists());
     Ok(())
 }
@@ -726,6 +736,7 @@ fn move_ancestor_denied_with_restricted_child(
         .header("Destination", format!("{}moved", server.url()))
         .send()?;
     assert_eq!(resp.status(), 403);
+    assert_eq!(error_code(&resp), Some("readonly-descendant"));
     assert!(server.path().join("dir1/test.txt").exists());
     Ok(())
 }
@@ -742,6 +753,7 @@ fn move_ancestor_denied_with_restricted_nested_path(
         .header("Destination", format!("{}moved", server.url()))
         .send()?;
     assert_eq!(resp.status(), 403);
+    assert_eq!(error_code(&resp), Some("readonly-descendant"));
     assert!(server.path().join("dir1/sub/keep.txt").exists());
     Ok(())
 }

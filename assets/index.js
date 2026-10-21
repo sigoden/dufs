@@ -270,7 +270,16 @@ class Uploader {
           this.complete();
         } else {
           if (ajax.status != 0) {
-            this.fail(`${ajax.status} ${ajax.statusText}`);
+            const code = ajax.getResponseHeader("x-dufs-error-code");
+            if (code === "upload-disabled") {
+              this.fail("upload is disabled");
+            } else if (code === "delete-disabled") {
+              this.fail("overwriting is disabled");
+            } else if (code === "readonly-descendant") {
+              this.fail("directory contains read-only entries");
+            } else {
+              this.fail(`${ajax.status} ${ajax.statusText}`);
+            }
           }
         }
       }
@@ -793,7 +802,13 @@ async function doDeletePath(name, url, cb) {
     await assertResOK(res);
     cb();
   } catch (err) {
-    alert(`Cannot delete \`${file.name}\`, ${err.message}`);
+    if (err.code === "readonly-descendant") {
+      alert(`Cannot delete \`${name}\`: the directory contains read-only entries`);
+    } else if (err.code === "delete-disabled") {
+      alert(`Cannot delete \`${name}\`: delete is disabled`);
+    } else {
+      alert(`Cannot delete \`${name}\`, ${err.message}`);
+    }
   }
 }
 
@@ -844,7 +859,13 @@ async function doMovePath(fileUrl) {
     await assertResOK(res2);
     return newFileUrl;
   } catch (err) {
-    alert(`Cannot move \`${filePath}\` to \`${newPath}\`, ${err.message}`);
+    if (err.code === "readonly-descendant") {
+      alert(`Cannot move \`${filePath}\`: the directory contains read-only entries`);
+    } else if (err.code === "upload-disabled" || err.code === "delete-disabled") {
+      alert(`Cannot move \`${filePath}\`: moving is disabled`);
+    } else {
+      alert(`Cannot move \`${filePath}\` to \`${newPath}\`, ${err.message}`);
+    }
   }
 }
 
@@ -901,7 +922,13 @@ async function createFolder(name) {
     await assertResOK(res);
     location.href = url;
   } catch (err) {
-    alert(`Cannot create folder \`${name}\`, ${err.message}`);
+    if (err.code === "already-exists") {
+      alert(`Cannot create folder \`${name}\`: it already exists`);
+    } else if (err.code === "upload-disabled") {
+      alert(`Cannot create folder \`${name}\`: upload is disabled`);
+    } else {
+      alert(`Cannot create folder \`${name}\`, ${err.message}`);
+    }
   }
 }
 
@@ -916,7 +943,13 @@ async function createFile(name) {
     await assertResOK(res);
     location.href = url + "?edit";
   } catch (err) {
-    alert(`Cannot create file \`${name}\`, ${err.message}`);
+    if (err.code === "upload-disabled") {
+      alert(`Cannot create file \`${name}\`: upload is disabled`);
+    } else if (err.code === "delete-disabled") {
+      alert(`Cannot create file \`${name}\`: delete is disabled`);
+    } else {
+      alert(`Cannot create file \`${name}\`, ${err.message}`);
+    }
   }
 }
 
@@ -1038,7 +1071,9 @@ function encodedStr(rawStr) {
 
 async function assertResOK(res) {
   if (!(res.status >= 200 && res.status < 300)) {
-    throw new Error(await res.text() || `Invalid status ${res.status}`);
+    const err = new Error(await res.text() || `Invalid status ${res.status}`);
+    err.code = res.headers.get("x-dufs-error-code");
+    throw err;
   }
 }
 

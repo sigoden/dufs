@@ -1,5 +1,6 @@
 mod args;
 mod auth;
+mod error;
 mod http_logger;
 mod http_utils;
 mod logger;

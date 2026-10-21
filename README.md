@@ -245,7 +245,7 @@ dufs -a user:pass@/:rw,/dir1 -a @/
 - `-a user:pass@/:rw,/dir1`: `user` has read-write permissions for `/*`, has read-only permissions for `/dir1/*`.
 - `-a @/`: All paths is publicly accessible, everyone can view/download it.
 
-Recursive operations respect nested rules: deleting or moving a directory is refused when its subtree contains a path with stricter permissions. An account with `:rw` on `/` can therefore not remove or relocate a child that is restricted to `:ro` through `DELETE /` or a directory `MOVE`.
+Recursive operations respect nested rules: deleting or moving a directory is refused when its subtree contains a path with stricter permissions. An account with `:rw` on `/` can therefore not remove or relocate a child that is restricted to `:ro` through `DELETE /` or a directory `MOVE`. Such a refusal returns `403 Forbidden` with `X-Dufs-Error-Code: readonly-descendant`; a plain permission denial returns `X-Dufs-Error-Code: forbidden`.
 
 **Auth permissions are restricted by dufs global permissions.** If dufs does not enable upload permissions via `--allow-upload`, then the account will not have upload permissions even if it is granted `read-write`(`:rw`) permissions.
 
