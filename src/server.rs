@@ -447,7 +447,15 @@ impl Server {
                 if !allow_delete {
                     status_forbid(&mut res);
                 } else if !is_miss {
-                    self.handle_delete(path, is_dir, &mut res).await?
+                    if is_dir
+                        && self
+                            .has_restricted_descendant(&access_paths, &relative_path)
+                            .await
+                    {
+                        status_forbid(&mut res);
+                    } else {
+                        self.handle_delete(path, is_dir, &mut res).await?
+                    }
                 } else {
                     status_not_found(&mut res);
                 }
@@ -501,6 +509,12 @@ impl Server {
                         status_forbid(&mut res);
                     } else if is_miss {
                         status_not_found(&mut res);
+                    } else if is_dir
+                        && self
+                            .has_restricted_descendant(&access_paths, &relative_path)
+                            .await
+                    {
+                        status_forbid(&mut res);
                     } else {
                         self.handle_move(path, &req, &mut res).await?
                     }
@@ -571,6 +585,26 @@ impl Server {
         *res.status_mut() = status;
 
         Ok(())
+    }
+
+    /// Whether `relative_path` contains a descendant rule stricter than the
+    /// write permission the account already holds for `relative_path`.
+    ///
+    /// Recursive operations must be rejected then: `remove_dir_all` and
+    /// `rename` act on the whole subtree, so they would remove or relocate a
+    /// child that a direct request to that child is not allowed to touch.
+    async fn has_restricted_descendant(
+        &self,
+        access_paths: &AccessPaths,
+        relative_path: &str,
+    ) -> bool {
+        access_paths
+            .has_stricter_descendant(
+                relative_path,
+                Some(&self.args.serve_path),
+                AccessPerm::ReadWrite,
+            )
+            .await
     }
 
     async fn handle_delete(&self, path: &Path, is_dir: bool, res: &mut Response) -> Result<()> {
