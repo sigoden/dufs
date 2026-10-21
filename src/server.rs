@@ -180,6 +180,7 @@ impl Server {
         }
 
         let authorization = headers.get(AUTHORIZATION);
+        let request_target = req.uri().to_string();
 
         let query = req.uri().query().unwrap_or_default();
         let mut query_params: HashMap<String, String> = form_urlencoded::parse(query.as_bytes())
@@ -192,6 +193,7 @@ impl Server {
             .guard(
                 &relative_path,
                 &method,
+                &request_target,
                 authorization,
                 query_params.get("token"),
                 is_microsoft_webdav,
@@ -1500,12 +1502,14 @@ impl Server {
         };
 
         let authorization = headers.get(AUTHORIZATION);
+        let request_target = req.uri().to_string();
         let guard = self
             .args
             .auth
             .guard(
                 &dest_path,
                 req.method(),
+                &request_target,
                 authorization,
                 None,
                 false,

@@ -13,11 +13,16 @@ use sha_crypt::PasswordVerifier;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
+    sync::Mutex,
 };
 use uuid::Uuid;
 
 const REALM: &str = "DUFS";
 const DIGEST_AUTH_TIMEOUT: u32 = 60 * 60 * 24 * 7; // 7 days
+/// Upper bound on the number of tracked `(nonce, user)` replay counters. Only
+/// authenticated clients can add entries, and expired entries are pruned, but
+/// the cap keeps a long-running server's memory use predictable.
+const MAX_NONCE_COUNTS: usize = 10_000;
 const TOKEN_EXPIRATION: u64 = 1000 * 60 * 60 * 24 * 3; // 3 days
 /// Upper bound on the depth of an auth rule path. The permission tree is built
 /// and traversed recursively, so an absurdly deep rule would otherwise risk a
@@ -31,6 +36,12 @@ lazy_static! {
         h.consume(std::process::id().to_be_bytes());
         h
     };
+    /// Highest `nc` seen for each `(nonce, user)` pair, together with the unix
+    /// time at which the entry can be dropped. Digest replay protection relies
+    /// on this table: a nonce may be used many times (with increasing counts),
+    /// but the same count must never be accepted twice.
+    static ref NONCE_COUNTS: Mutex<HashMap<(String, String), (u32, u64)>> =
+        Mutex::new(HashMap::new());
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -119,12 +130,16 @@ impl AccessControl {
 
     /// Returns the guarded `(user, access_paths, via_token)`. `via_token` is
     /// true only when the identity was established by a share token rather than
-    /// primary credentials or anonymous access. `root` is the served directory,
-    /// used to resolve filesystem aliases of configured names.
+    /// primary credentials or anonymous access. `request_target` is the raw
+    /// request target from the request line (path and query), used to bind
+    /// Digest credentials to the request they were computed for. `root` is the
+    /// served directory, used to resolve filesystem aliases of configured names.
+    #[allow(clippy::too_many_arguments)]
     pub async fn guard(
         &self,
         path: &str,
         method: &Method,
+        request_target: &str,
         authorization: Option<&HeaderValue>,
         token: Option<&String>,
         guard_options: bool,
@@ -145,7 +160,9 @@ impl AccessControl {
         if let Some(authorization) = authorization {
             if let Some(user) = get_auth_user(authorization) {
                 if let Some((pass, ap)) = self.users.get(&user) {
-                    if check_auth(authorization, method.as_str(), &user, pass).is_some() {
+                    if check_auth(authorization, method.as_str(), request_target, &user, pass)
+                        .is_some()
+                    {
                         if method == Method::OPTIONS {
                             return (
                                 Some(user),
@@ -478,6 +495,7 @@ pub fn get_auth_user(authorization: &HeaderValue) -> Option<String> {
 pub fn check_auth(
     authorization: &HeaderValue,
     method: &str,
+    request_target: &str,
     auth_user: &str,
     auth_pass: &str,
 ) -> Option<()> {
@@ -503,13 +521,21 @@ pub fn check_auth(
         None
     } else if let Some(value) = strip_prefix(authorization.as_bytes(), b"Digest ") {
         let digest_map = to_headermap(value).ok()?;
-        if let (Some(username), Some(nonce), Some(user_response)) = (
+        if let (Some(username), Some(nonce), Some(user_response), Some(uri)) = (
             digest_map
                 .get(b"username".as_ref())
                 .and_then(|b| std::str::from_utf8(b).ok()),
             digest_map.get(b"nonce".as_ref()),
             digest_map.get(b"response".as_ref()),
+            digest_map.get(b"uri".as_ref()),
         ) {
+            // RFC 7616 §3.4.6: the `uri` directive must designate the resource
+            // actually being requested. Without this check a captured header
+            // would authenticate a request for any other path that uses the
+            // same method.
+            if std::str::from_utf8(uri).ok()? != request_target {
+                return None;
+            }
             match validate_nonce(nonce) {
                 Ok(true) => {}
                 _ => return None,
@@ -525,53 +551,88 @@ pub fn check_auth(
             let mut ha = Context::new();
             ha.consume(method);
             ha.consume(b":");
-            if let Some(uri) = digest_map.get(b"uri".as_ref()) {
-                ha.consume(uri);
-            }
+            ha.consume(uri);
             let ha = format!("{:x}", ha.finalize());
-            let mut correct_response = None;
-            if let Some(qop) = digest_map.get(b"qop".as_ref()) {
-                if qop == &b"auth".as_ref() || qop == &b"auth-int".as_ref() {
-                    correct_response = Some({
-                        let mut c = Context::new();
-                        c.consume(&auth_pass);
-                        c.consume(b":");
-                        c.consume(nonce);
-                        c.consume(b":");
-                        if let Some(nc) = digest_map.get(b"nc".as_ref()) {
-                            c.consume(nc);
-                        }
-                        c.consume(b":");
-                        if let Some(cnonce) = digest_map.get(b"cnonce".as_ref()) {
-                            c.consume(cnonce);
-                        }
-                        c.consume(b":");
-                        c.consume(qop);
-                        c.consume(b":");
-                        c.consume(&*ha);
-                        format!("{:x}", c.finalize())
-                    });
-                }
+
+            let qop = *digest_map.get(b"qop".as_ref())?;
+            if qop != b"auth" && qop != b"auth-int" {
+                return None;
             }
-            let correct_response = match correct_response {
-                Some(r) => r,
-                None => {
-                    let mut c = Context::new();
-                    c.consume(&auth_pass);
-                    c.consume(b":");
-                    c.consume(nonce);
-                    c.consume(b":");
-                    c.consume(&*ha);
-                    format!("{:x}", c.finalize())
-                }
-            };
+            // `nc` and `cnonce` are mandatory for qop=auth (RFC 7616 §3.4.1)
+            // and are what let the server detect replays below.
+            let nc = digest_map.get(b"nc".as_ref())?;
+            let cnonce = digest_map.get(b"cnonce".as_ref())?;
+
+            let mut c = Context::new();
+            c.consume(&auth_pass);
+            c.consume(b":");
+            c.consume(nonce);
+            c.consume(b":");
+            c.consume(nc);
+            c.consume(b":");
+            c.consume(cnonce);
+            c.consume(b":");
+            c.consume(qop);
+            c.consume(b":");
+            c.consume(&*ha);
+            let correct_response = format!("{:x}", c.finalize());
+
             if correct_response.as_bytes() == *user_response {
+                // Only record the nonce count once the response has been
+                // verified, so unauthenticated clients cannot grow the table.
+                let nonce = std::str::from_utf8(nonce).ok()?;
+                if !record_nonce_count(nonce, auth_user, nc) {
+                    return None;
+                }
                 return Some(());
             }
         }
         None
     } else {
         None
+    }
+}
+
+/// Remember the highest `nc` seen for `(nonce, user)` and reject values that
+/// were already used. Digest `nc` is an 8-digit hexadecimal counter that must
+/// strictly increase for a given nonce; seeing the same value twice means the
+/// Authorization header was replayed (RFC 7616 §3.2.2). Returns `false` for
+/// malformed or replayed counts.
+fn record_nonce_count(nonce: &str, user: &str, nc: &[u8]) -> bool {
+    if nc.len() != 8 || !nc.iter().all(u8::is_ascii_hexdigit) {
+        return false;
+    }
+    let Ok(nc) = std::str::from_utf8(nc) else {
+        return false;
+    };
+    let Ok(nc) = u32::from_str_radix(nc, 16) else {
+        return false;
+    };
+
+    let now = unix_now().as_secs();
+    let expires = now.saturating_add(DIGEST_AUTH_TIMEOUT as u64);
+    let mut nonce_counts = NONCE_COUNTS.lock().unwrap();
+    if nonce_counts.len() >= MAX_NONCE_COUNTS {
+        nonce_counts.retain(|_, (_, expires)| *expires > now);
+        // `retain` cannot make room if every tracked nonce is still fresh;
+        // dropping all state is preferable to unbounded memory growth.
+        if nonce_counts.len() >= MAX_NONCE_COUNTS {
+            nonce_counts.clear();
+        }
+    }
+    let key = (nonce.to_string(), user.to_string());
+    match nonce_counts.get_mut(&key) {
+        Some((count, _)) => {
+            if nc <= *count {
+                return false;
+            }
+            *count = nc;
+            true
+        }
+        None => {
+            nonce_counts.insert(key, (nc, expires));
+            true
+        }
     }
 }
 
@@ -582,16 +643,29 @@ fn derive_secret_key(user: &str, pass: &str) -> SigningKey {
     SigningKey::from_bytes(&hash.into())
 }
 
+/// Layout of a digest nonce: 8 hex digits of time, 16 hex digits of randomness
+/// and 26 hex digits of HMAC. The random part keeps every challenge unique,
+/// which matters because replay counters are tracked per nonce while clients
+/// restart `nc` at 1 for each new challenge.
+const NONCE_TIME_LEN: usize = 8;
+const NONCE_RANDOM_LEN: usize = 16;
+const NONCE_HASH_LEN: usize = 26;
+const NONCE_HASH_OFFSET: usize = NONCE_TIME_LEN + NONCE_RANDOM_LEN;
+const NONCE_LEN: usize = NONCE_HASH_OFFSET + NONCE_HASH_LEN;
+
 /// Check if a nonce is still valid.
 /// Return an error if it was never valid
 fn validate_nonce(nonce: &[u8]) -> Result<bool> {
-    if nonce.len() != 34 || !nonce.iter().all(u8::is_ascii_hexdigit) {
+    if nonce.len() != NONCE_LEN || !nonce.iter().all(u8::is_ascii_hexdigit) {
         bail!("invalid nonce");
     }
     //parse hex
     let n = std::str::from_utf8(nonce)?;
-    //get time
-    if let Ok(secs_nonce) = u32::from_str_radix(&n[..8], 16) {
+    //get time and randomness
+    if let (Ok(secs_nonce), Ok(random)) = (
+        u32::from_str_radix(&n[..NONCE_TIME_LEN], 16),
+        u64::from_str_radix(&n[NONCE_TIME_LEN..NONCE_HASH_OFFSET], 16),
+    ) {
         //check time
         let now = unix_now();
         let secs_now = now.as_secs() as u32;
@@ -600,8 +674,9 @@ fn validate_nonce(nonce: &[u8]) -> Result<bool> {
             //check hash
             let mut h = NONCESTARTHASH.clone();
             h.consume(secs_nonce.to_be_bytes());
+            h.consume(random.to_be_bytes());
             let h = format!("{:x}", h.finalize());
-            if h[..26] == n[8..34] {
+            if h[..NONCE_HASH_LEN] == n[NONCE_HASH_OFFSET..] {
                 return Ok(dur < DIGEST_AUTH_TIMEOUT);
             }
         }
@@ -701,13 +776,16 @@ fn to_headermap(header: &[u8]) -> Result<HashMap<&[u8], &[u8]>, ()> {
 }
 
 fn create_nonce() -> Result<String> {
-    let now = unix_now();
-    let secs = now.as_secs() as u32;
+    let secs = unix_now().as_secs() as u32;
+    let mut random_bytes = [0u8; 8];
+    random_bytes.copy_from_slice(&Uuid::new_v4().as_bytes()[..8]);
+    let random = u64::from_be_bytes(random_bytes);
     let mut h = NONCESTARTHASH.clone();
     h.consume(secs.to_be_bytes());
+    h.consume(random.to_be_bytes());
 
-    let n = format!("{:08x}{:032x}", secs, h.finalize());
-    Ok(n[..34].to_string())
+    let n = format!("{:08x}{:016x}{:032x}", secs, random, h.finalize());
+    Ok(n[..NONCE_LEN].to_string())
 }
 
 fn split_account_paths(s: &str) -> Option<(&str, &str)> {
@@ -930,15 +1008,110 @@ mod tests {
         // a multi-byte UTF-8 char straddling the byte-8 boundary must not panic
         let mut nonce = b"0000000".to_vec();
         nonce.extend_from_slice("é".as_bytes());
-        nonce.extend_from_slice(&[b'A'; 25]);
-        assert_eq!(nonce.len(), 34);
+        nonce.extend_from_slice(&[b'A'; NONCE_LEN - 9]);
+        assert_eq!(nonce.len(), NONCE_LEN);
         assert!(validate_nonce(&nonce).is_err());
 
         assert!(validate_nonce(b"short").is_err());
-        assert!(validate_nonce(&[0xff; 34]).is_err());
+        assert!(validate_nonce(&[0xff; NONCE_LEN]).is_err());
 
         // a freshly created nonce still validates
         let nonce = create_nonce().unwrap();
         assert!(matches!(validate_nonce(nonce.as_bytes()), Ok(true)));
+
+        // nonces minted back to back must differ, even within the same second
+        assert_ne!(nonce, create_nonce().unwrap());
+    }
+
+    /// Mint a valid nonce whose timestamp is `offset` seconds in the past.
+    /// Tests use distinct offsets so they do not share replay state.
+    fn nonce_with_offset(offset: u32) -> String {
+        let secs = (unix_now().as_secs() as u32).saturating_sub(offset);
+        let random = offset as u64 + 1;
+        let mut h = NONCESTARTHASH.clone();
+        h.consume(secs.to_be_bytes());
+        h.consume(random.to_be_bytes());
+        let n = format!("{:08x}{:016x}{:032x}", secs, random, h.finalize());
+        n[..NONCE_LEN].to_string()
+    }
+
+    fn digest_authorization(
+        user: &str,
+        pass: &str,
+        nonce: &str,
+        uri: &str,
+        nc: &str,
+    ) -> HeaderValue {
+        let mut ha1 = Context::new();
+        ha1.consume(format!("{user}:{REALM}:{pass}").as_bytes());
+        let ha1 = format!("{:x}", ha1.finalize());
+        let mut ha2 = Context::new();
+        ha2.consume(b"GET:");
+        ha2.consume(uri.as_bytes());
+        let ha2 = format!("{:x}", ha2.finalize());
+        let cnonce = "0123456789abcdef";
+        let mut resp = Context::new();
+        resp.consume(ha1.as_bytes());
+        resp.consume(b":");
+        resp.consume(nonce.as_bytes());
+        resp.consume(b":");
+        resp.consume(nc.as_bytes());
+        resp.consume(b":");
+        resp.consume(cnonce.as_bytes());
+        resp.consume(b":auth:");
+        resp.consume(ha2.as_bytes());
+        let response = format!("{:x}", resp.finalize());
+        HeaderValue::from_str(&format!(
+            "Digest username=\"{user}\", realm=\"{REALM}\", nonce=\"{nonce}\", uri=\"{uri}\", response=\"{response}\", qop=auth, nc={nc}, cnonce=\"{cnonce}\""
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn test_digest_binds_uri_to_request_target() {
+        let user = "uri-user";
+        let nonce = nonce_with_offset(10);
+        let auth = digest_authorization(user, "pass", &nonce, "/public/hello.txt", "00000001");
+        assert!(check_auth(&auth, "GET", "/public/hello.txt", user, "pass").is_some());
+        // the same header must not authenticate a different resource
+        assert!(check_auth(&auth, "GET", "/private/secret.txt", user, "pass").is_none());
+    }
+
+    #[test]
+    fn test_digest_binds_query_to_request_target() {
+        let user = "query-user";
+        let nonce = nonce_with_offset(20);
+        let auth = digest_authorization(user, "pass", &nonce, "/dir/?simple", "00000001");
+        assert!(check_auth(&auth, "GET", "/dir/?simple", user, "pass").is_some());
+        // query flags such as ?zip must be covered by the digest too
+        assert!(check_auth(&auth, "GET", "/dir/?zip", user, "pass").is_none());
+    }
+
+    #[test]
+    fn test_digest_replay_is_rejected() {
+        let user = "replay-user";
+        let nonce = nonce_with_offset(30);
+        let auth = digest_authorization(user, "pass", &nonce, "/file.txt", "00000001");
+        assert!(check_auth(&auth, "GET", "/file.txt", user, "pass").is_some());
+        // replaying the exact same header must fail
+        assert!(check_auth(&auth, "GET", "/file.txt", user, "pass").is_none());
+        // a higher nonce count is accepted
+        let next = digest_authorization(user, "pass", &nonce, "/file.txt", "00000002");
+        assert!(check_auth(&next, "GET", "/file.txt", user, "pass").is_some());
+        // and going backwards is a replay
+        let older = digest_authorization(user, "pass", &nonce, "/file.txt", "00000001");
+        assert!(check_auth(&older, "GET", "/file.txt", user, "pass").is_none());
+        // malformed / non-8-digit counts are rejected
+        let malformed = digest_authorization(user, "pass", &nonce, "/file.txt", "000003");
+        assert!(check_auth(&malformed, "GET", "/file.txt", user, "pass").is_none());
+    }
+
+    #[test]
+    fn test_digest_nonce_count_is_per_user() {
+        let nonce = nonce_with_offset(40);
+        let alice = digest_authorization("alice", "pass", &nonce, "/file.txt", "00000001");
+        let bob = digest_authorization("bob", "pass", &nonce, "/file.txt", "00000001");
+        assert!(check_auth(&alice, "GET", "/file.txt", "alice", "pass").is_some());
+        assert!(check_auth(&bob, "GET", "/file.txt", "bob", "pass").is_some());
     }
 }

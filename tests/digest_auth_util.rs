@@ -19,6 +19,21 @@ pub fn send_with_digest_auth(
     }
 }
 
+/// Build the `Authorization` header for a request that has already received a
+/// digest challenge. Kept separate from [`send_with_digest_auth`] so tests can
+/// replay the exact same header.
+#[allow(dead_code)]
+pub fn digest_authorization(
+    request_builder: RequestBuilder,
+    challenge: &Response,
+    username: &str,
+    password: &str,
+) -> Result<String> {
+    let answer = get_answer(&request_builder, challenge.headers(), username, password)?
+        .ok_or_else(|| anyhow!("No digest challenge"))?;
+    Ok(answer.to_header_string())
+}
+
 fn try_digest_auth(
     request_builder: RequestBuilder,
     first_response: Response,
