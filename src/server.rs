@@ -1,6 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 
-use crate::auth::{www_authenticate, AccessPaths, AccessPerm};
+use crate::auth::{www_authenticate, AccessPaths, AccessPerm, EntryAccess};
 use crate::error::DufsErrorCode;
 use crate::http_utils::{body_full, IncomingStream, LengthLimitedStream};
 use crate::noscript::{detect_noscript, generate_noscript_html};
@@ -370,13 +370,28 @@ impl Server {
                     }
                 } else if is_file {
                     if has_query_flag(&query_params, "json") {
-                        self.handle_file_json(path, head_only, &mut res).await?;
+                        self.handle_file_json(path, head_only, &access_paths, &mut res)
+                            .await?;
                     } else if has_query_flag(&query_params, "edit") {
-                        self.handle_edit_file(path, DataKind::Edit, head_only, user, &mut res)
-                            .await?;
+                        self.handle_edit_file(
+                            path,
+                            DataKind::Edit,
+                            head_only,
+                            user,
+                            &access_paths,
+                            &mut res,
+                        )
+                        .await?;
                     } else if has_query_flag(&query_params, "view") {
-                        self.handle_edit_file(path, DataKind::View, head_only, user, &mut res)
-                            .await?;
+                        self.handle_edit_file(
+                            path,
+                            DataKind::View,
+                            head_only,
+                            user,
+                            &access_paths,
+                            &mut res,
+                        )
+                        .await?;
                     } else if has_query_flag(&query_params, "hash") {
                         if self.args.allow_hash {
                             self.handle_hash_file(path, head_only, &mut res).await?;
@@ -618,7 +633,7 @@ impl Server {
     ) -> Result<()> {
         let mut paths = vec![];
         if !head_only && exist {
-            paths = match self.list_dir(path, path, access_paths.clone()).await {
+            paths = match self.list_dir(path, path, &access_paths).await {
                 Ok(paths) => paths,
                 Err(_) => {
                     DufsErrorCode::InternalError.respond(res);
@@ -662,6 +677,7 @@ impl Server {
             let path_buf = path.to_path_buf();
             let hidden = Arc::new(self.args.hidden.to_vec());
             let search = search.clone();
+            let prefix = self.relative_parts(path);
 
             let search_paths = tokio::spawn(collect_dir_entries(
                 access_paths.clone(),
@@ -675,7 +691,12 @@ impl Server {
             .await?;
 
             for search_path in search_paths.into_iter() {
-                if let Ok(Some(item)) = self.to_pathitem(search_path, path.to_path_buf()).await {
+                if let Ok(Some(mut item)) = self.to_pathitem(search_path, path.to_path_buf()).await
+                {
+                    let access = access_paths
+                        .entry_access(&item.name, &prefix, Some(&self.args.serve_path))
+                        .await;
+                    self.set_item_access(&mut item, access);
                     paths.push(item);
                 }
             }
@@ -772,15 +793,23 @@ impl Server {
         &self,
         path: &Path,
         head_only: bool,
+        access_paths: &AccessPaths,
         res: &mut Response,
     ) -> Result<()> {
-        let pathitem = match self.to_pathitem(path, &self.args.serve_path).await? {
+        let mut pathitem = match self.to_pathitem(path, &self.args.serve_path).await? {
             Some(v) => v,
             None => {
                 status_not_found(res);
                 return Ok(());
             }
         };
+        self.set_item_access(
+            &mut pathitem,
+            EntryAccess {
+                perm: access_paths.perm(),
+                restricted: false,
+            },
+        );
         let output = serde_json::to_string_pretty(&pathitem)?;
         res.headers_mut()
             .typed_insert(ContentType::from(mime_guess::mime::APPLICATION_JSON));
@@ -1133,6 +1162,7 @@ impl Server {
         kind: DataKind,
         head_only: bool,
         user: Option<String>,
+        access_paths: &AccessPaths,
         res: &mut Response,
     ) -> Result<()> {
         let (file, meta) = tokio::join!(fs::File::open(path), fs::metadata(path),);
@@ -1145,12 +1175,13 @@ impl Server {
         file.take(1024).read_to_end(&mut buffer).await?;
         let editable =
             meta.len() <= EDITABLE_TEXT_MAX_SIZE && content_inspector::inspect(&buffer).is_text();
+        let readwrite = access_paths.perm().readwrite();
         let data = EditData {
             href,
             kind,
             uri_prefix: self.args.uri_prefix.clone(),
-            allow_upload: self.args.allow_upload,
-            allow_delete: self.args.allow_delete,
+            allow_upload: self.args.allow_upload && readwrite,
+            allow_delete: self.args.allow_delete && readwrite,
             auth: self.args.auth.has_users(),
             user,
             editable,
@@ -1238,7 +1269,7 @@ impl Server {
         };
         if depth == 1 {
             match self
-                .list_dir(path, &self.args.serve_path, access_paths)
+                .list_dir(path, &self.args.serve_path, &access_paths)
                 .await
             {
                 Ok(child) => paths.extend(child),
@@ -1608,34 +1639,69 @@ impl Server {
         join_within(&self.args.serve_path, &path)
     }
 
+    /// Path components of `path` relative to the served root, used to resolve
+    /// auth rules and filesystem aliases of configured names.
+    fn relative_parts<'a>(&self, path: &'a Path) -> Vec<&'a str> {
+        path.strip_prefix(&self.args.serve_path)
+            .unwrap_or(Path::new(""))
+            .components()
+            .filter_map(|component| match component {
+                Component::Normal(name) => name.to_str(),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn set_item_access(&self, item: &mut PathItem, access: EntryAccess) {
+        let readwrite = access.perm.readwrite();
+        let restricted = item.is_dir() && access.restricted;
+        item.allow_upload = self.args.allow_upload && readwrite;
+        item.allow_delete = self.args.allow_delete && readwrite && !restricted;
+        item.readonly_descendant = restricted;
+    }
+
     async fn list_dir(
         &self,
         entry_path: &Path,
         base_path: &Path,
-        access_paths: AccessPaths,
+        access_paths: &AccessPaths,
     ) -> Result<Vec<PathItem>> {
         let mut paths: Vec<PathItem> = vec![];
+        let prefix = self.relative_parts(entry_path);
         if access_paths.perm().indexonly() {
             for name in access_paths.child_names() {
                 let entry_path = entry_path.join(name);
-                self.add_pathitem(&mut paths, base_path, &entry_path).await;
+                self.add_pathitem(&mut paths, base_path, &entry_path, access_paths, &prefix)
+                    .await;
             }
         } else {
             let mut rd = fs::read_dir(entry_path).await?;
             while let Ok(Some(entry)) = rd.next_entry().await {
                 let entry_path = entry.path();
-                self.add_pathitem(&mut paths, base_path, &entry_path).await;
+                self.add_pathitem(&mut paths, base_path, &entry_path, access_paths, &prefix)
+                    .await;
             }
         }
         Ok(paths)
     }
 
-    async fn add_pathitem(&self, paths: &mut Vec<PathItem>, base_path: &Path, entry_path: &Path) {
+    async fn add_pathitem(
+        &self,
+        paths: &mut Vec<PathItem>,
+        base_path: &Path,
+        entry_path: &Path,
+        access_paths: &AccessPaths,
+        prefix: &[&str],
+    ) {
         let base_name = get_file_name(entry_path);
-        if let Ok(Some(item)) = self.to_pathitem(entry_path, base_path).await {
+        if let Ok(Some(mut item)) = self.to_pathitem(entry_path, base_path).await {
             if is_hidden(&self.args.hidden, base_name, item.is_dir()) {
                 return;
             }
+            let access = access_paths
+                .entry_access(base_name, prefix, Some(&self.args.serve_path))
+                .await;
+            self.set_item_access(&mut item, access);
             paths.push(item);
         }
     }
@@ -1690,6 +1756,9 @@ impl Server {
             name,
             mtime,
             size,
+            allow_upload: false,
+            allow_delete: false,
+            readonly_descendant: false,
         }))
     }
 }
@@ -1722,6 +1791,9 @@ pub struct PathItem {
     pub name: String,
     pub mtime: u64,
     pub size: u64,
+    pub allow_upload: bool,
+    pub allow_delete: bool,
+    pub readonly_descendant: bool,
 }
 
 impl PathItem {

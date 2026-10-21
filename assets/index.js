@@ -4,6 +4,9 @@
  * @property {string} name
  * @property {number} mtime
  * @property {number} size
+ * @property {boolean} allow_upload
+ * @property {boolean} allow_delete
+ * @property {boolean} readonly_descendant
  */
 
 /**
@@ -517,8 +520,15 @@ function renderPathsTableBody() {
     if (len > 0) {
       $pathsTable.classList.remove("hidden");
     }
+    // Show an action column when it is available for the current directory or
+    // at least one entry. Rows without permission render the action disabled.
+    const showMove =
+      (DATA.allow_upload && DATA.allow_delete) ||
+      DATA.paths.some((p) => p?.allow_upload && p?.allow_delete);
+    const showDelete =
+      DATA.allow_delete || DATA.paths.some((p) => p?.allow_delete);
     for (let i = 0; i < len; i++) {
-      addPath(DATA.paths[i], i);
+      addPath(DATA.paths[i], i, showMove, showDelete);
     }
   } else {
     $emptyFolder.textContent = DIR_EMPTY_NOTE;
@@ -527,11 +537,37 @@ function renderPathsTableBody() {
 }
 
 /**
+ * Render an action button that the current account cannot use.
+ * @param {string} icon
+ * @param {string} title
+ */
+function disabledAction(icon, title) {
+  return `<span class="action-btn disabled" title="${title}" aria-disabled="true">${icon}</span>`;
+}
+
+/**
+ * Explain why an entry cannot be modified by the current account.
+ * @param {PathItem} file
+ * @param {"move" | "delete" | "edit"} action
+ */
+function deniedReason(file, action) {
+  if (file.readonly_descendant) {
+    return "the directory contains read-only entries";
+  }
+  if (action === "edit") {
+    return "the file is read-only";
+  }
+  return "the entry is read-only";
+}
+
+/**
  * Add pathitem
  * @param {PathItem} file
  * @param {number} index
+ * @param {boolean} showMove
+ * @param {boolean} showDelete
  */
-function addPath(file, index) {
+function addPath(file, index, showMove, showDelete) {
   const encodedName = encodedStr(file.name);
   let url = newUrl(file.name);
   let actionDelete = "";
@@ -554,17 +590,31 @@ function addPath(file, index) {
       <a class="dlwt" href="${url}" title="Download file" download>${ICONS.download}</a>
     </div>`;
   }
-  if (DATA.allow_delete) {
-    if (DATA.allow_upload) {
+  const canMove = file.allow_upload && file.allow_delete;
+  const canEdit = !isDir && canMove;
+  if (showMove) {
+    if (canMove) {
       actionMove = `<div onclick="movePath(${index})" class="action-btn" id="moveBtn${index}" title="Move & Rename">${ICONS.move}</div>`;
-      if (!isDir) {
+    } else {
+      actionMove = disabledAction(ICONS.move, `Cannot move: ${deniedReason(file, "move")}`);
+    }
+    if (!isDir) {
+      if (canEdit) {
         actionEdit = `<a class="action-btn" title="Edit file" target="_blank" href="${url}?edit">${ICONS.edit}</a>`;
+      } else {
+        actionEdit = disabledAction(ICONS.edit, `Cannot edit: ${deniedReason(file, "edit")}`);
       }
     }
-    actionDelete = `
-    <div onclick="deletePath(${index})" class="action-btn" id="deleteBtn${index}" title="Delete">${ICONS.delete}</div>`;
   }
-  if (!actionEdit && !isDir) {
+  if (showDelete) {
+    if (file.allow_delete) {
+      actionDelete = `
+    <div onclick="deletePath(${index})" class="action-btn" id="deleteBtn${index}" title="Delete">${ICONS.delete}</div>`;
+    } else {
+      actionDelete = disabledAction(ICONS.delete, `Cannot delete: ${deniedReason(file, "delete")}`);
+    }
+  }
+  if (!canEdit && !isDir) {
     actionView = `<a class="action-btn" title="View file" target="_blank" href="${url}?view">${ICONS.view}</a>`;
   }
   let actionCell = `
@@ -713,27 +763,31 @@ async function setupEditorPage() {
   $download.href = url;
 
   if (DATA.kind == "Edit") {
-    const $moveFile = document.querySelector(".move-file");
-    $moveFile.classList.remove("hidden");
-    $moveFile.addEventListener("click", async () => {
-      const query = location.href.slice(url.length);
-      const newFileUrl = await doMovePath(url);
-      if (newFileUrl) {
-        location.href = newFileUrl + query;
-      }
-    });
-
-    const $deleteFile = document.querySelector(".delete-file");
-    $deleteFile.classList.remove("hidden");
-    $deleteFile.addEventListener("click", async () => {
-      const url = baseUrl();
-      const name = baseName(url);
-      await doDeletePath(name, url, () => {
-        location.href = location.href.split("/").slice(0, -1).join("/");
+    if (DATA.allow_upload && DATA.allow_delete) {
+      const $moveFile = document.querySelector(".move-file");
+      $moveFile.classList.remove("hidden");
+      $moveFile.addEventListener("click", async () => {
+        const query = location.href.slice(url.length);
+        const newFileUrl = await doMovePath(url);
+        if (newFileUrl) {
+          location.href = newFileUrl + query;
+        }
       });
-    });
+    }
 
-    if (DATA.editable) {
+    if (DATA.allow_delete) {
+      const $deleteFile = document.querySelector(".delete-file");
+      $deleteFile.classList.remove("hidden");
+      $deleteFile.addEventListener("click", async () => {
+        const url = baseUrl();
+        const name = baseName(url);
+        await doDeletePath(name, url, () => {
+          location.href = location.href.split("/").slice(0, -1).join("/");
+        });
+      });
+    }
+
+    if (DATA.editable && DATA.allow_upload) {
       const $saveBtn = document.querySelector(".save-btn");
       $saveBtn.classList.remove("hidden");
       $saveBtn.addEventListener("click", saveChange);
@@ -756,6 +810,7 @@ async function setupEditorPage() {
   }
 
   $editor.classList.remove("hidden");
+  $editor.readonly = DATA.kind == "View" || !DATA.allow_upload;
   try {
     const res = await fetch(baseUrl());
     await assertResOK(res);
