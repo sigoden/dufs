@@ -187,7 +187,7 @@ impl Server {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
 
-        let (user, access_paths, via_token) = self
+        let (user, access_paths, via_token, stale) = self
             .args
             .auth
             .guard(
@@ -203,7 +203,7 @@ impl Server {
 
         let (user, access_paths) = match (user, access_paths) {
             (None, None) => {
-                self.auth_reject(&mut res)?;
+                self.auth_reject(&mut res, stale)?;
                 return Ok(res);
             }
             (Some(_), None) => {
@@ -224,7 +224,7 @@ impl Server {
                 }
                 None => {
                     if has_query_flag(&query_params, "login") || !access_paths.perm().readwrite() {
-                        self.auth_reject(&mut res)?
+                        self.auth_reject(&mut res, false)?
                     } else {
                         *res.body_mut() = body_full("");
                     }
@@ -232,7 +232,7 @@ impl Server {
             }
             return Ok(res);
         } else if method.as_str() == "LOGOUT" {
-            self.auth_reject(&mut res)?;
+            self.auth_reject(&mut res, false)?;
             return Ok(res);
         }
 
@@ -242,7 +242,7 @@ impl Server {
             // A share token must not be able to mint another token, otherwise a
             // short-lived link could be renewed forever regardless of expiry.
             if via_token {
-                self.auth_reject(&mut res)?;
+                self.auth_reject(&mut res, false)?;
                 return Ok(res);
             }
             self.handle_tokengen(&relative_path, user, head_only, &mut res)
@@ -1176,7 +1176,7 @@ impl Server {
         let user = match user {
             Some(user) => user,
             None => {
-                self.auth_reject(res)?;
+                self.auth_reject(res, false)?;
                 return Ok(());
             }
         };
@@ -1458,10 +1458,10 @@ impl Server {
         Ok(())
     }
 
-    fn auth_reject(&self, res: &mut Response) -> Result<()> {
+    fn auth_reject(&self, res: &mut Response, stale: bool) -> Result<()> {
         set_webdav_headers(res);
 
-        www_authenticate(res, &self.args)?;
+        www_authenticate(res, &self.args, stale)?;
         *res.status_mut() = StatusCode::UNAUTHORIZED;
         Ok(())
     }
@@ -1518,7 +1518,7 @@ impl Server {
             .await;
 
         match guard {
-            (_, Some(_), _) => {}
+            (_, Some(_), _, _) => {}
             _ => {
                 status_forbid(res);
                 return None;

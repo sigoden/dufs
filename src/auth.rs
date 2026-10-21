@@ -18,7 +18,9 @@ use std::{
 use uuid::Uuid;
 
 const REALM: &str = "DUFS";
-const DIGEST_AUTH_TIMEOUT: u32 = 60 * 60 * 24 * 7; // 7 days
+/// How long a Digest nonce is accepted. Expired nonces are answered with
+/// `stale=true` so clients can retry transparently with a fresh nonce.
+const DIGEST_AUTH_TIMEOUT: u32 = 60 * 60; // 1 hour
 /// Upper bound on the number of tracked `(nonce, user)` replay counters. Only
 /// authenticated clients can add entries, and expired entries are pruned, but
 /// the cap keeps a long-running server's memory use predictable.
@@ -128,12 +130,15 @@ impl AccessControl {
         !self.users.is_empty()
     }
 
-    /// Returns the guarded `(user, access_paths, via_token)`. `via_token` is
-    /// true only when the identity was established by a share token rather than
-    /// primary credentials or anonymous access. `request_target` is the raw
-    /// request target from the request line (path and query), used to bind
-    /// Digest credentials to the request they were computed for. `root` is the
-    /// served directory, used to resolve filesystem aliases of configured names.
+    /// Returns the guarded `(user, access_paths, via_token, stale)`. `via_token`
+    /// is true only when the identity was established by a share token rather
+    /// than primary credentials or anonymous access. `stale` is true when the
+    /// credentials were valid but the Digest nonce has expired, so the caller
+    /// should answer with a `stale=true` challenge instead of a plain 401.
+    /// `request_target` is the raw request target from the request line (path
+    /// and query), used to bind Digest credentials to the request they were
+    /// computed for. `root` is the served directory, used to resolve filesystem
+    /// aliases of configured names.
     #[allow(clippy::too_many_arguments)]
     pub async fn guard(
         &self,
@@ -144,15 +149,25 @@ impl AccessControl {
         token: Option<&String>,
         guard_options: bool,
         root: &Path,
-    ) -> (Option<String>, Option<AccessPaths>, bool) {
+    ) -> (Option<String>, Option<AccessPaths>, bool, bool) {
         if self.empty {
-            return (None, Some(AccessPaths::new(AccessPerm::ReadWrite)), false);
+            return (
+                None,
+                Some(AccessPaths::new(AccessPerm::ReadWrite)),
+                false,
+                false,
+            );
         }
 
         if method == Method::GET {
             if let Some(token) = token {
                 if let Ok((user, ap)) = self.verify_token(token, path) {
-                    return (Some(user), ap.guard(path, method, Some(root)).await, true);
+                    return (
+                        Some(user),
+                        ap.guard(path, method, Some(root)).await,
+                        true,
+                        false,
+                    );
                 }
             }
         }
@@ -160,33 +175,46 @@ impl AccessControl {
         if let Some(authorization) = authorization {
             if let Some(user) = get_auth_user(authorization) {
                 if let Some((pass, ap)) = self.users.get(&user) {
-                    if check_auth(authorization, method.as_str(), request_target, &user, pass)
-                        .is_some()
-                    {
-                        if method == Method::OPTIONS {
+                    match check_auth(authorization, method.as_str(), request_target, &user, pass) {
+                        AuthResult::Valid => {
+                            if method == Method::OPTIONS {
+                                return (
+                                    Some(user),
+                                    Some(AccessPaths::new(AccessPerm::ReadOnly)),
+                                    false,
+                                    false,
+                                );
+                            }
                             return (
                                 Some(user),
-                                Some(AccessPaths::new(AccessPerm::ReadOnly)),
+                                ap.guard(path, method, Some(root)).await,
+                                false,
                                 false,
                             );
                         }
-                        return (Some(user), ap.guard(path, method, Some(root)).await, false);
+                        AuthResult::Stale => return (None, None, false, true),
+                        AuthResult::Invalid => {}
                     }
                 }
             }
 
-            return (None, None, false);
+            return (None, None, false, false);
         }
 
         if !guard_options && method == Method::OPTIONS {
-            return (None, Some(AccessPaths::new(AccessPerm::ReadOnly)), false);
+            return (
+                None,
+                Some(AccessPaths::new(AccessPerm::ReadOnly)),
+                false,
+                false,
+            );
         }
 
         if let Some(ap) = self.anonymous.as_ref() {
-            return (None, ap.guard(path, method, Some(root)).await, false);
+            return (None, ap.guard(path, method, Some(root)).await, false, false);
         }
 
-        (None, None, false)
+        (None, None, false, false)
     }
 
     pub fn generate_token(&self, path: &str, user: &str) -> Result<String> {
@@ -462,14 +490,15 @@ impl AccessPerm {
     }
 }
 
-pub fn www_authenticate(res: &mut Response, args: &Args) -> Result<()> {
+pub fn www_authenticate(res: &mut Response, args: &Args, stale: bool) -> Result<()> {
     if args.auth.use_hashed_password {
         let basic = HeaderValue::from_str(&format!("Basic realm=\"{REALM}\""))?;
         res.headers_mut().insert(WWW_AUTHENTICATE, basic);
     } else {
         let nonce = create_nonce()?;
+        let stale = if stale { ", stale=true" } else { "" };
         let digest = HeaderValue::from_str(&format!(
-            "Digest realm=\"{REALM}\", nonce=\"{nonce}\", qop=\"auth\""
+            "Digest realm=\"{REALM}\", nonce=\"{nonce}\", qop=\"auth\"{stale}"
         ))?;
         let basic = HeaderValue::from_str(&format!("Basic realm=\"{REALM}\""))?;
         res.headers_mut().append(WWW_AUTHENTICATE, digest);
@@ -492,19 +521,38 @@ pub fn get_auth_user(authorization: &HeaderValue) -> Option<String> {
     }
 }
 
+/// Result of checking an `Authorization` header.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthResult {
+    /// Credentials are valid for this request.
+    Valid,
+    /// Credentials are valid, but the Digest nonce has expired. The client
+    /// should retry with a fresh nonce without re-prompting the user.
+    Stale,
+    /// Credentials are missing, malformed, forged, or replayed.
+    Invalid,
+}
+
 pub fn check_auth(
     authorization: &HeaderValue,
     method: &str,
     request_target: &str,
     auth_user: &str,
     auth_pass: &str,
-) -> Option<()> {
+) -> AuthResult {
     if let Some(value) = strip_prefix(authorization.as_bytes(), b"Basic ") {
-        let value: Vec<u8> = STANDARD.decode(value).ok()?;
-        let (user, pass) = std::str::from_utf8(&value).ok()?.split_once(':')?;
+        let Some(value) = STANDARD.decode(value).ok() else {
+            return AuthResult::Invalid;
+        };
+        let Some((user, pass)) = std::str::from_utf8(&value)
+            .ok()
+            .and_then(|v| v.split_once(':'))
+        else {
+            return AuthResult::Invalid;
+        };
 
         if user != auth_user {
-            return None;
+            return AuthResult::Invalid;
         }
 
         if auth_pass.starts_with("$6$") {
@@ -512,85 +560,106 @@ pub fn check_auth(
                 .verify_password(pass.as_bytes(), auth_pass)
                 .is_ok()
             {
-                return Some(());
+                return AuthResult::Valid;
             }
         } else if pass == auth_pass {
-            return Some(());
+            return AuthResult::Valid;
         }
 
-        None
+        AuthResult::Invalid
     } else if let Some(value) = strip_prefix(authorization.as_bytes(), b"Digest ") {
-        let digest_map = to_headermap(value).ok()?;
-        if let (Some(username), Some(nonce), Some(user_response), Some(uri)) = (
-            digest_map
-                .get(b"username".as_ref())
-                .and_then(|b| std::str::from_utf8(b).ok()),
-            digest_map.get(b"nonce".as_ref()),
-            digest_map.get(b"response".as_ref()),
-            digest_map.get(b"uri".as_ref()),
-        ) {
-            // RFC 7616 §3.4.6: the `uri` directive must designate the resource
-            // actually being requested. Without this check a captured header
-            // would authenticate a request for any other path that uses the
-            // same method.
-            if std::str::from_utf8(uri).ok()? != request_target {
-                return None;
-            }
-            match validate_nonce(nonce) {
-                Ok(true) => {}
-                _ => return None,
-            }
-            if auth_user != username {
-                return None;
-            }
-
-            let mut h = Context::new();
-            h.consume(format!("{auth_user}:{REALM}:{auth_pass}").as_bytes());
-            let auth_pass = format!("{:x}", h.finalize());
-
-            let mut ha = Context::new();
-            ha.consume(method);
-            ha.consume(b":");
-            ha.consume(uri);
-            let ha = format!("{:x}", ha.finalize());
-
-            let qop = *digest_map.get(b"qop".as_ref())?;
-            if qop != b"auth" && qop != b"auth-int" {
-                return None;
-            }
-            // `nc` and `cnonce` are mandatory for qop=auth (RFC 7616 §3.4.1)
-            // and are what let the server detect replays below.
-            let nc = digest_map.get(b"nc".as_ref())?;
-            let cnonce = digest_map.get(b"cnonce".as_ref())?;
-
-            let mut c = Context::new();
-            c.consume(&auth_pass);
-            c.consume(b":");
-            c.consume(nonce);
-            c.consume(b":");
-            c.consume(nc);
-            c.consume(b":");
-            c.consume(cnonce);
-            c.consume(b":");
-            c.consume(qop);
-            c.consume(b":");
-            c.consume(&*ha);
-            let correct_response = format!("{:x}", c.finalize());
-
-            if correct_response.as_bytes() == *user_response {
-                // Only record the nonce count once the response has been
-                // verified, so unauthenticated clients cannot grow the table.
-                let nonce = std::str::from_utf8(nonce).ok()?;
-                if !record_nonce_count(nonce, auth_user, nc) {
-                    return None;
-                }
-                return Some(());
-            }
-        }
-        None
+        check_digest_auth(value, method, request_target, auth_user, auth_pass)
+            .unwrap_or(AuthResult::Invalid)
     } else {
-        None
+        AuthResult::Invalid
     }
+}
+
+/// Verify a Digest `Authorization` header. Returns `None` for malformed input;
+/// `check_auth` maps that to [`AuthResult::Invalid`].
+fn check_digest_auth(
+    value: &[u8],
+    method: &str,
+    request_target: &str,
+    auth_user: &str,
+    auth_pass: &str,
+) -> Option<AuthResult> {
+    let digest_map = to_headermap(value).ok()?;
+    let username = digest_map
+        .get(b"username".as_ref())
+        .and_then(|b| std::str::from_utf8(b).ok())?;
+    let nonce = digest_map.get(b"nonce".as_ref())?;
+    let user_response = digest_map.get(b"response".as_ref())?;
+    let uri = digest_map.get(b"uri".as_ref())?;
+
+    // RFC 7616 §3.4.6: the `uri` directive must designate the resource
+    // actually being requested. Without this check a captured header would
+    // authenticate a request for any other path that uses the same method.
+    if std::str::from_utf8(uri).ok()? != request_target {
+        return Some(AuthResult::Invalid);
+    }
+    if auth_user != username {
+        return Some(AuthResult::Invalid);
+    }
+
+    // `Ok(false)` means the nonce is authentic but expired. The response is
+    // still verified below so an expired nonce can be answered with
+    // `stale=true` instead of forcing the client to prompt the user again.
+    let nonce_valid = match validate_nonce(nonce) {
+        Ok(v) => v,
+        Err(_) => return Some(AuthResult::Invalid),
+    };
+
+    let mut h = Context::new();
+    h.consume(format!("{auth_user}:{REALM}:{auth_pass}").as_bytes());
+    let auth_pass = format!("{:x}", h.finalize());
+
+    let mut ha = Context::new();
+    ha.consume(method);
+    ha.consume(b":");
+    ha.consume(uri);
+    let ha = format!("{:x}", ha.finalize());
+
+    let qop = *digest_map.get(b"qop".as_ref())?;
+    if qop != b"auth" && qop != b"auth-int" {
+        return Some(AuthResult::Invalid);
+    }
+    // `nc` and `cnonce` are mandatory for qop=auth (RFC 7616 §3.4.1) and are
+    // what let the server detect replays below.
+    let nc = digest_map.get(b"nc".as_ref())?;
+    let cnonce = digest_map.get(b"cnonce".as_ref())?;
+
+    let mut c = Context::new();
+    c.consume(&auth_pass);
+    c.consume(b":");
+    c.consume(nonce);
+    c.consume(b":");
+    c.consume(nc);
+    c.consume(b":");
+    c.consume(cnonce);
+    c.consume(b":");
+    c.consume(qop);
+    c.consume(b":");
+    c.consume(&*ha);
+    let correct_response = format!("{:x}", c.finalize());
+
+    if correct_response.as_bytes() != *user_response {
+        return Some(AuthResult::Invalid);
+    }
+
+    if !nonce_valid {
+        // The digest is valid but the nonce is too old. A compliant client
+        // retries with the fresh nonce and does not re-prompt the user. Do not
+        // record `nc` for a dead nonce.
+        return Some(AuthResult::Stale);
+    }
+
+    // Only record the nonce count once the response has been verified, so
+    // unauthenticated clients cannot grow the table.
+    if !record_nonce_count(std::str::from_utf8(nonce).ok()?, auth_user, nc) {
+        return Some(AuthResult::Invalid);
+    }
+    Some(AuthResult::Valid)
 }
 
 /// Remember the highest `nc` seen for `(nonce, user)` and reject values that
@@ -1072,9 +1141,15 @@ mod tests {
         let user = "uri-user";
         let nonce = nonce_with_offset(10);
         let auth = digest_authorization(user, "pass", &nonce, "/public/hello.txt", "00000001");
-        assert!(check_auth(&auth, "GET", "/public/hello.txt", user, "pass").is_some());
+        assert_eq!(
+            check_auth(&auth, "GET", "/public/hello.txt", user, "pass"),
+            AuthResult::Valid
+        );
         // the same header must not authenticate a different resource
-        assert!(check_auth(&auth, "GET", "/private/secret.txt", user, "pass").is_none());
+        assert_eq!(
+            check_auth(&auth, "GET", "/private/secret.txt", user, "pass"),
+            AuthResult::Invalid
+        );
     }
 
     #[test]
@@ -1082,9 +1157,15 @@ mod tests {
         let user = "query-user";
         let nonce = nonce_with_offset(20);
         let auth = digest_authorization(user, "pass", &nonce, "/dir/?simple", "00000001");
-        assert!(check_auth(&auth, "GET", "/dir/?simple", user, "pass").is_some());
+        assert_eq!(
+            check_auth(&auth, "GET", "/dir/?simple", user, "pass"),
+            AuthResult::Valid
+        );
         // query flags such as ?zip must be covered by the digest too
-        assert!(check_auth(&auth, "GET", "/dir/?zip", user, "pass").is_none());
+        assert_eq!(
+            check_auth(&auth, "GET", "/dir/?zip", user, "pass"),
+            AuthResult::Invalid
+        );
     }
 
     #[test]
@@ -1092,18 +1173,33 @@ mod tests {
         let user = "replay-user";
         let nonce = nonce_with_offset(30);
         let auth = digest_authorization(user, "pass", &nonce, "/file.txt", "00000001");
-        assert!(check_auth(&auth, "GET", "/file.txt", user, "pass").is_some());
+        assert_eq!(
+            check_auth(&auth, "GET", "/file.txt", user, "pass"),
+            AuthResult::Valid
+        );
         // replaying the exact same header must fail
-        assert!(check_auth(&auth, "GET", "/file.txt", user, "pass").is_none());
+        assert_eq!(
+            check_auth(&auth, "GET", "/file.txt", user, "pass"),
+            AuthResult::Invalid
+        );
         // a higher nonce count is accepted
         let next = digest_authorization(user, "pass", &nonce, "/file.txt", "00000002");
-        assert!(check_auth(&next, "GET", "/file.txt", user, "pass").is_some());
+        assert_eq!(
+            check_auth(&next, "GET", "/file.txt", user, "pass"),
+            AuthResult::Valid
+        );
         // and going backwards is a replay
         let older = digest_authorization(user, "pass", &nonce, "/file.txt", "00000001");
-        assert!(check_auth(&older, "GET", "/file.txt", user, "pass").is_none());
+        assert_eq!(
+            check_auth(&older, "GET", "/file.txt", user, "pass"),
+            AuthResult::Invalid
+        );
         // malformed / non-8-digit counts are rejected
         let malformed = digest_authorization(user, "pass", &nonce, "/file.txt", "000003");
-        assert!(check_auth(&malformed, "GET", "/file.txt", user, "pass").is_none());
+        assert_eq!(
+            check_auth(&malformed, "GET", "/file.txt", user, "pass"),
+            AuthResult::Invalid
+        );
     }
 
     #[test]
@@ -1111,7 +1207,72 @@ mod tests {
         let nonce = nonce_with_offset(40);
         let alice = digest_authorization("alice", "pass", &nonce, "/file.txt", "00000001");
         let bob = digest_authorization("bob", "pass", &nonce, "/file.txt", "00000001");
-        assert!(check_auth(&alice, "GET", "/file.txt", "alice", "pass").is_some());
-        assert!(check_auth(&bob, "GET", "/file.txt", "bob", "pass").is_some());
+        assert_eq!(
+            check_auth(&alice, "GET", "/file.txt", "alice", "pass"),
+            AuthResult::Valid
+        );
+        assert_eq!(
+            check_auth(&bob, "GET", "/file.txt", "bob", "pass"),
+            AuthResult::Valid
+        );
+    }
+
+    #[test]
+    fn test_digest_expired_nonce_is_stale() {
+        let user = "stale-user";
+        let nonce = nonce_with_offset(DIGEST_AUTH_TIMEOUT + 60);
+        let auth = digest_authorization(user, "pass", &nonce, "/file.txt", "00000001");
+        assert_eq!(
+            check_auth(&auth, "GET", "/file.txt", user, "pass"),
+            AuthResult::Stale
+        );
+
+        // Only a valid digest gets the stale hint.
+        let wrong_pass = digest_authorization(user, "wrong", &nonce, "/file.txt", "00000001");
+        assert_eq!(
+            check_auth(&wrong_pass, "GET", "/file.txt", user, "pass"),
+            AuthResult::Invalid
+        );
+        let wrong_uri = digest_authorization(user, "pass", &nonce, "/other.txt", "00000001");
+        assert_eq!(
+            check_auth(&wrong_uri, "GET", "/file.txt", user, "pass"),
+            AuthResult::Invalid
+        );
+
+        // A forged nonce must never be reported as stale.
+        let mut tampered = nonce.into_bytes();
+        let last = tampered.last_mut().unwrap();
+        *last = if *last == b'0' { b'1' } else { b'0' };
+        let tampered = std::str::from_utf8(&tampered).unwrap().to_string();
+        let forged = digest_authorization(user, "pass", &tampered, "/file.txt", "00000001");
+        assert_eq!(
+            check_auth(&forged, "GET", "/file.txt", user, "pass"),
+            AuthResult::Invalid
+        );
+    }
+
+    #[test]
+    fn test_www_authenticate_stale_flag() {
+        let args = Args::default();
+
+        let mut res = Response::default();
+        www_authenticate(&mut res, &args, true).unwrap();
+        let challenges: Vec<&str> = res
+            .headers()
+            .get_all(WWW_AUTHENTICATE)
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .collect();
+        assert!(challenges.iter().any(|v| v.contains("stale=true")));
+
+        let mut res = Response::default();
+        www_authenticate(&mut res, &args, false).unwrap();
+        let challenges: Vec<&str> = res
+            .headers()
+            .get_all(WWW_AUTHENTICATE)
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .collect();
+        assert!(challenges.iter().all(|v| !v.contains("stale=true")));
     }
 }
