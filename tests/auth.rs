@@ -676,3 +676,95 @@ fn token_auth_rejects(#[with(&["-a", "user:pass@/"])] server: TestServer) -> Res
 
     Ok(())
 }
+
+/// Deleting an ancestor recursively must not remove a `:ro` child that a
+/// direct request to that child is forbidden to touch.
+#[rstest]
+fn delete_ancestor_denied_with_restricted_child(
+    #[with(&["--auth", "user:pass@/:rw,/dir1:ro", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    let resp = fetch!(b"DELETE", format!("{}dir1/test.txt", server.url()))
+        .basic_auth("user", Some("pass"))
+        .send()?;
+    assert_eq!(resp.status(), 403);
+
+    let resp = fetch!(b"DELETE", server.url())
+        .basic_auth("user", Some("pass"))
+        .send()?;
+    assert_eq!(resp.status(), 403);
+    assert!(server.path().join("dir1/test.txt").exists());
+    assert!(server.path().join("test.txt").exists());
+    Ok(())
+}
+
+#[rstest]
+fn delete_ancestor_denied_with_restricted_nested_path(
+    #[with(&["--auth", "user:pass@/:rw,/dir1/sub:ro", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    std::fs::create_dir_all(server.path().join("dir1/sub"))?;
+    std::fs::write(server.path().join("dir1/sub/keep.txt"), "keep")?;
+
+    let resp = fetch!(b"DELETE", format!("{}dir1/sub/keep.txt", server.url()))
+        .basic_auth("user", Some("pass"))
+        .send()?;
+    assert_eq!(resp.status(), 403);
+
+    let resp = fetch!(b"DELETE", format!("{}dir1", server.url()))
+        .basic_auth("user", Some("pass"))
+        .send()?;
+    assert_eq!(resp.status(), 403);
+    assert!(server.path().join("dir1/sub/keep.txt").exists());
+    Ok(())
+}
+
+#[rstest]
+fn move_ancestor_denied_with_restricted_child(
+    #[with(&["--auth", "user:pass@/:rw,/dir1:ro", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    let resp = fetch!(b"MOVE", server.url())
+        .basic_auth("user", Some("pass"))
+        .header("Destination", format!("{}moved", server.url()))
+        .send()?;
+    assert_eq!(resp.status(), 403);
+    assert!(server.path().join("dir1/test.txt").exists());
+    Ok(())
+}
+
+#[rstest]
+fn move_ancestor_denied_with_restricted_nested_path(
+    #[with(&["--auth", "user:pass@/:rw,/dir1/sub:ro", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    std::fs::create_dir_all(server.path().join("dir1/sub"))?;
+    std::fs::write(server.path().join("dir1/sub/keep.txt"), "keep")?;
+
+    let resp = fetch!(b"MOVE", format!("{}dir1", server.url()))
+        .basic_auth("user", Some("pass"))
+        .header("Destination", format!("{}moved", server.url()))
+        .send()?;
+    assert_eq!(resp.status(), 403);
+    assert!(server.path().join("dir1/sub/keep.txt").exists());
+    Ok(())
+}
+
+/// Recursive operations stay available when the subtree has no restricted
+/// descendant rule.
+#[rstest]
+fn recursive_ops_allowed_without_restricted_descendant(
+    #[with(&["--auth", "user:pass@/:rw,/dir1:ro", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    let resp = fetch!(b"DELETE", format!("{}dir2", server.url()))
+        .basic_auth("user", Some("pass"))
+        .send()?;
+    assert_eq!(resp.status(), 204);
+    assert!(!server.path().join("dir2").exists());
+
+    let resp = fetch!(b"MOVE", format!("{}dir3", server.url()))
+        .basic_auth("user", Some("pass"))
+        .header("Destination", format!("{}dir3-moved", server.url()))
+        .send()?;
+    assert_eq!(resp.status(), 204);
+    assert!(!server.path().join("dir3").exists());
+    assert!(server.path().join("dir3-moved").exists());
+    assert!(server.path().join("dir1/test.txt").exists());
+    Ok(())
+}

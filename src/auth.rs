@@ -306,8 +306,22 @@ impl AccessPaths {
         Some(())
     }
 
+    /// Guard `path` for `method` and return the resolved permission subtree.
+    ///
+    /// The result keeps the configured children of the matched node (instead of
+    /// only its permission) so recursive operations can call
+    /// [`Self::has_stricter_descendant`] to find rules the request path alone
+    /// does not reveal.
     pub async fn guard(&self, path: &str, method: &Method, root: Option<&Path>) -> Option<Self> {
-        let target = self.find(path, root).await?;
+        let target = match self.resolve(path, root).await {
+            Ok((node, _)) => node.clone(),
+            Err(perm) => {
+                if perm.indexonly() {
+                    return None;
+                }
+                AccessPaths::new(perm)
+            }
+        };
         if !is_readonly_method(method) && !target.perm().readwrite() {
             return None;
         }
@@ -369,6 +383,10 @@ impl AccessPaths {
 
     /// Resolve `path` against the permission tree.
     ///
+    /// This drops the configured children of the matched node and is used by
+    /// unit tests only; production callers use [`Self::guard`], which keeps
+    /// them so recursive operations can inspect the subtree.
+    ///
     /// `root` is the on-disk directory the relative `path` resolves against. It
     /// is used to recognize filesystem aliases of configured names: the backing
     /// filesystem may resolve several different spellings (case variants, NTFS
@@ -376,7 +394,36 @@ impl AccessPaths {
     /// a request against the canonical rule instead of falling back to the parent
     /// permission keeps a restrictive child rule enforceable. Pass `None` for
     /// pure string matching.
+    #[cfg(test)]
     pub async fn find(&self, path: &str, root: Option<&Path>) -> Option<AccessPaths> {
+        match self.resolve(path, root).await {
+            Ok((node, perm)) => {
+                if perm.indexonly() {
+                    Some(node.clone())
+                } else {
+                    Some(AccessPaths::new(perm))
+                }
+            }
+            Err(perm) => {
+                if perm.indexonly() {
+                    None
+                } else {
+                    Some(AccessPaths::new(perm))
+                }
+            }
+        }
+    }
+
+    /// Resolve `path` to its configured node and effective permission.
+    ///
+    /// `Ok((node, perm))` means every path component matched a configured rule
+    /// (or a filesystem alias of one). `Err(perm)` means a component has no
+    /// rule, so the path falls back to the inherited `perm`.
+    async fn resolve<'a>(
+        &'a self,
+        path: &str,
+        root: Option<&Path>,
+    ) -> Result<(&'a AccessPaths, AccessPerm), AccessPerm> {
         let parts: Vec<&str> = path
             .trim_matches('/')
             .split('/')
@@ -393,13 +440,7 @@ impl AccessPaths {
                 Some(child) => child,
                 None => match paths.find_alias(name, &parts[..i], root).await {
                     Some(child) => child,
-                    None => {
-                        return if perm.indexonly() {
-                            None
-                        } else {
-                            Some(AccessPaths::new(perm))
-                        }
-                    }
+                    None => return Err(perm),
                 },
             };
             paths = child;
@@ -407,11 +448,41 @@ impl AccessPaths {
         if !paths.perm.indexonly() {
             perm = paths.perm;
         }
-        if perm.indexonly() {
-            Some(paths.clone())
-        } else {
-            Some(AccessPaths::new(perm))
-        }
+        Ok((paths, perm))
+    }
+
+    /// Whether the subtree rooted at `path` contains a rule more restrictive
+    /// than `required`.
+    ///
+    /// [`Self::guard`] only resolves the permission of the request path itself,
+    /// but deleting or moving a directory affects every descendant. Without
+    /// this check an account with `:rw` on an ancestor could remove or relocate
+    /// a child that is explicitly `:ro`, because the recursive filesystem
+    /// operation never re-evaluates the child rule.
+    pub async fn has_stricter_descendant(
+        &self,
+        path: &str,
+        root: Option<&Path>,
+        required: AccessPerm,
+    ) -> bool {
+        let (node, inherited) = match self.resolve(path, root).await {
+            Ok(v) => v,
+            // No configured rule maps to this path, so there is no descendant
+            // rule that could be protected by one.
+            Err(_) => return false,
+        };
+        node.has_stricter_child(inherited, required)
+    }
+
+    fn has_stricter_child(&self, inherited: AccessPerm, required: AccessPerm) -> bool {
+        self.children.values().any(|child| {
+            let perm = if child.perm.indexonly() {
+                inherited
+            } else {
+                child.perm
+            };
+            perm < required || child.has_stricter_child(perm, required)
+        })
     }
 
     /// Find a configured child whose name the backing filesystem resolves to
@@ -986,6 +1057,52 @@ mod tests {
         assert_eq!(
             paths.find("dir2/dir23//dir231/file", None).await,
             Some(AccessPaths::new(AccessPerm::ReadWrite))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_has_stricter_descendant() {
+        let mut paths = AccessPaths::default();
+        paths.add("/", AccessPerm::ReadWrite);
+        paths.add("/dir1", AccessPerm::ReadWrite);
+        paths.add("/dir1/protected", AccessPerm::ReadOnly);
+        paths.add("/dir1/open", AccessPerm::ReadWrite);
+        paths.add("/dir2/deep/protected", AccessPerm::ReadOnly);
+
+        // A stricter rule below a writable path must be found.
+        assert!(
+            paths
+                .has_stricter_descendant("", None, AccessPerm::ReadWrite)
+                .await
+        );
+        assert!(
+            paths
+                .has_stricter_descendant("dir1", None, AccessPerm::ReadWrite)
+                .await
+        );
+        // Intermediate index-only nodes inherit the writable permission.
+        assert!(
+            paths
+                .has_stricter_descendant("dir2", None, AccessPerm::ReadWrite)
+                .await
+        );
+        // Nothing stricter below a fully writable path.
+        assert!(
+            !paths
+                .has_stricter_descendant("dir1/open", None, AccessPerm::ReadWrite)
+                .await
+        );
+        // A path without configured rules has nothing to protect.
+        assert!(
+            !paths
+                .has_stricter_descendant("unknown", None, AccessPerm::ReadWrite)
+                .await
+        );
+        // Read-only requests are not affected by read-only descendants.
+        assert!(
+            !paths
+                .has_stricter_descendant("dir1", None, AccessPerm::ReadOnly)
+                .await
         );
     }
 
