@@ -2,7 +2,7 @@ mod digest_auth_util;
 mod fixtures;
 mod utils;
 
-use digest_auth_util::send_with_digest_auth;
+use digest_auth_util::{digest_authorization, send_with_digest_auth};
 use fixtures::{server, Error, TestServer};
 use indexmap::IndexSet;
 use rstest::rstest;
@@ -35,6 +35,43 @@ fn auth(#[case] server: TestServer, #[case] user: &str, #[case] pass: &str) -> R
     assert_eq!(resp.status(), 401);
     let resp = send_with_digest_auth(fetch!(b"PUT", &url).body(b"abc".to_vec()), user, pass)?;
     assert_eq!(resp.status(), 201);
+    Ok(())
+}
+
+#[rstest]
+fn auth_digest_replay(
+    #[with(&["--auth", "user:pass@/:rw", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    let url = format!("{}file1", server.url());
+    let challenge = fetch!(b"PUT", &url).body(b"abc".to_vec()).send()?;
+    assert_eq!(challenge.status(), 401);
+    let authorization = digest_authorization(
+        fetch!(b"PUT", &url).body(b"abc".to_vec()),
+        &challenge,
+        "user",
+        "pass",
+    )?;
+
+    let resp = fetch!(b"PUT", &url)
+        .body(b"abc".to_vec())
+        .header("Authorization", &authorization)
+        .send()?;
+    assert_eq!(resp.status(), 201);
+
+    // Replaying the header on another path must not authenticate.
+    let other = format!("{}file2", server.url());
+    let resp = fetch!(b"PUT", &other)
+        .body(b"evil".to_vec())
+        .header("Authorization", &authorization)
+        .send()?;
+    assert_eq!(resp.status(), 401);
+
+    // Replaying it on the original path must be rejected as well.
+    let resp = fetch!(b"PUT", &url)
+        .body(b"abc".to_vec())
+        .header("Authorization", &authorization)
+        .send()?;
+    assert_eq!(resp.status(), 401);
     Ok(())
 }
 
