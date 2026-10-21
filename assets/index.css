@@ -236,6 +236,11 @@ svg {
   cursor: pointer;
 }
 
+.action-btn.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .uploaders-table {
   padding: 0.5em 0;
 }

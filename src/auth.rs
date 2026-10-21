@@ -422,6 +422,39 @@ impl AccessPaths {
         }
     }
 
+    /// Resolve an entry below this (guarded) path and return its effective
+    /// permission as well as whether it protects a stricter descendant rule.
+    ///
+    /// `prefix` is this node's path relative to `root`, used to recognize
+    /// filesystem aliases of configured names. Pass `None` for `root` in pure
+    /// string matching tests.
+    pub async fn entry_access(
+        &self,
+        path: &str,
+        prefix: &[&str],
+        root: Option<&Path>,
+    ) -> EntryAccess {
+        // Without configured children every entry inherits this node's
+        // permission, so the common no-auth case needs no per-entry lookup.
+        if self.children.is_empty() {
+            return EntryAccess {
+                perm: self.perm,
+                restricted: false,
+            };
+        }
+        match self.resolve_from(path, root, prefix).await {
+            Ok((node, perm)) => EntryAccess {
+                perm,
+                restricted: perm.readwrite()
+                    && node.has_stricter_child(perm, AccessPerm::ReadWrite),
+            },
+            Err(perm) => EntryAccess {
+                perm,
+                restricted: false,
+            },
+        }
+    }
+
     /// Resolve `path` to its configured node and effective permission.
     ///
     /// `Ok((node, perm))` means every path component matched a configured rule
@@ -432,6 +465,17 @@ impl AccessPaths {
         path: &str,
         root: Option<&Path>,
     ) -> Result<(&'a AccessPaths, AccessPerm), AccessPerm> {
+        self.resolve_from(path, root, &[]).await
+    }
+
+    /// Resolve `path` relative to this node with `prefix` locating it under
+    /// `root` for filesystem alias matching.
+    async fn resolve_from<'a>(
+        &'a self,
+        path: &str,
+        root: Option<&Path>,
+        prefix: &[&str],
+    ) -> Result<(&'a AccessPaths, AccessPerm), AccessPerm> {
         let parts: Vec<&str> = path
             .trim_matches('/')
             .split('/')
@@ -439,19 +483,20 @@ impl AccessPaths {
             .collect();
         let mut perm = self.perm;
         let mut paths = self;
-        for (i, name) in parts.iter().enumerate() {
-            let name = *name;
+        let mut base: Vec<&str> = prefix.to_vec();
+        for name in parts {
             if !paths.perm.indexonly() {
                 perm = paths.perm;
             }
             let child = match paths.children.get(name) {
                 Some(child) => child,
-                None => match paths.find_alias(name, &parts[..i], root).await {
+                None => match paths.find_alias(name, &base, root).await {
                     Some(child) => child,
                     None => return Err(perm),
                 },
             };
             paths = child;
+            base.push(name);
         }
         if !paths.perm.indexonly() {
             perm = paths.perm;
@@ -538,6 +583,15 @@ impl AccessPaths {
             }
         }
     }
+}
+
+/// Effective permission of an entry below a guarded path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EntryAccess {
+    pub perm: AccessPerm,
+    /// Whether the subtree rooted at the entry contains a rule stricter than
+    /// read-write. For directories this blocks recursive delete and move.
+    pub restricted: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
@@ -1091,6 +1145,67 @@ mod tests {
         // Read-only requests are not affected by read-only descendants.
         let guarded = paths.guard("dir1", &Method::GET, None).await.unwrap();
         assert!(!guarded.has_stricter_descendant(AccessPerm::ReadOnly));
+    }
+
+    #[tokio::test]
+    async fn test_entry_access() {
+        let mut paths = AccessPaths::default();
+        paths.add("/", AccessPerm::ReadWrite);
+        paths.add("/dir1", AccessPerm::ReadOnly);
+        paths.add("/dir2/protected", AccessPerm::ReadOnly);
+        paths.add("/dir3/open", AccessPerm::ReadWrite);
+        paths.add("/dir4", AccessPerm::ReadOnly);
+        paths.add("/dir4/open", AccessPerm::ReadWrite);
+
+        assert_eq!(
+            paths.entry_access("dir1", &[], None).await,
+            EntryAccess {
+                perm: AccessPerm::ReadOnly,
+                restricted: false
+            }
+        );
+        // A writable directory with a read-only descendant cannot be removed.
+        assert_eq!(
+            paths.entry_access("dir2", &[], None).await,
+            EntryAccess {
+                perm: AccessPerm::ReadWrite,
+                restricted: true
+            }
+        );
+        // Intermediate index-only nodes inherit their parent's permission.
+        assert_eq!(
+            paths.entry_access("dir3", &[], None).await,
+            EntryAccess {
+                perm: AccessPerm::ReadWrite,
+                restricted: false
+            }
+        );
+        assert_eq!(
+            paths.entry_access("unknown", &[], None).await,
+            EntryAccess {
+                perm: AccessPerm::ReadWrite,
+                restricted: false
+            }
+        );
+
+        // Direct children resolve from the guarded node, including a writable
+        // child below a read-only parent.
+        let guarded = paths.guard("dir2", &Method::GET, None).await.unwrap();
+        assert_eq!(
+            guarded.entry_access("protected", &["dir2"], None).await,
+            EntryAccess {
+                perm: AccessPerm::ReadOnly,
+                restricted: false
+            }
+        );
+        let guarded = paths.guard("dir4", &Method::GET, None).await.unwrap();
+        assert_eq!(
+            guarded.entry_access("open", &["dir4"], None).await,
+            EntryAccess {
+                perm: AccessPerm::ReadWrite,
+                restricted: false
+            }
+        );
     }
 
     #[test]

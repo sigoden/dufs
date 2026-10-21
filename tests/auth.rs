@@ -402,6 +402,162 @@ fn auth_data(
     Ok(())
 }
 
+fn path_item<'a>(json: &'a serde_json::Value, name: &str) -> &'a serde_json::Value {
+    json["paths"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["name"].as_str() == Some(name))
+        .unwrap_or_else(|| panic!("missing path item `{name}`: {json}"))
+}
+
+fn assert_item_access(
+    item: &serde_json::Value,
+    allow_upload: bool,
+    allow_delete: bool,
+    readonly_descendant: bool,
+) {
+    assert_eq!(
+        item["allow_upload"].as_bool(),
+        Some(allow_upload),
+        "unexpected allow_upload for {item}"
+    );
+    assert_eq!(
+        item["allow_delete"].as_bool(),
+        Some(allow_delete),
+        "unexpected allow_delete for {item}"
+    );
+    assert_eq!(
+        item["readonly_descendant"].as_bool(),
+        Some(readonly_descendant),
+        "unexpected readonly_descendant for {item}"
+    );
+}
+
+#[rstest]
+fn auth_pathitem_permissions(
+    #[with(&["--auth", "user:pass@/:rw,/dir1:ro,/dir2/sub:ro", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    let resp = send_with_digest_auth(
+        fetch!(b"GET", format!("{}?json", server.url())),
+        "user",
+        "pass",
+    )?;
+    assert_eq!(resp.status(), 200);
+    let json: serde_json::Value = serde_json::from_str(&resp.text()?)?;
+    // Explicitly read-only.
+    assert_item_access(path_item(&json, "dir1"), false, false, false);
+    // Writable, but a read-only descendant prevents recursive delete/move.
+    assert_item_access(path_item(&json, "dir2"), true, false, true);
+    // Fully writable.
+    assert_item_access(path_item(&json, "dir3"), true, true, false);
+    assert_item_access(path_item(&json, "test.txt"), true, true, false);
+
+    // Children of a read-only directory inherit its read-only permission.
+    let resp = send_with_digest_auth(
+        fetch!(b"GET", format!("{}dir1/?json", server.url())),
+        "user",
+        "pass",
+    )?;
+    let json: serde_json::Value = serde_json::from_str(&resp.text()?)?;
+    assert_item_access(path_item(&json, "test.txt"), false, false, false);
+
+    // Search results use their nested path to resolve the same rules.
+    let resp = send_with_digest_auth(
+        fetch!(b"GET", format!("{}?q=test.html&json", server.url())),
+        "user",
+        "pass",
+    )?;
+    let json: serde_json::Value = serde_json::from_str(&resp.text()?)?;
+    assert_item_access(path_item(&json, "dir1/test.html"), false, false, false);
+    assert_item_access(path_item(&json, "dir2/test.html"), true, true, false);
+    assert_item_access(path_item(&json, "dir3/test.html"), true, true, false);
+    Ok(())
+}
+
+#[rstest]
+fn auth_pathitem_permissions_under_readonly_parent(
+    #[with(&["--auth", "user:pass@/dir1:ro,/dir1/sub:rw", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    std::fs::create_dir_all(server.path().join("dir1/sub"))?;
+    std::fs::write(server.path().join("dir1/sub/keep.txt"), "keep")?;
+
+    let resp = send_with_digest_auth(
+        fetch!(b"GET", format!("{}dir1/?json", server.url())),
+        "user",
+        "pass",
+    )?;
+    let json: serde_json::Value = serde_json::from_str(&resp.text()?)?;
+    // The writable child rule overrides the read-only parent.
+    assert_item_access(path_item(&json, "sub"), true, true, false);
+    assert_item_access(path_item(&json, "test.txt"), false, false, false);
+
+    // The index-only root still exposes dir1, which itself is read-only.
+    let resp = send_with_digest_auth(
+        fetch!(b"GET", format!("{}?json", server.url())),
+        "user",
+        "pass",
+    )?;
+    let json: serde_json::Value = serde_json::from_str(&resp.text()?)?;
+    assert_item_access(path_item(&json, "dir1"), false, false, false);
+
+    // Nested search results resolve the writable rule below the read-only one.
+    let resp = send_with_digest_auth(
+        fetch!(b"GET", format!("{}?q=keep&json", server.url())),
+        "user",
+        "pass",
+    )?;
+    let json: serde_json::Value = serde_json::from_str(&resp.text()?)?;
+    assert_item_access(path_item(&json, "dir1/sub/keep.txt"), true, true, false);
+    Ok(())
+}
+
+#[rstest]
+fn auth_file_permissions(
+    #[with(&["--auth", "user:pass@/:rw,/dir1/test.txt:ro", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    let resp = send_with_digest_auth(
+        fetch!(b"GET", format!("{}dir1/test.txt?json", server.url())),
+        "user",
+        "pass",
+    )?;
+    assert_eq!(resp.status(), 200);
+    let json: serde_json::Value = serde_json::from_str(&resp.text()?)?;
+    assert_item_access(&json, false, false, false);
+
+    let resp = send_with_digest_auth(
+        fetch!(b"GET", format!("{}dir1/test.html?json", server.url())),
+        "user",
+        "pass",
+    )?;
+    let json: serde_json::Value = serde_json::from_str(&resp.text()?)?;
+    assert_item_access(&json, true, true, false);
+
+    let resp = send_with_digest_auth(
+        fetch!(b"GET", format!("{}dir1/test.txt?edit", server.url())),
+        "user",
+        "pass",
+    )?;
+    let json = utils::retrieve_json(&resp.text()?).unwrap();
+    assert_eq!(json["allow_upload"].as_bool(), Some(false));
+    assert_eq!(json["allow_delete"].as_bool(), Some(false));
+    Ok(())
+}
+
+#[rstest]
+fn auth_pathitem_respects_global_flags(
+    #[with(&["--auth", "user:pass@/:rw"])] server: TestServer,
+) -> Result<(), Error> {
+    let resp = send_with_digest_auth(
+        fetch!(b"GET", format!("{}dir1/?json", server.url())),
+        "user",
+        "pass",
+    )?;
+    let json: serde_json::Value = serde_json::from_str(&resp.text()?)?;
+    assert_item_access(path_item(&json, "test.txt"), false, false, false);
+    Ok(())
+}
+
 #[rstest]
 fn auth_precedence(
     #[with(&["--auth", "user:pass@/dir1:rw,/dir1/test.txt", "-A"])] server: TestServer,
