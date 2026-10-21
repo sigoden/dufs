@@ -1,6 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use crate::auth::{www_authenticate, AccessPaths, AccessPerm};
+use crate::error::DufsErrorCode;
 use crate::http_utils::{body_full, IncomingStream, LengthLimitedStream};
 use crate::noscript::{detect_noscript, generate_noscript_html};
 use crate::utils::{
@@ -152,7 +153,7 @@ impl Server {
         let relative_path = match self.resolve_path(req_path) {
             Some(v) => v,
             None => {
-                status_bad_request(&mut res, "Invalid Path");
+                DufsErrorCode::InvalidPath.respond(&mut res);
                 return Ok(res);
             }
         };
@@ -207,7 +208,7 @@ impl Server {
                 return Ok(res);
             }
             (Some(_), None) => {
-                status_forbid(&mut res);
+                DufsErrorCode::Forbidden.respond(&mut res);
                 return Ok(res);
             }
             (x, Some(y)) => (x, y),
@@ -267,7 +268,7 @@ impl Server {
         let path = match self.join_path(&relative_path) {
             Some(v) => v,
             None => {
-                status_forbid(&mut res);
+                DufsErrorCode::Forbidden.respond(&mut res);
                 return Ok(res);
             }
         };
@@ -340,7 +341,7 @@ impl Server {
                         .await?;
                     } else if has_query_flag(&query_params, "zip") {
                         if !allow_archive {
-                            status_not_found(&mut res);
+                            DufsErrorCode::ArchiveDisabled.respond(&mut res);
                             return Ok(res);
                         }
                         self.handle_zip_dir(path, head_only, access_paths, &mut res)
@@ -380,7 +381,7 @@ impl Server {
                         if self.args.allow_hash {
                             self.handle_hash_file(path, head_only, &mut res).await?;
                         } else {
-                            status_forbid(&mut res);
+                            DufsErrorCode::HashDisabled.respond(&mut res);
                         }
                     } else {
                         self.handle_send_file(path, headers, head_only, &mut res)
@@ -409,8 +410,12 @@ impl Server {
                 set_webdav_headers(&mut res);
             }
             Method::PUT => {
-                if is_dir || !allow_upload || (!allow_delete && size > 0) {
-                    status_forbid(&mut res);
+                if is_dir {
+                    DufsErrorCode::IsADirectory.respond(&mut res);
+                } else if !allow_upload {
+                    DufsErrorCode::UploadDisabled.respond(&mut res);
+                } else if !allow_delete && size > 0 {
+                    DufsErrorCode::DeleteDisabled.respond(&mut res);
                 } else {
                     self.handle_upload(path, None, size, req, &mut res).await?;
                 }
@@ -419,40 +424,37 @@ impl Server {
                 if is_miss {
                     status_not_found(&mut res);
                 } else if !allow_upload {
-                    status_forbid(&mut res);
+                    DufsErrorCode::UploadDisabled.respond(&mut res);
                 } else {
                     let offset = match parse_upload_offset(headers, size) {
                         Ok(v) => v,
                         Err(err) => {
-                            status_bad_request(&mut res, &err.to_string());
+                            DufsErrorCode::InvalidUploadOffset
+                                .respond_with(&mut res, &err.to_string());
                             return Ok(res);
                         }
                     };
                     match offset {
                         Some(offset) => {
                             if offset < size && !allow_delete {
-                                status_forbid(&mut res);
+                                DufsErrorCode::DeleteDisabled.respond(&mut res);
                                 return Ok(res);
                             }
                             self.handle_upload(path, Some(offset), size, req, &mut res)
                                 .await?;
                         }
                         None => {
-                            *res.status_mut() = StatusCode::METHOD_NOT_ALLOWED;
+                            DufsErrorCode::MissingUploadOffset.respond(&mut res);
                         }
                     }
                 }
             }
             Method::DELETE => {
                 if !allow_delete {
-                    status_forbid(&mut res);
+                    DufsErrorCode::DeleteDisabled.respond(&mut res);
                 } else if !is_miss {
-                    if is_dir
-                        && self
-                            .has_restricted_descendant(&access_paths, &relative_path)
-                            .await
-                    {
-                        status_forbid(&mut res);
+                    if is_dir && Self::has_restricted_descendant(&access_paths) {
+                        DufsErrorCode::ReadonlyDescendant.respond(&mut res);
                     } else {
                         self.handle_delete(path, is_dir, &mut res).await?
                     }
@@ -487,17 +489,16 @@ impl Server {
                 }
                 "MKCOL" => {
                     if !allow_upload {
-                        status_forbid(&mut res);
+                        DufsErrorCode::UploadDisabled.respond(&mut res);
                     } else if !is_miss {
-                        *res.status_mut() = StatusCode::METHOD_NOT_ALLOWED;
-                        *res.body_mut() = body_full("Already exists");
+                        DufsErrorCode::AlreadyExists.respond(&mut res);
                     } else {
                         self.handle_mkcol(path, &mut res).await?;
                     }
                 }
                 "COPY" => {
                     if !allow_upload {
-                        status_forbid(&mut res);
+                        DufsErrorCode::UploadDisabled.respond(&mut res);
                     } else if is_miss {
                         status_not_found(&mut res);
                     } else {
@@ -505,16 +506,14 @@ impl Server {
                     }
                 }
                 "MOVE" => {
-                    if !allow_upload || !allow_delete {
-                        status_forbid(&mut res);
+                    if !allow_upload {
+                        DufsErrorCode::UploadDisabled.respond(&mut res);
+                    } else if !allow_delete {
+                        DufsErrorCode::DeleteDisabled.respond(&mut res);
                     } else if is_miss {
                         status_not_found(&mut res);
-                    } else if is_dir
-                        && self
-                            .has_restricted_descendant(&access_paths, &relative_path)
-                            .await
-                    {
-                        status_forbid(&mut res);
+                    } else if is_dir && Self::has_restricted_descendant(&access_paths) {
+                        DufsErrorCode::ReadonlyDescendant.respond(&mut res);
                     } else {
                         self.handle_move(path, &req, &mut res).await?
                     }
@@ -535,7 +534,7 @@ impl Server {
                     }
                 }
                 _ => {
-                    *res.status_mut() = StatusCode::METHOD_NOT_ALLOWED;
+                    DufsErrorCode::MethodNotAllowed.respond(&mut res);
                 }
             },
         }
@@ -587,24 +586,14 @@ impl Server {
         Ok(())
     }
 
-    /// Whether `relative_path` contains a descendant rule stricter than the
-    /// write permission the account already holds for `relative_path`.
+    /// Whether a recursive write on the guarded path would also affect a path
+    /// with a stricter rule.
     ///
     /// Recursive operations must be rejected then: `remove_dir_all` and
     /// `rename` act on the whole subtree, so they would remove or relocate a
     /// child that a direct request to that child is not allowed to touch.
-    async fn has_restricted_descendant(
-        &self,
-        access_paths: &AccessPaths,
-        relative_path: &str,
-    ) -> bool {
-        access_paths
-            .has_stricter_descendant(
-                relative_path,
-                Some(&self.args.serve_path),
-                AccessPerm::ReadWrite,
-            )
-            .await
+    fn has_restricted_descendant(access_paths: &AccessPaths) -> bool {
+        access_paths.has_stricter_descendant(AccessPerm::ReadWrite)
     }
 
     async fn handle_delete(&self, path: &Path, is_dir: bool, res: &mut Response) -> Result<()> {
@@ -632,7 +621,7 @@ impl Server {
             paths = match self.list_dir(path, path, access_paths.clone()).await {
                 Ok(paths) => paths,
                 Err(_) => {
-                    status_forbid(res);
+                    DufsErrorCode::InternalError.respond(res);
                     return Ok(());
                 }
             }
@@ -973,13 +962,13 @@ impl Server {
         if let Some((etag, last_modified)) = extract_cache_headers(&meta) {
             if let Some(if_unmodified_since) = headers.typed_get::<IfUnmodifiedSince>() {
                 if !if_unmodified_since.precondition_passes(last_modified.into()) {
-                    *res.status_mut() = StatusCode::PRECONDITION_FAILED;
+                    DufsErrorCode::PreconditionFailed.respond(res);
                     return Ok(());
                 }
             }
             if let Some(if_match) = headers.typed_get::<IfMatch>() {
                 if !if_match.precondition_passes(&etag) {
-                    *res.status_mut() = StatusCode::PRECONDITION_FAILED;
+                    DufsErrorCode::PreconditionFailed.respond(res);
                     return Ok(());
                 }
             }
@@ -1237,7 +1226,7 @@ impl Server {
                 Some(0) => 0,
                 Some(1) => 1,
                 _ => {
-                    status_bad_request(res, "Invalid depth: only 0 and 1 are allowed.");
+                    DufsErrorCode::InvalidDepth.respond(res);
                     return Ok(());
                 }
             },
@@ -1254,7 +1243,7 @@ impl Server {
             {
                 Ok(child) => paths.extend(child),
                 Err(_) => {
-                    status_forbid(res);
+                    DufsErrorCode::InternalError.respond(res);
                     return Ok(());
                 }
             }
@@ -1295,12 +1284,12 @@ impl Server {
 
         let meta = fs::symlink_metadata(path).await?;
         if meta.is_dir() {
-            status_forbid(res);
+            DufsErrorCode::IsADirectory.respond(res);
             return Ok(());
         }
 
         if self.guard_root_contained(&dest).await {
-            status_bad_request(res, "Invalid Destination");
+            DufsErrorCode::InvalidDestination.respond(res);
             return Ok(());
         }
 
@@ -1313,11 +1302,11 @@ impl Server {
             .unwrap_or(true);
         if fs::symlink_metadata(&dest).await.is_ok() {
             if !overwrite {
-                *res.status_mut() = StatusCode::PRECONDITION_FAILED;
+                DufsErrorCode::DestinationExists.respond(res);
                 return Ok(());
             }
             if !self.args.allow_delete {
-                status_forbid(res);
+                DufsErrorCode::DeleteDisabled.respond(res);
                 return Ok(());
             }
         }
@@ -1337,7 +1326,7 @@ impl Server {
         };
 
         if self.guard_root_contained(&dest).await {
-            status_bad_request(res, "Invalid Destination");
+            DufsErrorCode::InvalidDestination.respond(res);
             return Ok(());
         }
 
@@ -1530,7 +1519,7 @@ impl Server {
         {
             Some(dest) => dest,
             None => {
-                status_bad_request(res, "Invalid Destination");
+                DufsErrorCode::InvalidDestination.respond(res);
                 return None;
             }
         };
@@ -1554,7 +1543,7 @@ impl Server {
         match guard {
             (_, Some(_), _, _) => {}
             _ => {
-                status_forbid(res);
+                DufsErrorCode::Forbidden.respond(res);
                 return None;
             }
         };
@@ -1562,7 +1551,7 @@ impl Server {
         let dest = match self.join_path(&dest_path) {
             Some(dest) => dest,
             None => {
-                *res.status_mut() = StatusCode::BAD_REQUEST;
+                DufsErrorCode::InvalidDestination.respond(res);
                 return None;
             }
         };
@@ -1893,7 +1882,7 @@ fn add_cors(res: &mut Response) {
     );
     res.headers_mut().insert(
         "Access-Control-Expose-Headers",
-        HeaderValue::from_static("Authorization,*"),
+        HeaderValue::from_static("Authorization,X-Dufs-Error-Code,*"),
     );
 }
 
@@ -1977,11 +1966,6 @@ fn extract_cache_headers(meta: &Metadata) -> Option<(ETag, LastModified)> {
     Some((etag, last_modified))
 }
 
-fn status_forbid(res: &mut Response) {
-    *res.status_mut() = StatusCode::FORBIDDEN;
-    *res.body_mut() = body_full("Forbidden");
-}
-
 fn status_not_found(res: &mut Response) {
     *res.status_mut() = StatusCode::NOT_FOUND;
     *res.body_mut() = body_full("Not Found");
@@ -1989,13 +1973,6 @@ fn status_not_found(res: &mut Response) {
 
 fn status_no_content(res: &mut Response) {
     *res.status_mut() = StatusCode::NO_CONTENT;
-}
-
-fn status_bad_request(res: &mut Response, body: &str) {
-    *res.status_mut() = StatusCode::BAD_REQUEST;
-    if !body.is_empty() {
-        *res.body_mut() = body_full(body.to_string());
-    }
 }
 
 fn set_content_disposition(res: &mut Response, inline: bool, filename: &str) -> Result<()> {

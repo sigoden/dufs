@@ -314,7 +314,15 @@ impl AccessPaths {
     /// does not reveal.
     pub async fn guard(&self, path: &str, method: &Method, root: Option<&Path>) -> Option<Self> {
         let target = match self.resolve(path, root).await {
-            Ok((node, _)) => node.clone(),
+            Ok((node, perm)) => {
+                let mut target = node.clone();
+                // An index-only node has no permission of its own; its
+                // effective permission is the one inherited from its parent.
+                if !perm.indexonly() {
+                    target.perm = perm;
+                }
+                target
+            }
             Err(perm) => {
                 if perm.indexonly() {
                     return None;
@@ -451,27 +459,16 @@ impl AccessPaths {
         Ok((paths, perm))
     }
 
-    /// Whether the subtree rooted at `path` contains a rule more restrictive
-    /// than `required`.
+    /// Whether the subtree rooted at this (guarded) path contains a rule more
+    /// restrictive than `required`.
     ///
     /// [`Self::guard`] only resolves the permission of the request path itself,
     /// but deleting or moving a directory affects every descendant. Without
     /// this check an account with `:rw` on an ancestor could remove or relocate
     /// a child that is explicitly `:ro`, because the recursive filesystem
     /// operation never re-evaluates the child rule.
-    pub async fn has_stricter_descendant(
-        &self,
-        path: &str,
-        root: Option<&Path>,
-        required: AccessPerm,
-    ) -> bool {
-        let (node, inherited) = match self.resolve(path, root).await {
-            Ok(v) => v,
-            // No configured rule maps to this path, so there is no descendant
-            // rule that could be protected by one.
-            Err(_) => return false,
-        };
-        node.has_stricter_child(inherited, required)
+    pub fn has_stricter_descendant(&self, required: AccessPerm) -> bool {
+        self.has_stricter_child(self.perm, required)
     }
 
     fn has_stricter_child(&self, inherited: AccessPerm, required: AccessPerm) -> bool {
@@ -1069,41 +1066,31 @@ mod tests {
         paths.add("/dir1/open", AccessPerm::ReadWrite);
         paths.add("/dir2/deep/protected", AccessPerm::ReadOnly);
 
+        let guarded = paths.guard("", &Method::DELETE, None).await.unwrap();
         // A stricter rule below a writable path must be found.
-        assert!(
-            paths
-                .has_stricter_descendant("", None, AccessPerm::ReadWrite)
-                .await
-        );
-        assert!(
-            paths
-                .has_stricter_descendant("dir1", None, AccessPerm::ReadWrite)
-                .await
-        );
+        assert!(guarded.has_stricter_descendant(AccessPerm::ReadWrite));
+
+        let guarded = paths.guard("dir1", &Method::DELETE, None).await.unwrap();
+        assert!(guarded.has_stricter_descendant(AccessPerm::ReadWrite));
+
         // Intermediate index-only nodes inherit the writable permission.
-        assert!(
-            paths
-                .has_stricter_descendant("dir2", None, AccessPerm::ReadWrite)
-                .await
-        );
+        let guarded = paths.guard("dir2", &Method::DELETE, None).await.unwrap();
+        assert!(guarded.has_stricter_descendant(AccessPerm::ReadWrite));
+
         // Nothing stricter below a fully writable path.
-        assert!(
-            !paths
-                .has_stricter_descendant("dir1/open", None, AccessPerm::ReadWrite)
-                .await
-        );
+        let guarded = paths
+            .guard("dir1/open", &Method::DELETE, None)
+            .await
+            .unwrap();
+        assert!(!guarded.has_stricter_descendant(AccessPerm::ReadWrite));
+
         // A path without configured rules has nothing to protect.
-        assert!(
-            !paths
-                .has_stricter_descendant("unknown", None, AccessPerm::ReadWrite)
-                .await
-        );
+        let guarded = paths.guard("unknown", &Method::DELETE, None).await.unwrap();
+        assert!(!guarded.has_stricter_descendant(AccessPerm::ReadWrite));
+
         // Read-only requests are not affected by read-only descendants.
-        assert!(
-            !paths
-                .has_stricter_descendant("dir1", None, AccessPerm::ReadOnly)
-                .await
-        );
+        let guarded = paths.guard("dir1", &Method::GET, None).await.unwrap();
+        assert!(!guarded.has_stricter_descendant(AccessPerm::ReadOnly));
     }
 
     #[test]
