@@ -187,6 +187,12 @@ where
     TestServer::new(port, tmpdir, child, is_tls)
 }
 
+/// Whether the host can actually use IPv6.
+#[allow(dead_code)]
+pub fn is_ipv6_available() -> bool {
+    std::net::TcpListener::bind("[::]:0").is_ok() && std::net::TcpListener::bind("[::1]:0").is_ok()
+}
+
 /// Wait a max of 2s for the server on `port` to become reachable.
 pub fn wait_for_port(port: &Port) {
     let start_wait = Instant::now();
