@@ -42,21 +42,32 @@ fn bind_fails_when_port_in_use(server: TestServer, tmpdir: TempDir) -> Result<()
 }
 
 #[rstest]
-#[case(server(&[] as &[&str]), true, true)]
-#[case(server(&["-b", "0.0.0.0"]), true, false)]
-#[case(server(&["-b", "127.0.0.1", "-b", "::1"]), true, true)]
+#[case(&[] as &[&str], true, true)]
+#[case(&["-b", "0.0.0.0"], true, false)]
+#[case(&["-b", "127.0.0.1", "-b", "::1"], true, true)]
 fn bind_ipv4_ipv6(
-    #[case] server: TestServer,
+    #[case] args: &[&str],
     #[case] bind_ipv4: bool,
     #[case] bind_ipv6: bool,
 ) -> Result<(), Error> {
+    let ipv6_available = fixtures::is_ipv6_available();
+    let explicit_ipv6 = args
+        .iter()
+        .filter_map(|arg| arg.parse::<std::net::IpAddr>().ok())
+        .any(|ip| ip.is_ipv6());
+    if explicit_ipv6 && !ipv6_available {
+        // An explicitly requested IPv6 address cannot be bound on this host.
+        return Ok(());
+    }
+
+    let server = server(args);
     assert_eq!(
         reqwest::blocking::get(format!("http://127.0.0.1:{}", server.port()).as_str()).is_ok(),
         bind_ipv4
     );
     assert_eq!(
         reqwest::blocking::get(format!("http://[::1]:{}", server.port()).as_str()).is_ok(),
-        bind_ipv6
+        bind_ipv6 && ipv6_available
     );
 
     Ok(())
