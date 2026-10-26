@@ -37,6 +37,16 @@ fn invalid_depth(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn infinite_depth(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let resp = fetch!(b"PROPFIND", format!("{}dir1/", server.url()))
+        .header("Depth", "infinity")
+        .send()?;
+    assert_eq!(resp.status(), 403);
+    assert_eq!(error_code(&resp), Some("propfind-finite-depth"));
+    Ok(())
+}
+
+#[rstest]
 fn invalid_upload_offset(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let url = format!("{}test.txt", server.url());
     let resp = fetch!(b"PATCH", &url)

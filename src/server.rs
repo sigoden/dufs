@@ -1253,6 +1253,16 @@ impl Server {
         res: &mut Response,
     ) -> Result<()> {
         let depth: u32 = match headers.get("depth") {
+            // RFC 4918 9.1: refusing infinite depth with DAV:propfind-finite-depth
+            // lets clients fall back to walking the tree with Depth: 1.
+            Some(v) if v.as_bytes().eq_ignore_ascii_case(b"infinity") => {
+                DufsErrorCode::InfiniteDepth.respond(res);
+                res.headers_mut().insert(
+                    "content-type",
+                    HeaderValue::from_static("application/xml; charset=utf-8"),
+                );
+                return Ok(());
+            }
             Some(v) => match v.to_str().ok().and_then(|v| v.parse().ok()) {
                 Some(0) => 0,
                 Some(1) => 1,

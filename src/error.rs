@@ -22,6 +22,7 @@ pub enum DufsErrorCode {
     InvalidDestination,
     // 403
     Forbidden,
+    InfiniteDepth,
     ReadonlyDescendant,
     UploadDisabled,
     DeleteDisabled,
@@ -49,6 +50,7 @@ impl DufsErrorCode {
             InvalidDepth => "invalid-depth",
             InvalidDestination => "invalid-destination",
             Forbidden => "forbidden",
+            InfiniteDepth => "propfind-finite-depth",
             ReadonlyDescendant => "readonly-descendant",
             UploadDisabled => "upload-disabled",
             DeleteDisabled => "delete-disabled",
@@ -70,8 +72,8 @@ impl DufsErrorCode {
             InvalidPath | InvalidUploadOffset | InvalidDepth | InvalidDestination => {
                 StatusCode::BAD_REQUEST
             }
-            Forbidden | ReadonlyDescendant | UploadDisabled | DeleteDisabled | HashDisabled
-            | IsADirectory | InternalError => StatusCode::FORBIDDEN,
+            Forbidden | InfiniteDepth | ReadonlyDescendant | UploadDisabled | DeleteDisabled
+            | HashDisabled | IsADirectory | InternalError => StatusCode::FORBIDDEN,
             ArchiveDisabled => StatusCode::NOT_FOUND,
             MissingUploadOffset | AlreadyExists | MethodNotAllowed => {
                 StatusCode::METHOD_NOT_ALLOWED
@@ -89,6 +91,8 @@ impl DufsErrorCode {
             InvalidDepth => "Invalid depth: only 0 and 1 are allowed.",
             InvalidDestination => "Invalid Destination",
             Forbidden => "Forbidden",
+            InfiniteDepth => r#"<?xml version="1.0" encoding="utf-8" ?>
+<D:error xmlns:D="DAV:"><D:propfind-finite-depth/></D:error>"#,
             ReadonlyDescendant => "Forbidden: the target directory contains read-only entries",
             UploadDisabled => "Forbidden: upload is disabled",
             DeleteDisabled => "Forbidden: delete is disabled",
@@ -126,12 +130,13 @@ mod tests {
     #[test]
     fn codes_are_unique() {
         use DufsErrorCode::*;
-        const ALL: [DufsErrorCode; 17] = [
+        const ALL: [DufsErrorCode; 18] = [
             InvalidPath,
             InvalidUploadOffset,
             InvalidDepth,
             InvalidDestination,
             Forbidden,
+            InfiniteDepth,
             ReadonlyDescendant,
             UploadDisabled,
             DeleteDisabled,

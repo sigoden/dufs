@@ -52,6 +52,17 @@ fn propfind_dir_depth2(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn propfind_dir_depth_infinity(server: TestServer) -> Result<(), Error> {
+    let resp = fetch!(b"PROPFIND", format!("{}dir1", server.url()))
+        .header("depth", "infinity")
+        .send()?;
+    assert_eq!(resp.status(), 403);
+    let body = resp.text()?;
+    assert!(body.contains("<D:propfind-finite-depth/>"));
+    Ok(())
+}
+
+#[rstest]
 fn propfind_404(server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"PROPFIND", format!("{}404", server.url())).send()?;
     assert_eq!(resp.status(), 404);
