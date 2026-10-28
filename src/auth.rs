@@ -217,6 +217,34 @@ impl AccessControl {
         (None, None, false, false)
     }
 
+    /// Whether `user` may read `path` according to the complete rule tree.
+    ///
+    /// Unlike [`Self::guard`], the check is not scoped to the request path. It
+    /// is used for files that are served implicitly, such as the index file
+    /// rendered for a directory request or used as the SPA fallback. A share
+    /// token's path scope is intentionally not re-applied here: the token
+    /// scopes the requested route, while the index file is part of that
+    /// route's response.
+    pub async fn can_read(&self, user: Option<&str>, path: &str, root: &Path) -> bool {
+        if self.empty {
+            return true;
+        }
+        let access_paths = match user {
+            Some(user) => match self.users.get(user) {
+                Some((_, access_paths)) => access_paths,
+                None => return false,
+            },
+            None => match self.anonymous.as_ref() {
+                Some(access_paths) => access_paths,
+                None => return false,
+            },
+        };
+        access_paths
+            .guard(path, &Method::GET, Some(root))
+            .await
+            .is_some_and(|access_paths| !access_paths.perm().indexonly())
+    }
+
     pub fn generate_token(&self, path: &str, user: &str) -> Result<String> {
         let (pass, _) = self
             .users
