@@ -91,8 +91,10 @@ impl DufsErrorCode {
             InvalidDepth => "Invalid depth: only 0 and 1 are allowed.",
             InvalidDestination => "Invalid Destination",
             Forbidden => "Forbidden",
-            InfiniteDepth => r#"<?xml version="1.0" encoding="utf-8" ?>
-<D:error xmlns:D="DAV:"><D:propfind-finite-depth/></D:error>"#,
+            InfiniteDepth => {
+                r#"<?xml version="1.0" encoding="utf-8" ?>
+<D:error xmlns:D="DAV:"><D:propfind-finite-depth/></D:error>"#
+            }
             ReadonlyDescendant => "Forbidden: the target directory contains read-only entries",
             UploadDisabled => "Forbidden: upload is disabled",
             DeleteDisabled => "Forbidden: delete is disabled",
