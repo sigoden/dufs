@@ -13,6 +13,10 @@ pub const ERROR_CODE_HEADER: &str = "x-dufs-error-code";
 /// an account without write permission and a `--allow-upload` disabled
 /// server both return 403). Clients can tell them apart through
 /// [`ERROR_CODE_HEADER`].
+///
+/// Error codes are intended for the dufs web UI and HTTP API clients. They are
+/// **not applicable to WebDAV responses**, which report errors through DAV XML
+/// error bodies as defined by RFC 4918.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DufsErrorCode {
     // 400

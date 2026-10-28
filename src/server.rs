@@ -1253,6 +1253,20 @@ impl Server {
         res: &mut Response,
     ) -> Result<()> {
         let depth: u32 = match headers.get("depth") {
+            // RFC 4918 9.1: refusing infinite depth with DAV:propfind-finite-depth
+            // lets clients fall back to walking the tree with Depth: 1.
+            Some(v) if v.as_bytes().eq_ignore_ascii_case(b"infinity") => {
+                *res.status_mut() = StatusCode::FORBIDDEN;
+                res.headers_mut().insert(
+                    "content-type",
+                    HeaderValue::from_static("application/xml; charset=utf-8"),
+                );
+                *res.body_mut() = body_full(
+                    r#"<?xml version="1.0" encoding="utf-8" ?>
+<D:error xmlns:D="DAV:"><D:propfind-finite-depth/></D:error>"#,
+                );
+                return Ok(());
+            }
             Some(v) => match v.to_str().ok().and_then(|v| v.parse().ok()) {
                 Some(0) => 0,
                 Some(1) => 1,
