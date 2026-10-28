@@ -13,6 +13,10 @@ pub const ERROR_CODE_HEADER: &str = "x-dufs-error-code";
 /// an account without write permission and a `--allow-upload` disabled
 /// server both return 403). Clients can tell them apart through
 /// [`ERROR_CODE_HEADER`].
+///
+/// Error codes are intended for the dufs web UI and HTTP API clients. They are
+/// **not applicable to WebDAV responses**, which report errors through DAV XML
+/// error bodies as defined by RFC 4918.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DufsErrorCode {
     // 400
@@ -22,7 +26,6 @@ pub enum DufsErrorCode {
     InvalidDestination,
     // 403
     Forbidden,
-    InfiniteDepth,
     ReadonlyDescendant,
     UploadDisabled,
     DeleteDisabled,
@@ -50,7 +53,6 @@ impl DufsErrorCode {
             InvalidDepth => "invalid-depth",
             InvalidDestination => "invalid-destination",
             Forbidden => "forbidden",
-            InfiniteDepth => "propfind-finite-depth",
             ReadonlyDescendant => "readonly-descendant",
             UploadDisabled => "upload-disabled",
             DeleteDisabled => "delete-disabled",
@@ -72,8 +74,8 @@ impl DufsErrorCode {
             InvalidPath | InvalidUploadOffset | InvalidDepth | InvalidDestination => {
                 StatusCode::BAD_REQUEST
             }
-            Forbidden | InfiniteDepth | ReadonlyDescendant | UploadDisabled | DeleteDisabled
-            | HashDisabled | IsADirectory | InternalError => StatusCode::FORBIDDEN,
+            Forbidden | ReadonlyDescendant | UploadDisabled | DeleteDisabled | HashDisabled
+            | IsADirectory | InternalError => StatusCode::FORBIDDEN,
             ArchiveDisabled => StatusCode::NOT_FOUND,
             MissingUploadOffset | AlreadyExists | MethodNotAllowed => {
                 StatusCode::METHOD_NOT_ALLOWED
@@ -91,10 +93,6 @@ impl DufsErrorCode {
             InvalidDepth => "Invalid depth: only 0 and 1 are allowed.",
             InvalidDestination => "Invalid Destination",
             Forbidden => "Forbidden",
-            InfiniteDepth => {
-                r#"<?xml version="1.0" encoding="utf-8" ?>
-<D:error xmlns:D="DAV:"><D:propfind-finite-depth/></D:error>"#
-            }
             ReadonlyDescendant => "Forbidden: the target directory contains read-only entries",
             UploadDisabled => "Forbidden: upload is disabled",
             DeleteDisabled => "Forbidden: delete is disabled",
@@ -132,13 +130,12 @@ mod tests {
     #[test]
     fn codes_are_unique() {
         use DufsErrorCode::*;
-        const ALL: [DufsErrorCode; 18] = [
+        const ALL: [DufsErrorCode; 17] = [
             InvalidPath,
             InvalidUploadOffset,
             InvalidDepth,
             InvalidDestination,
             Forbidden,
-            InfiniteDepth,
             ReadonlyDescendant,
             UploadDisabled,
             DeleteDisabled,

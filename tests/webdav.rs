@@ -57,6 +57,12 @@ fn propfind_dir_depth_infinity(server: TestServer) -> Result<(), Error> {
         .header("depth", "infinity")
         .send()?;
     assert_eq!(resp.status(), 403);
+    assert_eq!(
+        resp.headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok()),
+        Some("application/xml; charset=utf-8")
+    );
     let body = resp.text()?;
     assert!(body.contains("<D:propfind-finite-depth/>"));
     Ok(())
