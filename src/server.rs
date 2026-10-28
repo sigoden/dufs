@@ -403,7 +403,7 @@ impl Server {
                             .await?;
                     }
                 } else if render_spa {
-                    self.handle_render_spa(path, &query_params, headers, head_only, &mut res)
+                    self.handle_render_spa(path, &query_params, headers, head_only, user, &mut res)
                         .await?;
                 } else if allow_upload && req_path.ends_with('/') {
                     self.handle_ls_dir(
@@ -772,12 +772,21 @@ impl Server {
         res: &mut Response,
     ) -> Result<()> {
         let index_path = path.join(INDEX_NAME);
-        if fs::metadata(&index_path)
+        let index_readable = if fs::metadata(&index_path)
             .await
             .ok()
             .map(|v| v.is_file())
             .unwrap_or_default()
         {
+            let prefix = self.relative_parts(path);
+            let access = access_paths
+                .entry_access(INDEX_NAME, &prefix, Some(&self.args.serve_path))
+                .await;
+            !access.perm.indexonly() && !self.guard_root_contained(&index_path).await
+        } else {
+            false
+        };
+        if index_readable {
             self.handle_send_file(&index_path, headers, head_only, res)
                 .await?;
         } else if self.args.render_try_index {
@@ -828,15 +837,24 @@ impl Server {
         query_params: &HashMap<String, String>,
         headers: &HeaderMap<HeaderValue>,
         head_only: bool,
+        user: Option<String>,
         res: &mut Response,
     ) -> Result<()> {
         if path.extension().is_none() {
-            let path = self.args.serve_path.join(INDEX_NAME);
-            self.handle_send_file(&path, headers, head_only, res)
-                .await?;
-        } else {
-            self.handle_not_found(query_params, head_only, res).await?;
+            let index_path = self.args.serve_path.join(INDEX_NAME);
+            if self
+                .args
+                .auth
+                .can_read(user.as_deref(), INDEX_NAME, &self.args.serve_path)
+                .await
+                && !self.guard_root_contained(&index_path).await
+            {
+                self.handle_send_file(&index_path, headers, head_only, res)
+                    .await?;
+                return Ok(());
+            }
         }
+        self.handle_not_found(query_params, head_only, res).await?;
         Ok(())
     }
 
