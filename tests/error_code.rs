@@ -136,6 +136,17 @@ fn copy_destination_exists(#[with(&["-A"])] server: TestServer) -> Result<(), Er
 }
 
 #[rstest]
+fn move_destination_exists(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let resp = fetch!(b"MOVE", format!("{}test.txt", server.url()))
+        .header("Destination", format!("{}index.html", server.url()))
+        .header("Overwrite", "F")
+        .send()?;
+    assert_eq!(resp.status(), 412);
+    assert_eq!(error_code(&resp), Some("destination-exists"));
+    Ok(())
+}
+
+#[rstest]
 fn archive_disabled(server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"GET", format!("{}?zip", server.url())).send()?;
     assert_eq!(resp.status(), 404);

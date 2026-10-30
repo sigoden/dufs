@@ -1356,8 +1356,6 @@ impl Server {
             return Ok(());
         }
 
-        ensure_path_parent(&dest).await?;
-
         let overwrite = req
             .headers()
             .get("overwrite")
@@ -1373,6 +1371,8 @@ impl Server {
                 return Ok(());
             }
         }
+
+        ensure_path_parent(&dest).await?;
 
         fs::copy(path, &dest).await?;
 
@@ -1390,6 +1390,16 @@ impl Server {
 
         if self.guard_root_contained(&dest).await {
             DufsErrorCode::InvalidDestination.respond(res);
+            return Ok(());
+        }
+
+        let overwrite = req
+            .headers()
+            .get("overwrite")
+            .map(|v| v.as_bytes() != b"F")
+            .unwrap_or(true);
+        if fs::symlink_metadata(&dest).await.is_ok() && !overwrite {
+            DufsErrorCode::DestinationExists.respond(res);
             return Ok(());
         }
 

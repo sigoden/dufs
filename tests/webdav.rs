@@ -234,6 +234,40 @@ fn move_not_allow_delete(#[with(&["--allow-upload"])] server: TestServer) -> Res
 }
 
 #[rstest]
+fn move_overwrite_false(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let dest_url = format!("{}index.html", server.url());
+    let resp = fetch!(b"MOVE", format!("{}test.txt", server.url()))
+        .header("Destination", &dest_url)
+        .header("Overwrite", "F")
+        .send()?;
+    assert_eq!(resp.status(), 412);
+    let resp = reqwest::blocking::get(&dest_url)?;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.text()?, "This is index.html");
+    let resp = reqwest::blocking::get(format!("{}test.txt", server.url()))?;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.text()?, "This is test.txt");
+    Ok(())
+}
+
+#[rstest]
+fn move_overwrite_false_missing_destination(
+    #[with(&["-A"])] server: TestServer,
+) -> Result<(), Error> {
+    let new_url = format!("{}test2.html", server.url());
+    let resp = fetch!(b"MOVE", format!("{}test.html", server.url()))
+        .header("Destination", &new_url)
+        .header("Overwrite", "F")
+        .send()?;
+    assert_eq!(resp.status(), 204);
+    let resp = reqwest::blocking::get(new_url)?;
+    assert_eq!(resp.status(), 200);
+    let resp = reqwest::blocking::get(format!("{}test.html", server.url()))?;
+    assert_eq!(resp.status(), 404);
+    Ok(())
+}
+
+#[rstest]
 fn move_file_404(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let new_url = format!("{}test2.html", server.url());
     let resp = fetch!(b"MOVE", format!("{}404", server.url()))
