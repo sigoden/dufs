@@ -1,0 +1,14 @@
+services:
+  dufs:
+    image: sigoden/dufs
+    container_name: Dufs
+    restart: unless-stopped
+    ports:
+      - 5000:5000
+    volumes:
+      - ./data:/data
+    command: |
+      /data -A
+      -a ${USERNAME}:${PASSWORD}@/:rw
+    security_opt:
+      - no-new-privileges:true
