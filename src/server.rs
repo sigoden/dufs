@@ -1853,6 +1853,7 @@ impl PathItem {
             href.push('/');
         }
         let displayname = escape_str_pcdata(self.base_name());
+        let etag = format!(r#""{}-{}""#, self.mtime, self.size);
         match self.path_type {
             PathType::Dir | PathType::SymlinkDir => format!(
                 r#"<D:response>
@@ -1860,6 +1861,7 @@ impl PathItem {
 <D:propstat>
 <D:prop>
 <D:displayname>{displayname}</D:displayname>
+<D:getetag>{etag}</D:getetag>
 <D:getlastmodified>{mtime}</D:getlastmodified>
 <D:resourcetype><D:collection/></D:resourcetype>
 </D:prop>
@@ -1873,6 +1875,7 @@ impl PathItem {
 <D:propstat>
 <D:prop>
 <D:displayname>{displayname}</D:displayname>
+<D:getetag>{etag}</D:getetag>
 <D:getcontentlength>{}</D:getcontentlength>
 <D:getlastmodified>{mtime}</D:getlastmodified>
 <D:resourcetype></D:resourcetype>
