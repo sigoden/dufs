@@ -1861,7 +1861,6 @@ impl PathItem {
 <D:propstat>
 <D:prop>
 <D:displayname>{displayname}</D:displayname>
-<D:getetag>{etag}</D:getetag>
 <D:getlastmodified>{mtime}</D:getlastmodified>
 <D:resourcetype><D:collection/></D:resourcetype>
 </D:prop>
