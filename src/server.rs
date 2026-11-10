@@ -275,7 +275,8 @@ impl Server {
 
         let path = path.as_path();
 
-        let (is_miss, is_dir, is_file, size) = match fs::metadata(path).await.ok() {
+        let meta = fs::metadata(path).await.ok();
+        let (is_miss, is_dir, is_file, size) = match &meta {
             Some(meta) => (false, meta.is_dir(), meta.is_file(), meta.len()),
             None => (true, false, false, 0),
         };
@@ -431,7 +432,7 @@ impl Server {
                     DufsErrorCode::UploadDisabled.respond(&mut res);
                 } else if !allow_delete && size > 0 {
                     DufsErrorCode::DeleteDisabled.respond(&mut res);
-                } else {
+                } else if check_preconditions_for_meta(headers, meta.as_ref(), &mut res) {
                     self.handle_upload(path, None, size, req, &mut res).await?;
                 }
             }
@@ -455,6 +456,9 @@ impl Server {
                                 DufsErrorCode::DeleteDisabled.respond(&mut res);
                                 return Ok(res);
                             }
+                            if !check_preconditions_for_meta(headers, meta.as_ref(), &mut res) {
+                                return Ok(res);
+                            }
                             self.handle_upload(path, Some(offset), size, req, &mut res)
                                 .await?;
                         }
@@ -470,7 +474,7 @@ impl Server {
                 } else if !is_miss {
                     if is_dir && Self::has_restricted_descendant(&access_paths) {
                         DufsErrorCode::ReadonlyDescendant.respond(&mut res);
-                    } else {
+                    } else if check_preconditions_for_meta(headers, meta.as_ref(), &mut res) {
                         self.handle_delete(path, is_dir, &mut res).await?
                     }
                 } else {
@@ -487,9 +491,15 @@ impl Server {
                             } else {
                                 access_paths
                             };
+                        if !check_preconditions_for_meta(headers, meta.as_ref(), &mut res) {
+                            return Ok(res);
+                        }
                         self.handle_propfind_dir(path, headers, access_paths, &mut res)
                             .await?;
                     } else if is_file {
+                        if !check_preconditions_for_meta(headers, meta.as_ref(), &mut res) {
+                            return Ok(res);
+                        }
                         self.handle_propfind_file(path, &mut res).await?;
                     } else {
                         status_not_found(&mut res);
@@ -497,7 +507,9 @@ impl Server {
                 }
                 "PROPPATCH" => {
                     if is_file {
-                        self.handle_proppatch(req_path, &mut res).await?;
+                        if check_preconditions_for_meta(headers, meta.as_ref(), &mut res) {
+                            self.handle_proppatch(req_path, &mut res).await?;
+                        }
                     } else {
                         status_not_found(&mut res);
                     }
@@ -507,7 +519,7 @@ impl Server {
                         DufsErrorCode::UploadDisabled.respond(&mut res);
                     } else if !is_miss {
                         DufsErrorCode::AlreadyExists.respond(&mut res);
-                    } else {
+                    } else if check_preconditions_for_meta(headers, meta.as_ref(), &mut res) {
                         self.handle_mkcol(path, &mut res).await?;
                     }
                 }
@@ -516,7 +528,7 @@ impl Server {
                         DufsErrorCode::UploadDisabled.respond(&mut res);
                     } else if is_miss {
                         status_not_found(&mut res);
-                    } else {
+                    } else if check_preconditions_for_meta(headers, meta.as_ref(), &mut res) {
                         self.handle_copy(path, &req, &mut res).await?
                     }
                 }
@@ -529,7 +541,7 @@ impl Server {
                         status_not_found(&mut res);
                     } else if is_dir && Self::has_restricted_descendant(&access_paths) {
                         DufsErrorCode::ReadonlyDescendant.respond(&mut res);
-                    } else {
+                    } else if check_preconditions_for_meta(headers, meta.as_ref(), &mut res) {
                         self.handle_move(path, &req, &mut res).await?
                     }
                 }
@@ -1006,32 +1018,11 @@ impl Server {
         let (mut file, meta) = (file?, meta?);
         let size = meta.len();
         let mut use_range = true;
-        if let Some((etag, last_modified)) = extract_cache_headers(&meta) {
-            if let Some(if_unmodified_since) = headers.typed_get::<IfUnmodifiedSince>() {
-                if !if_unmodified_since.precondition_passes(last_modified.into()) {
-                    DufsErrorCode::PreconditionFailed.respond(res);
-                    return Ok(());
-                }
-            }
-            if let Some(if_match) = headers.typed_get::<IfMatch>() {
-                if !if_match.precondition_passes(&etag) {
-                    DufsErrorCode::PreconditionFailed.respond(res);
-                    return Ok(());
-                }
-            }
-            if let Some(if_modified_since) = headers.typed_get::<IfModifiedSince>() {
-                if !if_modified_since.is_modified(last_modified.into()) {
-                    *res.status_mut() = StatusCode::NOT_MODIFIED;
-                    return Ok(());
-                }
-            }
-            if let Some(if_none_match) = headers.typed_get::<IfNoneMatch>() {
-                if !if_none_match.precondition_passes(&etag) {
-                    *res.status_mut() = StatusCode::NOT_MODIFIED;
-                    return Ok(());
-                }
-            }
-
+        let cache_headers = extract_cache_headers(&meta);
+        if !check_preconditions(headers, cache_headers.as_ref(), true, res) {
+            return Ok(());
+        }
+        if let Some((etag, last_modified)) = cache_headers {
             res.headers_mut()
                 .typed_insert(CacheControl::new().with_no_cache());
             res.headers_mut().typed_insert(last_modified);
@@ -2078,6 +2069,99 @@ fn extract_cache_headers(meta: &Metadata) -> Option<(ETag, LastModified)> {
     let etag = format!(r#""{timestamp}-{size}""#).parse::<ETag>().ok()?;
     let last_modified = LastModified::from(mtime);
     Some((etag, last_modified))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Precondition {
+    Passed,
+    NotModified,
+    Failed,
+}
+
+/// Evaluate the conditional request headers against the current representation.
+///
+/// `allow_not_modified` is true for GET/HEAD, where a matching `If-None-Match`
+/// or an unchanged `If-Modified-Since` produces `304 Not Modified`. For all
+/// other methods it produces `412 Precondition Failed` instead.
+fn evaluate_preconditions(
+    headers: &HeaderMap<HeaderValue>,
+    cache_headers: Option<&(ETag, LastModified)>,
+    allow_not_modified: bool,
+) -> Precondition {
+    let if_match = headers.typed_get::<IfMatch>();
+    if let Some(if_match) = &if_match {
+        match cache_headers {
+            Some((etag, _)) if if_match.precondition_passes(etag) => {}
+            _ => return Precondition::Failed,
+        }
+    }
+
+    // If-Match takes precedence over If-Unmodified-Since.
+    if if_match.is_none() {
+        if let (Some(if_unmodified_since), Some((_, last_modified))) =
+            (headers.typed_get::<IfUnmodifiedSince>(), cache_headers)
+        {
+            if !if_unmodified_since.precondition_passes((*last_modified).into()) {
+                return Precondition::Failed;
+            }
+        }
+    }
+
+    let if_none_match = headers.typed_get::<IfNoneMatch>();
+    if let (Some(if_none_match), Some((etag, _))) = (&if_none_match, cache_headers) {
+        if !if_none_match.precondition_passes(etag) {
+            return if allow_not_modified {
+                Precondition::NotModified
+            } else {
+                Precondition::Failed
+            };
+        }
+    }
+
+    // If-None-Match takes precedence over If-Modified-Since.
+    if if_none_match.is_none() && allow_not_modified {
+        if let (Some(if_modified_since), Some((_, last_modified))) =
+            (headers.typed_get::<IfModifiedSince>(), cache_headers)
+        {
+            if !if_modified_since.is_modified((*last_modified).into()) {
+                return Precondition::NotModified;
+            }
+        }
+    }
+
+    Precondition::Passed
+}
+
+/// Check conditional headers, writing a `304` or `412` response when the
+/// request must stop. Returns whether the request may proceed.
+fn check_preconditions(
+    headers: &HeaderMap<HeaderValue>,
+    cache_headers: Option<&(ETag, LastModified)>,
+    allow_not_modified: bool,
+    res: &mut Response,
+) -> bool {
+    match evaluate_preconditions(headers, cache_headers, allow_not_modified) {
+        Precondition::Passed => true,
+        Precondition::NotModified => {
+            *res.status_mut() = StatusCode::NOT_MODIFIED;
+            false
+        }
+        Precondition::Failed => {
+            DufsErrorCode::PreconditionFailed.respond(res);
+            false
+        }
+    }
+}
+
+/// Check conditional headers against a target path. Used by the WebDAV
+/// methods, where a failed `If-None-Match` must yield `412`, not `304`.
+fn check_preconditions_for_meta(
+    headers: &HeaderMap<HeaderValue>,
+    meta: Option<&Metadata>,
+    res: &mut Response,
+) -> bool {
+    let cache_headers = meta.and_then(extract_cache_headers);
+    check_preconditions(headers, cache_headers.as_ref(), false, res)
 }
 
 fn status_not_found(res: &mut Response) {
