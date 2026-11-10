@@ -121,6 +121,58 @@ fn propfind_file(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn propfind_file_getetag(server: TestServer) -> Result<(), Error> {
+    let etag = file_etag(&server, "test.html")?;
+    let resp = fetch!(b"PROPFIND", format!("{}test.html", server.url()))
+        .header("depth", "0")
+        .send()?;
+    assert_eq!(resp.status(), 207);
+    let body = resp.text()?;
+    assert!(body.contains(&format!("<D:getetag>{etag}</D:getetag>")));
+    Ok(())
+}
+
+#[rstest]
+fn propfind_dir_getetag(server: TestServer) -> Result<(), Error> {
+    let resp = fetch!(b"PROPFIND", format!("{}dir1", server.url())).send()?;
+    assert_eq!(resp.status(), 207);
+    let body = resp.text()?;
+
+    for name in ["dir1/test.txt", "dir1/test.html", "dir1/index.html"] {
+        let etag = file_etag(&server, name)?;
+        assert!(
+            body.contains(&format!("<D:getetag>{etag}</D:getetag>")),
+            "missing getetag for {name}"
+        );
+    }
+    Ok(())
+}
+
+#[rstest]
+fn propfind_getetag_if_match(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let resp = fetch!(b"PROPFIND", format!("{}test.txt", server.url()))
+        .header("depth", "0")
+        .send()?;
+    assert_eq!(resp.status(), 207);
+    let body = resp.text()?;
+    let etag = body
+        .split("<D:getetag>")
+        .nth(1)
+        .and_then(|v| v.split("</D:getetag>").next())
+        .expect("PROPFIND response has no getetag");
+
+    let resp = fetch!(b"PUT", format!("{}test.txt", server.url()))
+        .header(IF_MATCH, etag)
+        .body("changed")
+        .send()?;
+    assert_eq!(resp.status(), 201);
+
+    let new_etag = file_etag(&server, "test.txt")?;
+    assert_ne!(etag, new_etag.as_str());
+    Ok(())
+}
+
+#[rstest]
 fn proppatch_file(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"PROPPATCH", format!("{}test.html", server.url())).send()?;
     assert_eq!(resp.status(), 207);
