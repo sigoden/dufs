@@ -1,9 +1,31 @@
 mod fixtures;
 mod utils;
 
+use chrono::{DateTime, Duration};
 use fixtures::{server, Error, TestServer, FILES};
+use reqwest::header::{ETAG, IF_MATCH, IF_NONE_MATCH, IF_UNMODIFIED_SINCE, LAST_MODIFIED};
 use rstest::rstest;
 use xml::escape::escape_str_pcdata;
+
+fn file_etag(server: &TestServer, name: &str) -> Result<String, Error> {
+    let resp = fetch!(b"HEAD", format!("{}{}", server.url(), name)).send()?;
+    Ok(resp
+        .headers()
+        .get(ETAG)
+        .and_then(|v| v.to_str().ok())
+        .expect("Received no valid etag header")
+        .to_owned())
+}
+
+fn file_last_modified(server: &TestServer, name: &str) -> Result<String, Error> {
+    let resp = fetch!(b"HEAD", format!("{}{}", server.url(), name)).send()?;
+    Ok(resp
+        .headers()
+        .get(LAST_MODIFIED)
+        .and_then(|v| v.to_str().ok())
+        .expect("Received no valid last modified header")
+        .to_owned())
+}
 
 #[rstest]
 fn propfind_dir(server: TestServer) -> Result<(), Error> {
@@ -304,5 +326,180 @@ fn unlock_file(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
 fn unlock_file_404(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"LOCK", format!("{}404", server.url())).send()?;
     assert_eq!(resp.status(), 404);
+    Ok(())
+}
+
+#[rstest]
+fn put_if_match(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let url = format!("{}test.txt", server.url());
+    let etag = file_etag(&server, "test.txt")?;
+
+    let resp = fetch!(b"PUT", &url)
+        .header(IF_MATCH, "\"stale\"")
+        .body("changed")
+        .send()?;
+    assert_eq!(resp.status(), 412);
+
+    let resp = fetch!(b"PUT", &url)
+        .header(IF_MATCH, etag.as_str())
+        .body("changed")
+        .send()?;
+    assert_eq!(resp.status(), 201);
+    let resp = reqwest::blocking::get(&url)?;
+    assert_eq!(resp.text()?, "changed");
+    Ok(())
+}
+
+#[rstest]
+fn put_if_none_match(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let url = format!("{}test.txt", server.url());
+
+    let resp = fetch!(b"PUT", &url)
+        .header(IF_NONE_MATCH, "*")
+        .body("changed")
+        .send()?;
+    assert_eq!(resp.status(), 412);
+
+    let new_url = format!("{}new.txt", server.url());
+    let resp = fetch!(b"PUT", &new_url)
+        .header(IF_NONE_MATCH, "*")
+        .body("new")
+        .send()?;
+    assert_eq!(resp.status(), 201);
+    Ok(())
+}
+
+#[rstest]
+fn put_if_unmodified_since(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let url = format!("{}test.txt", server.url());
+    let last_modified = file_last_modified(&server, "test.txt")?;
+    let modified_at = DateTime::parse_from_rfc2822(&last_modified)?;
+    let stale = (modified_at - Duration::days(1))
+        .format("%a, %d %b %Y %T GMT")
+        .to_string();
+
+    let resp = fetch!(b"PUT", &url)
+        .header(IF_UNMODIFIED_SINCE, stale)
+        .body("changed")
+        .send()?;
+    assert_eq!(resp.status(), 412);
+
+    let resp = fetch!(b"PUT", &url)
+        .header(IF_UNMODIFIED_SINCE, last_modified)
+        .body("changed")
+        .send()?;
+    assert_eq!(resp.status(), 201);
+    Ok(())
+}
+
+#[rstest]
+fn delete_if_match(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let url = format!("{}test.txt", server.url());
+    let etag = file_etag(&server, "test.txt")?;
+
+    let resp = fetch!(b"DELETE", &url)
+        .header(IF_MATCH, "\"stale\"")
+        .send()?;
+    assert_eq!(resp.status(), 412);
+    let resp = reqwest::blocking::get(&url)?;
+    assert_eq!(resp.status(), 200);
+
+    let resp = fetch!(b"DELETE", &url)
+        .header(IF_MATCH, etag.as_str())
+        .send()?;
+    assert_eq!(resp.status(), 204);
+    Ok(())
+}
+
+#[rstest]
+fn copy_if_match(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let url = format!("{}test.txt", server.url());
+    let new_url = format!("{}test2.txt", server.url());
+    let etag = file_etag(&server, "test.txt")?;
+
+    let resp = fetch!(b"COPY", &url)
+        .header("Destination", &new_url)
+        .header(IF_MATCH, "\"stale\"")
+        .send()?;
+    assert_eq!(resp.status(), 412);
+    let resp = reqwest::blocking::get(&new_url)?;
+    assert_eq!(resp.status(), 404);
+
+    let resp = fetch!(b"COPY", &url)
+        .header("Destination", &new_url)
+        .header(IF_MATCH, etag.as_str())
+        .send()?;
+    assert_eq!(resp.status(), 204);
+    Ok(())
+}
+
+#[rstest]
+fn move_if_match(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let url = format!("{}test.txt", server.url());
+    let new_url = format!("{}test2.txt", server.url());
+    let etag = file_etag(&server, "test.txt")?;
+
+    let resp = fetch!(b"MOVE", &url)
+        .header("Destination", &new_url)
+        .header(IF_MATCH, "\"stale\"")
+        .send()?;
+    assert_eq!(resp.status(), 412);
+    let resp = reqwest::blocking::get(&url)?;
+    assert_eq!(resp.status(), 200);
+
+    let resp = fetch!(b"MOVE", &url)
+        .header("Destination", &new_url)
+        .header(IF_MATCH, etag.as_str())
+        .send()?;
+    assert_eq!(resp.status(), 204);
+    Ok(())
+}
+
+#[rstest]
+fn mkcol_if_match_missing(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let resp = fetch!(b"MKCOL", format!("{}newdir", server.url()))
+        .header(IF_MATCH, "*")
+        .send()?;
+    assert_eq!(resp.status(), 412);
+    Ok(())
+}
+
+#[rstest]
+fn mkcol_if_none_match_missing(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let resp = fetch!(b"MKCOL", format!("{}newdir", server.url()))
+        .header(IF_NONE_MATCH, "*")
+        .send()?;
+    assert_eq!(resp.status(), 201);
+    Ok(())
+}
+
+#[rstest]
+fn propfind_if_none_match(server: TestServer) -> Result<(), Error> {
+    let etag = file_etag(&server, "test.html")?;
+    let resp = fetch!(b"PROPFIND", format!("{}test.html", server.url()))
+        .header(IF_NONE_MATCH, etag.as_str())
+        .send()?;
+    assert_eq!(resp.status(), 412);
+    Ok(())
+}
+
+#[rstest]
+fn proppatch_if_match(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let resp = fetch!(b"PROPPATCH", format!("{}test.html", server.url()))
+        .header(IF_MATCH, "\"stale\"")
+        .send()?;
+    assert_eq!(resp.status(), 412);
+    Ok(())
+}
+
+#[rstest]
+fn patch_if_match(#[with(&["-A"])] server: TestServer) -> Result<(), Error> {
+    let etag = file_etag(&server, "test.txt")?;
+    let resp = fetch!(b"PATCH", format!("{}test.txt", server.url()))
+        .header("X-Update-Range", "bytes=0-")
+        .header(IF_MATCH, etag.as_str())
+        .body("changed")
+        .send()?;
+    assert_eq!(resp.status(), 204);
     Ok(())
 }
