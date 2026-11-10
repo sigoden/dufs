@@ -246,6 +246,7 @@ fn get_file_json(server: TestServer) -> Result<(), Error> {
     assert_eq!(json["path_type"], "File");
     assert!(json["size"].as_u64().is_some());
     assert!(json["mtime"].as_u64().is_some());
+    assert!(json["etag"].as_str().is_some());
     Ok(())
 }
 

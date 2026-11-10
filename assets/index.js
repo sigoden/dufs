@@ -4,6 +4,7 @@
  * @property {string} name
  * @property {number} mtime
  * @property {number} size
+ * @property {string|null} etag
  * @property {boolean} allow_upload
  * @property {boolean} allow_delete
  * @property {boolean} readonly_descendant

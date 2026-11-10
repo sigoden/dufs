@@ -1782,6 +1782,10 @@ impl Server {
             }
             PathType::File | PathType::SymlinkFile => meta.len(),
         };
+        let etag = match path_type {
+            PathType::File | PathType::SymlinkFile => etag_from_metadata(&meta),
+            PathType::Dir | PathType::SymlinkDir => None,
+        };
         let rel_path = path.strip_prefix(base_path)?;
         let name = normalize_path(rel_path);
         Ok(Some(PathItem {
@@ -1789,6 +1793,7 @@ impl Server {
             name,
             mtime,
             size,
+            etag,
             allow_upload: false,
             allow_delete: false,
             readonly_descendant: false,
@@ -1824,6 +1829,7 @@ pub struct PathItem {
     pub name: String,
     pub mtime: u64,
     pub size: u64,
+    pub etag: Option<String>,
     pub allow_upload: bool,
     pub allow_delete: bool,
     pub readonly_descendant: bool,
@@ -1844,6 +1850,11 @@ impl PathItem {
             href.push('/');
         }
         let displayname = escape_str_pcdata(self.base_name());
+        let etag = self
+            .etag
+            .as_deref()
+            .map(|etag| format!("<D:getetag>{}</D:getetag>\n", escape_str_pcdata(etag)))
+            .unwrap_or_default();
         match self.path_type {
             PathType::Dir | PathType::SymlinkDir => format!(
                 r#"<D:response>
@@ -1864,7 +1875,7 @@ impl PathItem {
 <D:propstat>
 <D:prop>
 <D:displayname>{displayname}</D:displayname>
-<D:getcontentlength>{}</D:getcontentlength>
+{etag}<D:getcontentlength>{}</D:getcontentlength>
 <D:getlastmodified>{mtime}</D:getlastmodified>
 <D:resourcetype></D:resourcetype>
 </D:prop>
@@ -1952,6 +1963,32 @@ fn to_timestamp(time: &SystemTime) -> u64 {
     time.duration_since(SystemTime::UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as u64
+}
+
+/// Build an ETag from file metadata without reading the file contents.
+/// Nanosecond mtime and, on Unix, device/inode reduce collisions between files.
+fn etag_from_metadata(meta: &Metadata) -> Option<String> {
+    let mtime = meta.modified().ok()?;
+    let timestamp = mtime
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .ok()?
+        .as_nanos();
+    let size = meta.len();
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        Some(format!(
+            r#""{timestamp}-{size}-{:x}-{:x}""#,
+            meta.dev(),
+            meta.ino()
+        ))
+    }
+
+    #[cfg(not(unix))]
+    {
+        Some(format!(r#""{timestamp}-{size}""#))
+    }
 }
 
 fn normalize_path<P: AsRef<Path>>(path: P) -> String {
@@ -2064,9 +2101,7 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
 
 fn extract_cache_headers(meta: &Metadata) -> Option<(ETag, LastModified)> {
     let mtime = meta.modified().ok().or_else(|| meta.created().ok())?;
-    let timestamp = to_timestamp(&mtime);
-    let size = meta.len();
-    let etag = format!(r#""{timestamp}-{size}""#).parse::<ETag>().ok()?;
+    let etag = etag_from_metadata(meta)?.parse::<ETag>().ok()?;
     let last_modified = LastModified::from(mtime);
     Some((etag, last_modified))
 }
