@@ -112,12 +112,14 @@ pub fn parse_range(range: &str, size: u64) -> Option<Vec<(u64, u64)>> {
         let (start, end) = range.trim().split_once('-')?;
         let item = if start.is_empty() {
             let offset = end.parse::<u64>().ok()?;
-            // A zero-length suffix range is unsatisfiable and, on an empty
-            // file, `size - 1` would underflow.
-            if offset == 0 || offset > size {
+            // A zero-length suffix range is unsatisfiable, and so is any
+            // suffix of an empty file (`size - 1` would underflow).
+            if offset == 0 || size == 0 {
                 return None;
             }
-            (size - offset, size - 1)
+            // RFC 9110 §14.1.2: a suffix longer than the representation
+            // selects the whole representation.
+            (size.saturating_sub(offset), size - 1)
         } else {
             let start = start.parse::<u64>().ok()?;
             if start >= size {
@@ -226,7 +228,10 @@ mod tests {
         assert_eq!(parse_range("bytes=0-5", 5), Some(vec![(0, 4)]));
         assert_eq!(parse_range("bytes=0-9", 5), Some(vec![(0, 4)]));
         assert_eq!(parse_range("bytes=5-", 5), None);
-        assert_eq!(parse_range("bytes=-501", 500), None);
+        // RFC 9110 §14.1.2: a suffix longer than the file selects the whole file
+        assert_eq!(parse_range("bytes=-501", 500), Some(vec![(0, 499)]));
+        assert_eq!(parse_range("bytes=-65536", 18), Some(vec![(0, 17)]));
+        assert_eq!(parse_range("bytes=-5", 0), None);
         assert_eq!(parse_range("bytes=0-199,", 500), None);
         assert_eq!(parse_range("bytes=0-199, 500-", 500), None);
         // a zero-length suffix range is unsatisfiable and must not underflow
