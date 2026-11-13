@@ -36,6 +36,41 @@ fn get_file_range_beyond(server: TestServer) -> Result<(), Error> {
 }
 
 #[rstest]
+fn get_file_range_suffix_beyond_eof(server: TestServer) -> Result<(), Error> {
+    // RFC 9110 §14.1.2: a suffix longer than the file selects the whole file
+    let resp = fetch!(b"GET", format!("{}index.html", server.url()))
+        .header("range", HeaderValue::from_static("bytes=-65536"))
+        .send()?;
+    assert_eq!(resp.status(), 206);
+    assert_eq!(
+        resp.headers().get("content-range").unwrap(),
+        "bytes 0-17/18"
+    );
+    assert_eq!(resp.headers().get("accept-ranges").unwrap(), "bytes");
+    assert_eq!(resp.headers().get("content-length").unwrap(), "18");
+    assert_eq!(resp.text()?, "This is index.html");
+    Ok(())
+}
+
+#[rstest]
+fn get_empty_file_range_ignored(server: TestServer) -> Result<(), Error> {
+    // RFC 9110 §14.2: Range may be ignored when the selected representation
+    // has no content, since a 206 cannot express a zero-length byte range.
+    std::fs::write(server.path().join("empty.txt"), "")?;
+    for range in ["bytes=-5", "bytes=0-", "bytes=0-0"] {
+        let resp = fetch!(b"GET", format!("{}empty.txt", server.url()))
+            .header("range", HeaderValue::from_str(range)?)
+            .send()?;
+        assert_eq!(resp.status(), 200, "range: {range}");
+        assert_eq!(resp.headers().get("accept-ranges").unwrap(), "bytes");
+        assert_eq!(resp.headers().get("content-length").unwrap(), "0");
+        assert!(resp.headers().get("content-range").is_none());
+        assert_eq!(resp.text()?, "");
+    }
+    Ok(())
+}
+
+#[rstest]
 fn get_file_range_invalid(server: TestServer) -> Result<(), Error> {
     let resp = fetch!(b"GET", format!("{}index.html", server.url()))
         .header("range", HeaderValue::from_static("bytes=20-"))

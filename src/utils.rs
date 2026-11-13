@@ -112,9 +112,15 @@ pub fn parse_range(range: &str, size: u64) -> Option<Vec<(u64, u64)>> {
         let (start, end) = range.trim().split_once('-')?;
         let item = if start.is_empty() {
             let offset = end.parse::<u64>().ok()?;
-            // A zero-length suffix range is unsatisfiable, and so is any
-            // suffix of an empty file (`size - 1` would underflow).
-            if offset == 0 || size == 0 {
+            // A zero-length suffix range is unsatisfiable.
+            if offset == 0 {
+                return None;
+            }
+            // A zero-length representation has no representable byte range
+            // (`size - 1` would also underflow). The file-serving path ignores
+            // Range entirely for zero-length representations (RFC 9110 §14.2),
+            // so this only affects callers such as X-Update-Range.
+            if size == 0 {
                 return None;
             }
             // RFC 9110 §14.1.2: a suffix longer than the representation
@@ -231,6 +237,8 @@ mod tests {
         // RFC 9110 §14.1.2: a suffix longer than the file selects the whole file
         assert_eq!(parse_range("bytes=-501", 500), Some(vec![(0, 499)]));
         assert_eq!(parse_range("bytes=-65536", 18), Some(vec![(0, 17)]));
+        // A zero-length representation has no representable byte range; the
+        // server ignores Range for it and answers 200 (RFC 9110 §14.2).
         assert_eq!(parse_range("bytes=-5", 0), None);
         assert_eq!(parse_range("bytes=0-199,", 500), None);
         assert_eq!(parse_range("bytes=0-199, 500-", 500), None);
