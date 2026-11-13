@@ -2182,6 +2182,11 @@ fn check_preconditions(
     match evaluate_preconditions(headers, cache_headers, allow_not_modified) {
         Precondition::Passed => true,
         Precondition::NotModified => {
+            if let Some((etag, _)) = cache_headers {
+                res.headers_mut().typed_insert(etag.clone());
+                res.headers_mut()
+                    .typed_insert(CacheControl::new().with_no_cache());
+            }
             *res.status_mut() = StatusCode::NOT_MODIFIED;
             false
         }
