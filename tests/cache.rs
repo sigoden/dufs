@@ -4,10 +4,10 @@ mod utils;
 use chrono::{DateTime, Duration};
 use fixtures::{server, Error, TestServer};
 use reqwest::header::{
-    HeaderName, ETAG, IF_MATCH, IF_MODIFIED_SINCE, IF_NONE_MATCH, IF_UNMODIFIED_SINCE,
-    LAST_MODIFIED,
+    HeaderName, CACHE_CONTROL, ETAG, IF_MATCH, IF_MODIFIED_SINCE, IF_NONE_MATCH,
+    IF_UNMODIFIED_SINCE, LAST_MODIFIED,
 };
-use reqwest::StatusCode;
+use reqwest::{Method, StatusCode};
 use rstest::rstest;
 
 #[rstest]
@@ -76,5 +76,36 @@ fn get_file_with_etag_match(
         .send()?;
 
     assert_eq!(resp.status(), expected_code);
+    Ok(())
+}
+
+#[rstest]
+#[case(Method::GET, IF_NONE_MATCH, ETAG)]
+#[case(Method::HEAD, IF_NONE_MATCH, ETAG)]
+#[case(Method::GET, IF_MODIFIED_SINCE, LAST_MODIFIED)]
+#[case(Method::HEAD, IF_MODIFIED_SINCE, LAST_MODIFIED)]
+fn not_modified_preserves_cache_headers(
+    #[case] method: Method,
+    #[case] condition: HeaderName,
+    #[case] validator: HeaderName,
+    server: TestServer,
+) -> Result<(), Error> {
+    let url = format!("{}index.html", server.url());
+    let client = reqwest::blocking::Client::new();
+    let initial = client.get(&url).send()?;
+    assert_eq!(initial.status(), StatusCode::OK);
+    let etag = initial.headers()[ETAG].clone();
+    let cache_control = initial.headers()[CACHE_CONTROL].clone();
+    let validator = initial.headers()[validator].clone();
+
+    let resp = client
+        .request(method, &url)
+        .header(condition, validator)
+        .send()?;
+
+    assert_eq!(resp.status(), StatusCode::NOT_MODIFIED);
+    assert_eq!(resp.headers().get(ETAG), Some(&etag));
+    assert_eq!(resp.headers().get(CACHE_CONTROL), Some(&cache_control));
+    assert!(resp.bytes()?.is_empty());
     Ok(())
 }
