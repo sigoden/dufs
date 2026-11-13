@@ -1039,7 +1039,11 @@ impl Server {
             }
         }
 
-        let ranges = if use_range {
+        // RFC 9110 §14.2: a server MAY ignore Range when the selected
+        // representation has no content. A zero-length representation has no
+        // non-empty byte range to serve and a 206 response cannot express an
+        // empty one, so ignore Range and fall through to a 200 response.
+        let ranges = if use_range && size != 0 {
             headers.get(RANGE).map(|range| {
                 range
                     .to_str()
