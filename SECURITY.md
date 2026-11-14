@@ -22,40 +22,37 @@ communicate later to fill in any details we need after that first note is shared
 
 ## Access Control and Symbolic Links
 
-Authorization is evaluated against the requested path and against the canonical target that the path
-resolves to. When a path traverses a symbolic link to another path inside the served root, the
-effective permission is the stricter of the two: a link never grants access that its target does not
-already grant. Targets that cannot be resolved, such as link loops, are denied. Targets outside the
-served root have no path rules; they keep being governed by `--allow-symlink` and the requested
-path's permission.
+Authorization checks both the requested path and its canonical target, and the stricter result wins:
+a symlink never grants access its target lacks. Unresolvable targets, such as link loops, are denied.
+Out-of-root targets have no path rules and are governed by `--allow-symlink` (not served without it)
+plus the requested path's permission.
 
-This keeps symlink sharing working. A link to a readable target stays readable, and a link to a
-write-protected target stays read-only. To grant write access to shared content, grant it on the
-target path explicitly, for example:
+To grant write access to shared content, grant it on the target path explicitly; a link inside a
+`:rw` directory does not inherit write access to its target:
 
 ```
 -a 'alice:pass@/home/alice:rw,/shared/team:rw'
 ```
 
-Placing a link in a `:rw` directory does not grant write access to its target by itself.
+With access rules configured, `MOVE` refuses to relocate a symlink (or a directory containing one)
+to another directory, and both `MOVE` and `DELETE` are rejected when the resolved subtree contains a
+stricter rule. Removing or renaming the link entry itself remains allowed. A same-directory rename
+is authorized as a write against the requested path and, for in-root targets, the resolved target.
+All entry points follow these rules, including `MOVE`/`COPY` destinations, `?zip` archives, search
+results, and listings, which resolve entries and hide or downgrade inaccessible ones.
 
-When access rules are configured, WebDAV `MOVE` refuses to relocate a symbolic link (or a directory
-containing one) to a different directory. A rename within the same directory preserves every
-relative target, but it is still authorized as a write against the requested path and, for in-root
-targets, against the resolved target. `DELETE` follows the same rule. This prevents an HTTP client
-from repointing an existing link while a request is being authorized.
 
-`DELETE` and `MOVE` act on a whole directory, so they are also rejected when the resolved target
-subtree contains a path with a stricter rule, even if the request path itself reveals no such rule.
-For example, a link inside a `:rw` directory can point at a `:rw` directory that contains a `:ro`
-child; removing the linked directory would remove that child. Deleting or renaming the link entry
-itself only affects the link and remains allowed.
+## Cross-Origin Resource Sharing (CORS)
 
-All entry points follow the same rule, including WebDAV `MOVE`/`COPY` destinations, archive
-downloads (`?zip`), search results, and directory listings. Directory listings resolve every entry,
-so an entry whose in-root target is not accessible is hidden or shown read-only according to that
-target. `--allow-symlink` keeps its meaning with access rules configured: links that resolve outside
-the root are served under the requested path's permission, and without the flag they are not served.
+`--enable-cors` is an explicit opt-in that lets every origin call the API. Responses carry
+`Access-Control-Allow-Origin: *`, wildcard methods and exposed headers, and allow `Authorization`, so
+any web page can list, download, upload, or delete content whenever the corresponding global
+permissions are enabled. *Dufs* uses HTTP Basic/Digest rather than cookies, so a page can only act
+with credentials it already knows. There is no origin allowlist: the flag always applies to every
+origin.
+
+Enabling it exposes the API to any website. Use `--auth` for sensitive content, and avoid the flag
+on an unauthenticated writable instance that is only meant to be reached locally.
 
 
 ## Out of Scope
@@ -68,6 +65,13 @@ An unauthenticated `PROPFIND` lists directory entries, including protected ones.
 WebDAV clients that send no `Authorization` header until challenged with a `401`; hiding the entries
 would leave them seeing only the public directory, with no way to reach protected ones. Listing a
 name grants no access — reads and writes still return `401`/`403` without credentials.
+
+### CORS delegates access to every origin
+
+`--enable-cors` is documented as allowing every origin to call the API. A web page can therefore
+drive a CORS-enabled instance in the same way as any other client that *dufs* allows. This is the
+purpose of the flag, not a bypass of the server's permissions. See [Cross-Origin Resource Sharing
+(CORS)](#cross-origin-resource-sharing-cors).
 
 ### XSS from files served by dufs
 
