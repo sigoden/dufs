@@ -1,6 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 
-use crate::auth::{www_authenticate, AccessPaths, AccessPerm, EntryAccess};
+use crate::auth::{www_authenticate, AccessControl, AccessPaths, AccessPerm, EntryAccess};
 use crate::error::DufsErrorCode;
 use crate::http_utils::{body_full, IncomingStream, LengthLimitedStream};
 use crate::noscript::{detect_noscript, generate_noscript_html};
@@ -305,8 +305,14 @@ impl Server {
                                     .await?;
                                 return Ok(res);
                             }
-                            self.handle_zip_dir(path, head_only, access_paths, &mut res)
-                                .await?;
+                            self.handle_zip_dir(
+                                path,
+                                head_only,
+                                user.clone(),
+                                access_paths,
+                                &mut res,
+                            )
+                            .await?;
                         } else if allow_search && query_params.contains_key("q") {
                             self.handle_search_dir(
                                 path,
@@ -345,7 +351,7 @@ impl Server {
                             DufsErrorCode::ArchiveDisabled.respond(&mut res);
                             return Ok(res);
                         }
-                        self.handle_zip_dir(path, head_only, access_paths, &mut res)
+                        self.handle_zip_dir(path, head_only, user.clone(), access_paths, &mut res)
                             .await?;
                     } else if allow_search && query_params.contains_key("q") {
                         self.handle_search_dir(
@@ -371,8 +377,14 @@ impl Server {
                     }
                 } else if is_file {
                     if has_query_flag(&query_params, "json") {
-                        self.handle_file_json(path, head_only, &access_paths, &mut res)
-                            .await?;
+                        self.handle_file_json(
+                            path,
+                            head_only,
+                            &access_paths,
+                            user.as_deref(),
+                            &mut res,
+                        )
+                        .await?;
                     } else if has_query_flag(&query_params, "edit") {
                         self.handle_edit_file(
                             path,
@@ -494,8 +506,14 @@ impl Server {
                         if !check_preconditions_for_meta(headers, meta.as_ref(), &mut res) {
                             return Ok(res);
                         }
-                        self.handle_propfind_dir(path, headers, access_paths, &mut res)
-                            .await?;
+                        self.handle_propfind_dir(
+                            path,
+                            headers,
+                            user.clone(),
+                            access_paths,
+                            &mut res,
+                        )
+                        .await?;
                     } else if is_file {
                         if !check_preconditions_for_meta(headers, meta.as_ref(), &mut res) {
                             return Ok(res);
@@ -645,7 +663,10 @@ impl Server {
     ) -> Result<()> {
         let mut paths = vec![];
         if !head_only && exist {
-            paths = match self.list_dir(path, path, &access_paths).await {
+            paths = match self
+                .list_dir(path, path, &access_paths, user.as_deref())
+                .await
+            {
                 Ok(paths) => paths,
                 Err(_) => {
                     DufsErrorCode::InternalError.respond(res);
@@ -663,6 +684,7 @@ impl Server {
             access_paths,
             res,
         )
+        .await
     }
 
     async fn handle_search_dir(
@@ -698,19 +720,30 @@ impl Server {
                 hidden,
                 self.args.allow_symlink,
                 self.args.serve_path.clone(),
+                self.args.auth.clone(),
+                user.clone(),
                 move |x| get_file_name(x.path()).to_lowercase().contains(&search),
             ))
             .await?;
 
             for search_path in search_paths.into_iter() {
-                if let Ok(Some(mut item)) = self.to_pathitem(search_path, path.to_path_buf()).await
-                {
-                    let access = access_paths
-                        .entry_access(&item.name, &prefix, Some(&self.args.serve_path))
-                        .await;
-                    self.set_item_access(&mut item, access);
-                    paths.push(item);
-                }
+                let Ok(Some(mut item)) = self.to_pathitem(search_path.as_path(), path).await else {
+                    continue;
+                };
+                let Some(access) = self
+                    .entry_access(
+                        &access_paths,
+                        &search_path,
+                        &item.name,
+                        &prefix,
+                        user.as_deref(),
+                    )
+                    .await
+                else {
+                    continue;
+                };
+                self.set_item_access(&mut item, access);
+                paths.push(item);
             }
         }
         self.send_index(
@@ -723,12 +756,14 @@ impl Server {
             access_paths,
             res,
         )
+        .await
     }
 
     async fn handle_zip_dir(
         &self,
         path: &Path,
         head_only: bool,
+        user: Option<String>,
         access_paths: AccessPaths,
         res: &mut Response,
     ) -> Result<()> {
@@ -746,6 +781,7 @@ impl Server {
         let compression = self.args.compress.to_compression();
         let follow_symlinks = self.args.allow_symlink;
         let serve_path = self.args.serve_path.clone();
+        let auth = self.args.auth.clone();
         tokio::spawn(async move {
             if let Err(e) = zip_dir(
                 &mut writer,
@@ -755,6 +791,8 @@ impl Server {
                 compression,
                 follow_symlinks,
                 serve_path,
+                auth,
+                user,
                 running,
             )
             .await
@@ -794,7 +832,19 @@ impl Server {
             let access = access_paths
                 .entry_access(INDEX_NAME, &prefix, Some(&self.args.serve_path))
                 .await;
-            !access.perm.indexonly() && !self.guard_root_contained(&index_path).await
+            let index_rel = self.relative_parts(&index_path).join("/");
+            !access.perm.indexonly()
+                && !self.guard_root_contained(&index_path).await
+                && self
+                    .args
+                    .auth
+                    .can_access(
+                        user.as_deref(),
+                        &index_rel,
+                        &Method::GET,
+                        &self.args.serve_path,
+                    )
+                    .await
         } else {
             false
         };
@@ -815,6 +865,7 @@ impl Server {
         path: &Path,
         head_only: bool,
         access_paths: &AccessPaths,
+        user: Option<&str>,
         res: &mut Response,
     ) -> Result<()> {
         let mut pathitem = match self.to_pathitem(path, &self.args.serve_path).await? {
@@ -824,10 +875,15 @@ impl Server {
                 return Ok(());
             }
         };
+        let readwrite = access_paths.perm().readwrite() && self.path_readwrite(path, user).await;
         self.set_item_access(
             &mut pathitem,
             EntryAccess {
-                perm: access_paths.perm(),
+                perm: if readwrite {
+                    access_paths.perm()
+                } else {
+                    AccessPerm::ReadOnly
+                },
                 restricted: false,
             },
         );
@@ -1188,7 +1244,8 @@ impl Server {
         file.take(1024).read_to_end(&mut buffer).await?;
         let editable =
             meta.len() <= EDITABLE_TEXT_MAX_SIZE && content_inspector::inspect(&buffer).is_text();
-        let readwrite = access_paths.perm().readwrite();
+        let readwrite =
+            access_paths.perm().readwrite() && self.path_readwrite(path, user.as_deref()).await;
         let data = EditData {
             href,
             kind,
@@ -1262,6 +1319,7 @@ impl Server {
         &self,
         path: &Path,
         headers: &HeaderMap<HeaderValue>,
+        user: Option<String>,
         access_paths: AccessPaths,
         res: &mut Response,
     ) -> Result<()> {
@@ -1296,7 +1354,7 @@ impl Server {
         };
         if depth == 1 {
             match self
-                .list_dir(path, &self.args.serve_path, &access_paths)
+                .list_dir(path, &self.args.serve_path, &access_paths, user.as_deref())
                 .await
             {
                 Ok(child) => paths.extend(child),
@@ -1383,6 +1441,24 @@ impl Server {
             }
         };
 
+        // A relative symlink resolves against its own parent directory, so moving
+        // it to a different parent changes what it points at without changing the
+        // request path. The target check below would catch the new target, but
+        // refusing the move as well closes the race between that check and the
+        // following filesystem operation. Renaming within the same parent
+        // preserves every relative target, so only the target permission check
+        // applies to it.
+        if self.args.auth.has_rules()
+            && path.parent() != dest.parent()
+            && contains_symlink(path).await
+        {
+            DufsErrorCode::Forbidden.respond_with(
+                res,
+                "Forbidden: cannot move symlinks when access rules are enabled",
+            );
+            return Ok(());
+        }
+
         if self.guard_root_contained(&dest).await {
             DufsErrorCode::InvalidDestination.respond(res);
             return Ok(());
@@ -1446,7 +1522,7 @@ impl Server {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn send_index(
+    async fn send_index(
         &self,
         path: &Path,
         mut paths: Vec<PathItem>,
@@ -1504,7 +1580,8 @@ impl Server {
             "/{}",
             normalize_path(path.strip_prefix(&self.args.serve_path)?)
         );
-        let readwrite = access_paths.perm().readwrite();
+        let readwrite =
+            access_paths.perm().readwrite() && self.path_readwrite(path, user.as_deref()).await;
         let data = IndexData {
             kind: DataKind::Index,
             href,
@@ -1702,21 +1779,36 @@ impl Server {
         entry_path: &Path,
         base_path: &Path,
         access_paths: &AccessPaths,
+        user: Option<&str>,
     ) -> Result<Vec<PathItem>> {
         let mut paths: Vec<PathItem> = vec![];
         let prefix = self.relative_parts(entry_path);
         if access_paths.perm().indexonly() {
             for name in access_paths.child_names() {
                 let entry_path = entry_path.join(name);
-                self.add_pathitem(&mut paths, base_path, &entry_path, access_paths, &prefix)
-                    .await;
+                self.add_pathitem(
+                    &mut paths,
+                    base_path,
+                    &entry_path,
+                    access_paths,
+                    &prefix,
+                    user,
+                )
+                .await;
             }
         } else {
             let mut rd = fs::read_dir(entry_path).await?;
             while let Ok(Some(entry)) = rd.next_entry().await {
                 let entry_path = entry.path();
-                self.add_pathitem(&mut paths, base_path, &entry_path, access_paths, &prefix)
-                    .await;
+                self.add_pathitem(
+                    &mut paths,
+                    base_path,
+                    &entry_path,
+                    access_paths,
+                    &prefix,
+                    user,
+                )
+                .await;
             }
         }
         Ok(paths)
@@ -1729,18 +1821,110 @@ impl Server {
         entry_path: &Path,
         access_paths: &AccessPaths,
         prefix: &[&str],
+        user: Option<&str>,
     ) {
         let base_name = get_file_name(entry_path);
         if let Ok(Some(mut item)) = self.to_pathitem(entry_path, base_path).await {
             if is_hidden(&self.args.hidden, base_name, item.is_dir()) {
                 return;
             }
-            let access = access_paths
-                .entry_access(base_name, prefix, Some(&self.args.serve_path))
-                .await;
+            let Some(access) = self
+                .entry_access(access_paths, entry_path, base_name, prefix, user)
+                .await
+            else {
+                return;
+            };
             self.set_item_access(&mut item, access);
             paths.push(item);
         }
+    }
+
+    /// Resolve the displayed access of an entry from the request path, then
+    /// from its canonical target when the entry is reached through a link.
+    ///
+    /// Returns `None` when the target is not readable, so listings and search
+    /// results hide the same entries.
+    async fn entry_access(
+        &self,
+        access_paths: &AccessPaths,
+        entry_path: &Path,
+        entry_name: &str,
+        prefix: &[&str],
+        user: Option<&str>,
+    ) -> Option<EntryAccess> {
+        let mut access = access_paths
+            .entry_access(entry_name, prefix, Some(&self.args.serve_path))
+            .await;
+        if self.args.auth.has_rules() && self.path_resolves_elsewhere(entry_path).await {
+            // The entry is reached through a link, either as the entry itself
+            // or as a parent component. Check the canonical target so a
+            // listing cannot expose entries the target rule denies.
+            if !self.path_can_access(entry_path, &Method::GET, user).await {
+                return None;
+            }
+            // Display permission follows both the request path and the
+            // canonical target, so write controls are not advertised for
+            // entries that the target rule makes read-only.
+            if access.perm.readwrite() && !self.path_readwrite(entry_path, user).await {
+                access.perm = AccessPerm::ReadOnly;
+            }
+            // Recursive delete follows the target subtree as well, so a
+            // read-only rule below the target blocks it even when the request
+            // path has no such rule. A symlink entry itself can still be
+            // removed, since that only unlinks it.
+            if access.perm.readwrite()
+                && !access.restricted
+                && !self.path_is_symlink(entry_path).await
+                && self
+                    .args
+                    .auth
+                    .target_has_restricted_descendant(
+                        user,
+                        &self.relative_parts(entry_path).join("/"),
+                        &self.args.serve_path,
+                    )
+                    .await
+            {
+                access.restricted = true;
+            }
+        }
+        Some(access)
+    }
+
+    /// Whether `path` does not name its canonical target directly, for example
+    /// because it is a symbolic link or a parent component is one.
+    ///
+    /// Dangling links do not canonicalize and are reported as aliases so the
+    /// authorization check still runs for them.
+    async fn path_resolves_elsewhere(&self, path: &Path) -> bool {
+        match fs::canonicalize(path).await {
+            Ok(canonical) => canonical != path,
+            Err(_) => true,
+        }
+    }
+
+    /// Whether the final component of `path` is a symbolic link. Intermediate
+    /// links are followed, since they make the path name a real target entry.
+    async fn path_is_symlink(&self, path: &Path) -> bool {
+        fs::symlink_metadata(path)
+            .await
+            .map(|meta| meta.file_type().is_symlink())
+            .unwrap_or_default()
+    }
+
+    /// Whether `user` may perform `method` on `path`, accounting for the
+    /// canonical target of any symbolic link on the way.
+    async fn path_can_access(&self, path: &Path, method: &Method, user: Option<&str>) -> bool {
+        let rel_path = self.relative_parts(path).join("/");
+        self.args
+            .auth
+            .can_access(user, &rel_path, method, &self.args.serve_path)
+            .await
+    }
+
+    /// Whether `path` grants write permission, including its canonical target.
+    async fn path_readwrite(&self, path: &Path, user: Option<&str>) -> bool {
+        self.path_can_access(path, &Method::PUT, user).await
     }
 
     async fn to_pathitem<P: AsRef<Path>>(&self, path: P, base_path: P) -> Result<Option<PathItem>> {
@@ -2013,6 +2197,34 @@ async fn ensure_path_parent(path: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Whether `path` is a symlink, or a directory containing one at any depth.
+///
+/// `MOVE` relocates a link without changing its text, so a relative target can
+/// begin resolving somewhere else after the move. This check lets the caller
+/// refuse such moves when path authorization is enabled.
+async fn contains_symlink(path: &Path) -> bool {
+    match fs::symlink_metadata(path).await {
+        Ok(meta) if meta.is_symlink() => true,
+        Ok(meta) if meta.is_dir() => {
+            let path = path.to_path_buf();
+            tokio::task::spawn_blocking(move || {
+                WalkDir::new(path)
+                    .follow_links(false)
+                    .into_iter()
+                    .any(|entry| match entry {
+                        Ok(entry) => entry.file_type().is_symlink(),
+                        // An unreadable subtree could hide a link; fail closed.
+                        Err(_) => true,
+                    })
+            })
+            .await
+            // Fail closed if the blocking task cannot run.
+            .unwrap_or(true)
+        }
+        _ => false,
+    }
+}
+
 fn add_cors(res: &mut Response) {
     res.headers_mut()
         .typed_insert(AccessControlAllowOrigin::ANY);
@@ -2054,6 +2266,8 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
     compression: CompressionLevel,
     follow_symlinks: bool,
     serve_path: PathBuf,
+    auth: AccessControl,
+    user: Option<String>,
     running: Arc<AtomicBool>,
 ) -> Result<()> {
     let hidden = Arc::new(hidden.to_vec());
@@ -2064,6 +2278,8 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
         hidden,
         follow_symlinks,
         serve_path,
+        auth,
+        user,
         move |x| {
             // Include both files and directories. Symbolic links are already
             // resolved by `follow_links`, so `file_type` reports the target's
@@ -2338,6 +2554,8 @@ async fn collect_dir_entries<F>(
     hidden: Arc<Vec<String>>,
     follow_symlinks: bool,
     serve_path: PathBuf,
+    auth: AccessControl,
+    user: Option<String>,
     include_entry: F,
 ) -> Vec<PathBuf>
 where
@@ -2380,6 +2598,29 @@ where
                 }
                 continue;
             }
+
+            // Check every entry, not only links: a junction or another
+            // filesystem alias may not report as a symlink, and a link below a
+            // symlinked directory changes the target of paths that are not
+            // links themselves. Without this, an archive or search could read
+            // through the alias and bypass path rules.
+            if auth.has_rules() {
+                let rel_path = entry_path
+                    .strip_prefix(&serve_path)
+                    .ok()
+                    .map(normalize_path)
+                    .unwrap_or_default();
+                if !auth
+                    .can_access(user.as_deref(), &rel_path, &Method::GET, &serve_path)
+                    .await
+                {
+                    if is_dir {
+                        it.skip_current_dir();
+                    }
+                    continue;
+                }
+            }
+
             if !include_entry(&entry) {
                 continue;
             }

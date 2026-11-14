@@ -12,7 +12,7 @@ use sha2::{Digest, Sha256};
 use sha_crypt::PasswordVerifier;
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::Mutex,
 };
 use uuid::Uuid;
@@ -130,6 +130,11 @@ impl AccessControl {
         !self.users.is_empty()
     }
 
+    /// Whether any access rule is configured, including anonymous-only rules.
+    pub fn has_rules(&self) -> bool {
+        !self.empty
+    }
+
     /// Returns the guarded `(user, access_paths, via_token, stale)`. `via_token`
     /// is true only when the identity was established by a share token rather
     /// than primary credentials or anonymous access. `stale` is true when the
@@ -164,7 +169,7 @@ impl AccessControl {
                 if let Ok((user, ap)) = self.verify_token(token, path) {
                     return (
                         Some(user),
-                        ap.guard(path, method, Some(root)).await,
+                        self.guard_with_target(ap, path, method, root).await,
                         true,
                         false,
                     );
@@ -187,7 +192,7 @@ impl AccessControl {
                             }
                             return (
                                 Some(user),
-                                ap.guard(path, method, Some(root)).await,
+                                self.guard_with_target(ap, path, method, root).await,
                                 false,
                                 false,
                             );
@@ -211,10 +216,130 @@ impl AccessControl {
         }
 
         if let Some(ap) = self.anonymous.as_ref() {
-            return (None, ap.guard(path, method, Some(root)).await, false, false);
+            return (
+                None,
+                self.guard_with_target(ap, path, method, root).await,
+                false,
+                false,
+            );
         }
 
         (None, None, false, false)
+    }
+
+    /// Resolve `path` against `access_paths` for `method`, and require the same
+    /// principal to be authorized for the canonical target as well.
+    ///
+    /// A request path and the object it resolves to can differ when the path
+    /// contains a symbolic link. Authorizing only the request path would let a
+    /// link inside a granted directory act as a grant for its target, so the
+    /// effective permission is the stricter of the two paths.
+    ///
+    /// The target check only applies inside the served root. Content outside
+    /// the root has no path rules and keeps being governed by `--allow-symlink`
+    /// and the requested path's permission. Targets that cannot be resolved are
+    /// denied.
+    async fn guard_with_target(
+        &self,
+        access_paths: &AccessPaths,
+        path: &str,
+        method: &Method,
+        root: &Path,
+    ) -> Option<AccessPaths> {
+        let target = access_paths.guard(path, method, Some(root)).await?;
+        if self.empty || matches!(method.as_str(), "CHECKAUTH" | "LOGOUT") {
+            return Some(target);
+        }
+        match resolve_target_rel(path, root).await {
+            ResolvedTarget::Inside(resolved) => {
+                if resolved != path.trim_matches('/') {
+                    let target_node = access_paths.guard(&resolved, method, Some(root)).await?;
+                    // `DELETE` and `MOVE` act on a whole directory. A symlink
+                    // parent can make the request path look unrestricted while
+                    // the real target contains a stricter rule, so recursive
+                    // methods must also inspect the resolved target's subtree.
+                    // A symlink as the final component is only the link entry
+                    // itself, not its target subtree.
+                    if is_recursive_write(method)
+                        && !is_symlink_entry(path, root).await
+                        && target_node.has_stricter_descendant(AccessPerm::ReadWrite)
+                    {
+                        return None;
+                    }
+                }
+            }
+            ResolvedTarget::Outside => {}
+            ResolvedTarget::Unresolved => return None,
+        }
+        Some(target)
+    }
+
+    /// Whether the canonical target of `path` contains a rule stricter than
+    /// read-write. This is the target-side counterpart of
+    /// [`AccessPaths::entry_access`]'s `restricted` flag, used to avoid
+    /// advertising recursive delete for a directory behind a link.
+    pub async fn target_has_restricted_descendant(
+        &self,
+        user: Option<&str>,
+        path: &str,
+        root: &Path,
+    ) -> bool {
+        if self.empty {
+            return false;
+        }
+        let access_paths = match user {
+            Some(user) => match self.users.get(user) {
+                Some((_, access_paths)) => access_paths,
+                None => return false,
+            },
+            None => match self.anonymous.as_ref() {
+                Some(access_paths) => access_paths,
+                None => return false,
+            },
+        };
+        let resolved = match resolve_target_rel(path, root).await {
+            ResolvedTarget::Inside(resolved) => resolved,
+            // Targets outside the root have no path rules.
+            ResolvedTarget::Outside | ResolvedTarget::Unresolved => return false,
+        };
+        if resolved == path.trim_matches('/') {
+            return false;
+        }
+        match access_paths
+            .guard(&resolved, &Method::GET, Some(root))
+            .await
+        {
+            Some(target) => target.has_stricter_descendant(AccessPerm::ReadWrite),
+            // The target itself has no effective permission; fail closed.
+            None => true,
+        }
+    }
+
+    /// Whether `user` may perform `method` on `path`, including the canonical
+    /// target of a symbolic link when that target is inside the served root.
+    pub async fn can_access(
+        &self,
+        user: Option<&str>,
+        path: &str,
+        method: &Method,
+        root: &Path,
+    ) -> bool {
+        if self.empty {
+            return true;
+        }
+        let access_paths = match user {
+            Some(user) => match self.users.get(user) {
+                Some((_, access_paths)) => access_paths,
+                None => return false,
+            },
+            None => match self.anonymous.as_ref() {
+                Some(access_paths) => access_paths,
+                None => return false,
+            },
+        };
+        self.guard_with_target(access_paths, path, method, root)
+            .await
+            .is_some()
     }
 
     /// Whether `user` may read `path` according to the complete rule tree.
@@ -239,8 +364,7 @@ impl AccessControl {
                 None => return false,
             },
         };
-        access_paths
-            .guard(path, &Method::GET, Some(root))
+        self.guard_with_target(access_paths, path, &Method::GET, root)
             .await
             .is_some_and(|access_paths| !access_paths.perm().indexonly())
     }
@@ -903,6 +1027,123 @@ fn validate_nonce(nonce: &[u8]) -> Result<bool> {
     bail!("invalid nonce");
 }
 
+/// Where a request path resolves to after following symbolic links.
+#[derive(Debug, PartialEq, Eq)]
+enum ResolvedTarget {
+    /// The target is inside the served root, as a `/`-separated relative path.
+    Inside(String),
+    /// The target is outside the served root, where no path rule applies.
+    Outside,
+    /// The target cannot be resolved, for example because of a link loop, a
+    /// dangling intermediate component, or invalid components.
+    Unresolved,
+}
+
+/// Resolve `path` (relative to `root`) to its canonical target.
+///
+/// Missing paths are resolved through their nearest existing ancestor so that
+/// uploads and directory creation are checked against the directory they will
+/// actually land in. A dangling final symlink is resolved through its link
+/// text, since creating a file through it writes to the link target.
+async fn resolve_target_rel(path: &str, root: &Path) -> ResolvedTarget {
+    let path = path.trim_matches('/');
+    if path.is_empty() {
+        return ResolvedTarget::Inside(String::new());
+    }
+    if Path::new(path)
+        .components()
+        .any(|component| !matches!(component, Component::Normal(_)))
+    {
+        return ResolvedTarget::Unresolved;
+    }
+    let abs = root.join(path);
+    if let Ok(target) = tokio::fs::canonicalize(&abs).await {
+        return match target.strip_prefix(root) {
+            Ok(rel) => ResolvedTarget::Inside(path_to_rel(rel)),
+            Err(_) => ResolvedTarget::Outside,
+        };
+    }
+
+    // `canonicalize` fails for a dangling final symlink. Resolve its text
+    // against the canonical parent directory so that `..` and any further
+    // links in the text are resolved by the filesystem, not lexically.
+    if let Ok(meta) = tokio::fs::symlink_metadata(&abs).await {
+        if meta.is_symlink() {
+            let link = match tokio::fs::read_link(&abs).await {
+                Ok(link) => link,
+                Err(_) => return ResolvedTarget::Unresolved,
+            };
+            let parent = match abs.parent() {
+                Some(parent) => parent,
+                None => return ResolvedTarget::Unresolved,
+            };
+            let parent = match tokio::fs::canonicalize(parent).await {
+                Ok(parent) => parent,
+                Err(_) => return ResolvedTarget::Unresolved,
+            };
+            return resolve_missing_rel(&parent.join(link), root).await;
+        }
+    }
+
+    resolve_missing_rel(&abs, root).await
+}
+
+/// Whether the final component of `path` is itself a symbolic link.
+///
+/// Unlike [`resolve_target_rel`], this deliberately does not follow the final
+/// component: a delete or move of a link acts on the link entry, while a path
+/// whose intermediate components contain a link still names the real target.
+async fn is_symlink_entry(path: &str, root: &Path) -> bool {
+    tokio::fs::symlink_metadata(root.join(path.trim_matches('/')))
+        .await
+        .map(|meta| meta.file_type().is_symlink())
+        .unwrap_or(false)
+}
+
+/// Resolve an absolute path whose tail may not exist yet.
+///
+/// The nearest existing ancestor is canonicalized so that every symlink in the
+/// existing prefix is honored, then the missing components are appended. The
+/// input is deliberately not normalized lexically: `..` components must be
+/// resolved by the filesystem, after any preceding symlinks have been followed.
+async fn resolve_missing_rel(abs: &Path, root: &Path) -> ResolvedTarget {
+    let mut ancestor = abs;
+    let mut missing: Vec<&std::ffi::OsStr> = vec![];
+    while tokio::fs::symlink_metadata(ancestor).await.is_err() {
+        let name = match ancestor.file_name() {
+            Some(name) => name,
+            None => return ResolvedTarget::Unresolved,
+        };
+        missing.push(name);
+        ancestor = match ancestor.parent() {
+            Some(parent) => parent,
+            None => return ResolvedTarget::Unresolved,
+        };
+    }
+    let canonical = match tokio::fs::canonicalize(ancestor).await {
+        Ok(canonical) => canonical,
+        Err(_) => return ResolvedTarget::Unresolved,
+    };
+    let mut target = match canonical.strip_prefix(root) {
+        Ok(target) => target.to_path_buf(),
+        Err(_) => return ResolvedTarget::Outside,
+    };
+    for name in missing.into_iter().rev() {
+        target.push(name);
+    }
+    ResolvedTarget::Inside(path_to_rel(&target))
+}
+
+fn path_to_rel(path: &Path) -> String {
+    path.components()
+        .filter_map(|component| match component {
+            Component::Normal(name) => Some(name.to_string_lossy().into_owned()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
 /// Resolve the on-disk identity of `root/<prefix...>/<name>`.
 async fn path_identity(root: &Path, prefix: &[&str], name: &str) -> Option<PathBuf> {
     let mut path = root.to_path_buf();
@@ -936,6 +1177,11 @@ fn is_readonly_method(method: &Method) -> bool {
         || method.as_str() == "PROPFIND"
         || method.as_str() == "CHECKAUTH"
         || method.as_str() == "LOGOUT"
+}
+
+/// Methods that operate on every descendant of the request path.
+fn is_recursive_write(method: &Method) -> bool {
+    method == Method::DELETE || method.as_str() == "MOVE"
 }
 
 fn strip_prefix<'a>(search: &'a [u8], prefix: &[u8]) -> Option<&'a [u8]> {
@@ -1234,6 +1480,93 @@ mod tests {
                 restricted: false
             }
         );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_resolve_target_rel() {
+        use assert_fs::prelude::*;
+        use std::os::unix::fs::symlink;
+
+        let dir = assert_fs::TempDir::new().unwrap();
+        dir.child("public/locked/secret.txt")
+            .write_str("x")
+            .unwrap();
+        dir.child("private/secret.txt").write_str("x").unwrap();
+        dir.child("deep/inner").create_dir_all().unwrap();
+        let outside = assert_fs::TempDir::new().unwrap();
+        outside.child("secret.txt").write_str("x").unwrap();
+        symlink("locked", dir.path().join("public/linkdir")).unwrap();
+        symlink("locked/secret.txt", dir.path().join("public/linkfile")).unwrap();
+        symlink("locked/notyet.txt", dir.path().join("public/dangling")).unwrap();
+        symlink("../private/secret.txt", dir.path().join("public/inside")).unwrap();
+        symlink(outside.path(), dir.path().join("public/escape")).unwrap();
+        // A dangling link whose target text traverses another link must resolve
+        // through that link instead of falling back to the link text.
+        symlink("../private", dir.path().join("public/aliasdir")).unwrap();
+        symlink(
+            "aliasdir/notyet.txt",
+            dir.path().join("public/deep-dangling"),
+        )
+        .unwrap();
+        symlink(
+            "escape/notyet.txt",
+            dir.path().join("public/escape-dangling"),
+        )
+        .unwrap();
+        // `..` after a link is resolved against the link's target, not against
+        // the link text.
+        symlink("../deep/inner", dir.path().join("public/to-deep")).unwrap();
+        symlink(
+            "to-deep/../missing.txt",
+            dir.path().join("public/dotdot-dangling"),
+        )
+        .unwrap();
+        // A link loop cannot be resolved and must not be authorized.
+        symlink("loop-b", dir.path().join("public/loop-a")).unwrap();
+        symlink("loop-a", dir.path().join("public/loop-b")).unwrap();
+        let root = tokio::fs::canonicalize(dir.path()).await.unwrap();
+
+        let cases = [
+            (
+                "public/linkdir",
+                ResolvedTarget::Inside("public/locked".into()),
+            ),
+            (
+                "public/linkfile",
+                ResolvedTarget::Inside("public/locked/secret.txt".into()),
+            ),
+            (
+                "public/dangling",
+                ResolvedTarget::Inside("public/locked/notyet.txt".into()),
+            ),
+            (
+                "public/deep-dangling",
+                ResolvedTarget::Inside("private/notyet.txt".into()),
+            ),
+            (
+                "public/dotdot-dangling",
+                ResolvedTarget::Inside("deep/missing.txt".into()),
+            ),
+            ("public/escape-dangling", ResolvedTarget::Outside),
+            (
+                "public/inside",
+                ResolvedTarget::Inside("private/secret.txt".into()),
+            ),
+            (
+                "public/new.txt",
+                ResolvedTarget::Inside("public/new.txt".into()),
+            ),
+            (
+                "public/missing/deep.txt",
+                ResolvedTarget::Inside("public/missing/deep.txt".into()),
+            ),
+            ("public/escape", ResolvedTarget::Outside),
+            ("public/loop-a", ResolvedTarget::Unresolved),
+        ];
+        for (path, expected) in cases {
+            assert_eq!(resolve_target_rel(path, &root).await, expected, "{path}");
+        }
     }
 
     #[test]
