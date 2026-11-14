@@ -11,12 +11,10 @@ fn cors(#[with(&["--enable-cors"])] server: TestServer) -> Result<(), Error> {
         resp.headers().get("access-control-allow-origin").unwrap(),
         "*"
     );
-    assert_eq!(
-        resp.headers()
-            .get("access-control-allow-credentials")
-            .unwrap(),
-        "true"
-    );
+    assert!(resp
+        .headers()
+        .get("access-control-allow-credentials")
+        .is_none());
     assert_eq!(
         resp.headers().get("access-control-allow-methods").unwrap(),
         "*"
@@ -27,7 +25,7 @@ fn cors(#[with(&["--enable-cors"])] server: TestServer) -> Result<(), Error> {
     );
     assert_eq!(
         resp.headers().get("access-control-expose-headers").unwrap(),
-        "Authorization,X-Dufs-Error-Code,*"
+        "*"
     );
     Ok(())
 }
