@@ -249,6 +249,8 @@ Recursive operations respect nested rules: deleting or moving a directory is ref
 
 **Auth permissions are restricted by dufs global permissions.** If dufs does not enable upload permissions via `--allow-upload`, then the account will not have upload permissions even if it is granted `read-write`(`:rw`) permissions.
 
+Permissions are evaluated against both the request path and the canonical path it resolves to through symbolic links; a link cannot grant more access than its target. See [SECURITY.md](SECURITY.md) for the detailed rules.
+
 #### Hashed Password
 
 DUFS supports the use of sha-512 hashed password.

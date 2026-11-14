@@ -1,6 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 
-use crate::auth::{www_authenticate, AccessPaths, AccessPerm, EntryAccess};
+use crate::auth::{www_authenticate, AccessControl, AccessPaths, AccessPerm, EntryAccess};
 use crate::error::DufsErrorCode;
 use crate::http_utils::{body_full, IncomingStream, LengthLimitedStream};
 use crate::noscript::{detect_noscript, generate_noscript_html};
@@ -305,8 +305,14 @@ impl Server {
                                     .await?;
                                 return Ok(res);
                             }
-                            self.handle_zip_dir(path, head_only, access_paths, &mut res)
-                                .await?;
+                            self.handle_zip_dir(
+                                path,
+                                head_only,
+                                user.clone(),
+                                access_paths,
+                                &mut res,
+                            )
+                            .await?;
                         } else if allow_search && query_params.contains_key("q") {
                             self.handle_search_dir(
                                 path,
@@ -345,7 +351,7 @@ impl Server {
                             DufsErrorCode::ArchiveDisabled.respond(&mut res);
                             return Ok(res);
                         }
-                        self.handle_zip_dir(path, head_only, access_paths, &mut res)
+                        self.handle_zip_dir(path, head_only, user.clone(), access_paths, &mut res)
                             .await?;
                     } else if allow_search && query_params.contains_key("q") {
                         self.handle_search_dir(
@@ -494,8 +500,14 @@ impl Server {
                         if !check_preconditions_for_meta(headers, meta.as_ref(), &mut res) {
                             return Ok(res);
                         }
-                        self.handle_propfind_dir(path, headers, access_paths, &mut res)
-                            .await?;
+                        self.handle_propfind_dir(
+                            path,
+                            headers,
+                            user.clone(),
+                            access_paths,
+                            &mut res,
+                        )
+                        .await?;
                     } else if is_file {
                         if !check_preconditions_for_meta(headers, meta.as_ref(), &mut res) {
                             return Ok(res);
@@ -645,7 +657,10 @@ impl Server {
     ) -> Result<()> {
         let mut paths = vec![];
         if !head_only && exist {
-            paths = match self.list_dir(path, path, &access_paths).await {
+            paths = match self
+                .list_dir(path, path, &access_paths, user.as_deref())
+                .await
+            {
                 Ok(paths) => paths,
                 Err(_) => {
                     DufsErrorCode::InternalError.respond(res);
@@ -698,6 +713,8 @@ impl Server {
                 hidden,
                 self.args.allow_symlink,
                 self.args.serve_path.clone(),
+                self.args.auth.clone(),
+                user.clone(),
                 move |x| get_file_name(x.path()).to_lowercase().contains(&search),
             ))
             .await?;
@@ -729,6 +746,7 @@ impl Server {
         &self,
         path: &Path,
         head_only: bool,
+        user: Option<String>,
         access_paths: AccessPaths,
         res: &mut Response,
     ) -> Result<()> {
@@ -746,6 +764,7 @@ impl Server {
         let compression = self.args.compress.to_compression();
         let follow_symlinks = self.args.allow_symlink;
         let serve_path = self.args.serve_path.clone();
+        let auth = self.args.auth.clone();
         tokio::spawn(async move {
             if let Err(e) = zip_dir(
                 &mut writer,
@@ -755,6 +774,8 @@ impl Server {
                 compression,
                 follow_symlinks,
                 serve_path,
+                auth,
+                user,
                 running,
             )
             .await
@@ -794,7 +815,19 @@ impl Server {
             let access = access_paths
                 .entry_access(INDEX_NAME, &prefix, Some(&self.args.serve_path))
                 .await;
-            !access.perm.indexonly() && !self.guard_root_contained(&index_path).await
+            let index_rel = self.relative_parts(&index_path).join("/");
+            !access.perm.indexonly()
+                && !self.guard_root_contained(&index_path).await
+                && self
+                    .args
+                    .auth
+                    .can_access(
+                        user.as_deref(),
+                        &index_rel,
+                        &Method::GET,
+                        &self.args.serve_path,
+                    )
+                    .await
         } else {
             false
         };
@@ -1262,6 +1295,7 @@ impl Server {
         &self,
         path: &Path,
         headers: &HeaderMap<HeaderValue>,
+        user: Option<String>,
         access_paths: AccessPaths,
         res: &mut Response,
     ) -> Result<()> {
@@ -1296,7 +1330,7 @@ impl Server {
         };
         if depth == 1 {
             match self
-                .list_dir(path, &self.args.serve_path, &access_paths)
+                .list_dir(path, &self.args.serve_path, &access_paths, user.as_deref())
                 .await
             {
                 Ok(child) => paths.extend(child),
@@ -1382,6 +1416,23 @@ impl Server {
                 return Ok(());
             }
         };
+
+        // A relative symlink resolves against its own parent directory, so moving
+        // it to a different parent changes what it points at without changing the
+        // request path. The target check below would catch the new target, but
+        // refusing the move as well closes the race between that check and the
+        // following filesystem operation. Renaming within the same parent
+        // preserves every relative target and stays allowed.
+        if self.args.auth.has_rules()
+            && path.parent() != dest.parent()
+            && contains_symlink(path).await
+        {
+            DufsErrorCode::Forbidden.respond_with(
+                res,
+                "Forbidden: cannot move symlinks when access rules are enabled",
+            );
+            return Ok(());
+        }
 
         if self.guard_root_contained(&dest).await {
             DufsErrorCode::InvalidDestination.respond(res);
@@ -1702,21 +1753,36 @@ impl Server {
         entry_path: &Path,
         base_path: &Path,
         access_paths: &AccessPaths,
+        user: Option<&str>,
     ) -> Result<Vec<PathItem>> {
         let mut paths: Vec<PathItem> = vec![];
         let prefix = self.relative_parts(entry_path);
         if access_paths.perm().indexonly() {
             for name in access_paths.child_names() {
                 let entry_path = entry_path.join(name);
-                self.add_pathitem(&mut paths, base_path, &entry_path, access_paths, &prefix)
-                    .await;
+                self.add_pathitem(
+                    &mut paths,
+                    base_path,
+                    &entry_path,
+                    access_paths,
+                    &prefix,
+                    user,
+                )
+                .await;
             }
         } else {
             let mut rd = fs::read_dir(entry_path).await?;
             while let Ok(Some(entry)) = rd.next_entry().await {
                 let entry_path = entry.path();
-                self.add_pathitem(&mut paths, base_path, &entry_path, access_paths, &prefix)
-                    .await;
+                self.add_pathitem(
+                    &mut paths,
+                    base_path,
+                    &entry_path,
+                    access_paths,
+                    &prefix,
+                    user,
+                )
+                .await;
             }
         }
         Ok(paths)
@@ -1729,11 +1795,27 @@ impl Server {
         entry_path: &Path,
         access_paths: &AccessPaths,
         prefix: &[&str],
+        user: Option<&str>,
     ) {
         let base_name = get_file_name(entry_path);
         if let Ok(Some(mut item)) = self.to_pathitem(entry_path, base_path).await {
             if is_hidden(&self.args.hidden, base_name, item.is_dir()) {
                 return;
+            }
+            if self.args.auth.has_rules() && self.is_symlink(entry_path).await {
+                let rel_path = entry_path
+                    .strip_prefix(&self.args.serve_path)
+                    .ok()
+                    .map(normalize_path)
+                    .unwrap_or_default();
+                if !self
+                    .args
+                    .auth
+                    .can_access(user, &rel_path, &Method::GET, &self.args.serve_path)
+                    .await
+                {
+                    return;
+                }
             }
             let access = access_paths
                 .entry_access(base_name, prefix, Some(&self.args.serve_path))
@@ -1741,6 +1823,13 @@ impl Server {
             self.set_item_access(&mut item, access);
             paths.push(item);
         }
+    }
+
+    async fn is_symlink(&self, path: &Path) -> bool {
+        fs::symlink_metadata(path)
+            .await
+            .map(|meta| meta.is_symlink())
+            .unwrap_or_default()
     }
 
     async fn to_pathitem<P: AsRef<Path>>(&self, path: P, base_path: P) -> Result<Option<PathItem>> {
@@ -2013,6 +2102,34 @@ async fn ensure_path_parent(path: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Whether `path` is a symlink, or a directory containing one at any depth.
+///
+/// `MOVE` relocates a link without changing its text, so a relative target can
+/// begin resolving somewhere else after the move. This check lets the caller
+/// refuse such moves when path authorization is enabled.
+async fn contains_symlink(path: &Path) -> bool {
+    match fs::symlink_metadata(path).await {
+        Ok(meta) if meta.is_symlink() => true,
+        Ok(meta) if meta.is_dir() => {
+            let path = path.to_path_buf();
+            tokio::task::spawn_blocking(move || {
+                WalkDir::new(path)
+                    .follow_links(false)
+                    .into_iter()
+                    .any(|entry| match entry {
+                        Ok(entry) => entry.file_type().is_symlink(),
+                        // An unreadable subtree could hide a link; fail closed.
+                        Err(_) => true,
+                    })
+            })
+            .await
+            // Fail closed if the blocking task cannot run.
+            .unwrap_or(true)
+        }
+        _ => false,
+    }
+}
+
 fn add_cors(res: &mut Response) {
     res.headers_mut()
         .typed_insert(AccessControlAllowOrigin::ANY);
@@ -2054,6 +2171,8 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
     compression: CompressionLevel,
     follow_symlinks: bool,
     serve_path: PathBuf,
+    auth: AccessControl,
+    user: Option<String>,
     running: Arc<AtomicBool>,
 ) -> Result<()> {
     let hidden = Arc::new(hidden.to_vec());
@@ -2064,6 +2183,8 @@ async fn zip_dir<W: AsyncWrite + Unpin>(
         hidden,
         follow_symlinks,
         serve_path,
+        auth,
+        user,
         move |x| {
             // Include both files and directories. Symbolic links are already
             // resolved by `follow_links`, so `file_type` reports the target's
@@ -2338,6 +2459,8 @@ async fn collect_dir_entries<F>(
     hidden: Arc<Vec<String>>,
     follow_symlinks: bool,
     serve_path: PathBuf,
+    auth: AccessControl,
+    user: Option<String>,
     include_entry: F,
 ) -> Vec<PathBuf>
 where
@@ -2380,6 +2503,29 @@ where
                 }
                 continue;
             }
+
+            // Check every entry, not only links: a junction or another
+            // filesystem alias may not report as a symlink, and a link below a
+            // symlinked directory changes the target of paths that are not
+            // links themselves. Without this, an archive or search could read
+            // through the alias and bypass path rules.
+            if auth.has_rules() {
+                let rel_path = entry_path
+                    .strip_prefix(&serve_path)
+                    .ok()
+                    .map(normalize_path)
+                    .unwrap_or_default();
+                if !auth
+                    .can_access(user.as_deref(), &rel_path, &Method::GET, &serve_path)
+                    .await
+                {
+                    if is_dir {
+                        it.skip_current_dir();
+                    }
+                    continue;
+                }
+            }
+
             if !include_entry(&entry) {
                 continue;
             }
