@@ -298,6 +298,110 @@ fn dangling_link_through_symlink_denied(
     Ok(())
 }
 
+/// Recursive operations must apply the target subtree rules as well: a link can
+/// expose a writable-looking directory whose real target contains a protected
+/// child, and `DELETE`/`MOVE` act on the whole real subtree.
+#[cfg(unix)]
+#[rstest]
+fn recursive_delete_and_move_through_symlink_parent_respect_target(
+    #[with(&["--auth", "alice:alice@/public:rw,/public/locked/sub/secret.txt:ro", "-A"])]
+    server: TestServer,
+) -> Result<(), Error> {
+    std::fs::create_dir_all(server.path().join("public/locked/sub"))?;
+    std::fs::write(server.path().join("public/locked/sub/secret.txt"), "SECRET")?;
+    symlink_file("locked", server.path().join("public/linkdir"))?;
+
+    let resp = fetch!(
+        b"DELETE",
+        format!("{}public/linkdir/sub/secret.txt", server.url())
+    )
+    .basic_auth("alice", Some("alice"))
+    .send()?;
+    assert_eq!(resp.status(), 403);
+
+    // Deleting the containing directory must not bypass its child rule.
+    let resp = fetch!(b"DELETE", format!("{}public/linkdir/sub", server.url()))
+        .basic_auth("alice", Some("alice"))
+        .send()?;
+    assert_eq!(resp.status(), 403);
+    assert!(server.path().join("public/locked/sub/secret.txt").exists());
+
+    // Moving it out of the protected path would make the file writable.
+    let resp = fetch!(b"MOVE", format!("{}public/linkdir/sub", server.url()))
+        .basic_auth("alice", Some("alice"))
+        .header("Destination", format!("{}public/moved", server.url()))
+        .send()?;
+    assert_eq!(resp.status(), 403);
+    assert!(server.path().join("public/locked/sub/secret.txt").exists());
+    assert!(!server.path().join("public/moved").exists());
+
+    // Deleting the link entry itself only unlinks it, so it stays allowed.
+    let resp = fetch!(b"DELETE", format!("{}public/linkdir", server.url()))
+        .basic_auth("alice", Some("alice"))
+        .send()?;
+    assert_eq!(resp.status(), 204);
+    assert!(!server.path().join("public/linkdir").exists());
+    assert!(server.path().join("public/locked/sub/secret.txt").exists());
+    Ok(())
+}
+
+/// Listings and search results must derive the recursive-delete indicator from
+/// the resolved target subtree, not only from the request path.
+#[cfg(unix)]
+#[rstest]
+fn listing_and_search_follow_target_descendants(
+    #[with(&["--auth", "alice:alice@/public:rw,/public/locked/sub/secret.txt:ro", "-A"])]
+    server: TestServer,
+) -> Result<(), Error> {
+    std::fs::create_dir_all(server.path().join("public/locked/sub"))?;
+    std::fs::write(server.path().join("public/locked/sub/secret.txt"), "SECRET")?;
+    symlink_file("locked", server.path().join("public/linkdir"))?;
+
+    let resp = fetch!(b"GET", format!("{}public/linkdir/?json", server.url()))
+        .basic_auth("alice", Some("alice"))
+        .send()?;
+    assert_eq!(resp.status(), 200);
+    let value: serde_json::Value = serde_json::from_str(&resp.text()?)?;
+    let sub = value["paths"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["name"] == "sub")
+        .expect("sub should be listed");
+    assert_eq!(sub["allow_delete"], false);
+    assert_eq!(sub["readonly_descendant"], true);
+
+    let resp = fetch!(b"GET", format!("{}public/?q=sub&json", server.url()))
+        .basic_auth("alice", Some("alice"))
+        .send()?;
+    assert_eq!(resp.status(), 200);
+    let value: serde_json::Value = serde_json::from_str(&resp.text()?)?;
+    let sub = value["paths"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["name"] == "linkdir/sub")
+        .expect("linkdir/sub should be found");
+    assert_eq!(sub["allow_delete"], false);
+    assert_eq!(sub["readonly_descendant"], true);
+
+    // The link entry itself can still be removed without touching the target.
+    let resp = fetch!(b"GET", format!("{}public/?json", server.url()))
+        .basic_auth("alice", Some("alice"))
+        .send()?;
+    assert_eq!(resp.status(), 200);
+    let value: serde_json::Value = serde_json::from_str(&resp.text()?)?;
+    let link = value["paths"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["name"] == "linkdir")
+        .expect("linkdir should be listed");
+    assert_eq!(link["allow_delete"], true);
+    assert_eq!(link["readonly_descendant"], false);
+    Ok(())
+}
+
 /// A directory reached through a link exposes only the entries that the target
 /// rules allow, and does not advertise write access to a read-only target.
 #[cfg(unix)]

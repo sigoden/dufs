@@ -45,6 +45,12 @@ relative target, but it is still authorized as a write against the requested pat
 targets, against the resolved target. `DELETE` follows the same rule. This prevents an HTTP client
 from repointing an existing link while a request is being authorized.
 
+`DELETE` and `MOVE` act on a whole directory, so they are also rejected when the resolved target
+subtree contains a path with a stricter rule, even if the request path itself reveals no such rule.
+For example, a link inside a `:rw` directory can point at a `:rw` directory that contains a `:ro`
+child; removing the linked directory would remove that child. Deleting or renaming the link entry
+itself only affects the link and remains allowed.
+
 All entry points follow the same rule, including WebDAV `MOVE`/`COPY` destinations, archive
 downloads (`?zip`), search results, and directory listings. Directory listings resolve every entry,
 so an entry whose in-root target is not accessible is hidden or shown read-only according to that

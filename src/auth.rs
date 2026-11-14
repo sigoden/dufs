@@ -253,13 +253,66 @@ impl AccessControl {
         match resolve_target_rel(path, root).await {
             ResolvedTarget::Inside(resolved) => {
                 if resolved != path.trim_matches('/') {
-                    access_paths.guard(&resolved, method, Some(root)).await?;
+                    let target_node = access_paths.guard(&resolved, method, Some(root)).await?;
+                    // `DELETE` and `MOVE` act on a whole directory. A symlink
+                    // parent can make the request path look unrestricted while
+                    // the real target contains a stricter rule, so recursive
+                    // methods must also inspect the resolved target's subtree.
+                    // A symlink as the final component is only the link entry
+                    // itself, not its target subtree.
+                    if is_recursive_write(method)
+                        && !is_symlink_entry(path, root).await
+                        && target_node.has_stricter_descendant(AccessPerm::ReadWrite)
+                    {
+                        return None;
+                    }
                 }
             }
             ResolvedTarget::Outside => {}
             ResolvedTarget::Unresolved => return None,
         }
         Some(target)
+    }
+
+    /// Whether the canonical target of `path` contains a rule stricter than
+    /// read-write. This is the target-side counterpart of
+    /// [`AccessPaths::entry_access`]'s `restricted` flag, used to avoid
+    /// advertising recursive delete for a directory behind a link.
+    pub async fn target_has_restricted_descendant(
+        &self,
+        user: Option<&str>,
+        path: &str,
+        root: &Path,
+    ) -> bool {
+        if self.empty {
+            return false;
+        }
+        let access_paths = match user {
+            Some(user) => match self.users.get(user) {
+                Some((_, access_paths)) => access_paths,
+                None => return false,
+            },
+            None => match self.anonymous.as_ref() {
+                Some(access_paths) => access_paths,
+                None => return false,
+            },
+        };
+        let resolved = match resolve_target_rel(path, root).await {
+            ResolvedTarget::Inside(resolved) => resolved,
+            // Targets outside the root have no path rules.
+            ResolvedTarget::Outside | ResolvedTarget::Unresolved => return false,
+        };
+        if resolved == path.trim_matches('/') {
+            return false;
+        }
+        match access_paths
+            .guard(&resolved, &Method::GET, Some(root))
+            .await
+        {
+            Some(target) => target.has_stricter_descendant(AccessPerm::ReadWrite),
+            // The target itself has no effective permission; fail closed.
+            None => true,
+        }
     }
 
     /// Whether `user` may perform `method` on `path`, including the canonical
@@ -1035,6 +1088,18 @@ async fn resolve_target_rel(path: &str, root: &Path) -> ResolvedTarget {
     resolve_missing_rel(&abs, root).await
 }
 
+/// Whether the final component of `path` is itself a symbolic link.
+///
+/// Unlike [`resolve_target_rel`], this deliberately does not follow the final
+/// component: a delete or move of a link acts on the link entry, while a path
+/// whose intermediate components contain a link still names the real target.
+async fn is_symlink_entry(path: &str, root: &Path) -> bool {
+    tokio::fs::symlink_metadata(root.join(path.trim_matches('/')))
+        .await
+        .map(|meta| meta.file_type().is_symlink())
+        .unwrap_or(false)
+}
+
 /// Resolve an absolute path whose tail may not exist yet.
 ///
 /// The nearest existing ancestor is canonicalized so that every symlink in the
@@ -1112,6 +1177,11 @@ fn is_readonly_method(method: &Method) -> bool {
         || method.as_str() == "PROPFIND"
         || method.as_str() == "CHECKAUTH"
         || method.as_str() == "LOGOUT"
+}
+
+/// Methods that operate on every descendant of the request path.
+fn is_recursive_write(method: &Method) -> bool {
+    method == Method::DELETE || method.as_str() == "MOVE"
 }
 
 fn strip_prefix<'a>(search: &'a [u8], prefix: &[u8]) -> Option<&'a [u8]> {

@@ -727,14 +727,23 @@ impl Server {
             .await?;
 
             for search_path in search_paths.into_iter() {
-                if let Ok(Some(mut item)) = self.to_pathitem(search_path, path.to_path_buf()).await
-                {
-                    let access = access_paths
-                        .entry_access(&item.name, &prefix, Some(&self.args.serve_path))
-                        .await;
-                    self.set_item_access(&mut item, access);
-                    paths.push(item);
-                }
+                let Ok(Some(mut item)) = self.to_pathitem(search_path.as_path(), path).await else {
+                    continue;
+                };
+                let Some(access) = self
+                    .entry_access(
+                        &access_paths,
+                        &search_path,
+                        &item.name,
+                        &prefix,
+                        user.as_deref(),
+                    )
+                    .await
+                else {
+                    continue;
+                };
+                self.set_item_access(&mut item, access);
+                paths.push(item);
             }
         }
         self.send_index(
@@ -1819,26 +1828,67 @@ impl Server {
             if is_hidden(&self.args.hidden, base_name, item.is_dir()) {
                 return;
             }
-            let mut access = access_paths
-                .entry_access(base_name, prefix, Some(&self.args.serve_path))
-                .await;
-            if self.args.auth.has_rules() && self.path_resolves_elsewhere(entry_path).await {
-                // The entry is reached through a link, either as the entry
-                // itself or as a parent component. Check the canonical target
-                // so a listing cannot expose entries the target rule denies.
-                if !self.path_can_access(entry_path, &Method::GET, user).await {
-                    return;
-                }
-                // Display permission follows both the request path and the
-                // canonical target, so write controls are not advertised for
-                // entries that the target rule makes read-only.
-                if access.perm.readwrite() && !self.path_readwrite(entry_path, user).await {
-                    access.perm = AccessPerm::ReadOnly;
-                }
-            }
+            let Some(access) = self
+                .entry_access(access_paths, entry_path, base_name, prefix, user)
+                .await
+            else {
+                return;
+            };
             self.set_item_access(&mut item, access);
             paths.push(item);
         }
+    }
+
+    /// Resolve the displayed access of an entry from the request path, then
+    /// from its canonical target when the entry is reached through a link.
+    ///
+    /// Returns `None` when the target is not readable, so listings and search
+    /// results hide the same entries.
+    async fn entry_access(
+        &self,
+        access_paths: &AccessPaths,
+        entry_path: &Path,
+        entry_name: &str,
+        prefix: &[&str],
+        user: Option<&str>,
+    ) -> Option<EntryAccess> {
+        let mut access = access_paths
+            .entry_access(entry_name, prefix, Some(&self.args.serve_path))
+            .await;
+        if self.args.auth.has_rules() && self.path_resolves_elsewhere(entry_path).await {
+            // The entry is reached through a link, either as the entry itself
+            // or as a parent component. Check the canonical target so a
+            // listing cannot expose entries the target rule denies.
+            if !self.path_can_access(entry_path, &Method::GET, user).await {
+                return None;
+            }
+            // Display permission follows both the request path and the
+            // canonical target, so write controls are not advertised for
+            // entries that the target rule makes read-only.
+            if access.perm.readwrite() && !self.path_readwrite(entry_path, user).await {
+                access.perm = AccessPerm::ReadOnly;
+            }
+            // Recursive delete follows the target subtree as well, so a
+            // read-only rule below the target blocks it even when the request
+            // path has no such rule. A symlink entry itself can still be
+            // removed, since that only unlinks it.
+            if access.perm.readwrite()
+                && !access.restricted
+                && !self.path_is_symlink(entry_path).await
+                && self
+                    .args
+                    .auth
+                    .target_has_restricted_descendant(
+                        user,
+                        &self.relative_parts(entry_path).join("/"),
+                        &self.args.serve_path,
+                    )
+                    .await
+            {
+                access.restricted = true;
+            }
+        }
+        Some(access)
     }
 
     /// Whether `path` does not name its canonical target directly, for example
@@ -1851,6 +1901,15 @@ impl Server {
             Ok(canonical) => canonical != path,
             Err(_) => true,
         }
+    }
+
+    /// Whether the final component of `path` is a symbolic link. Intermediate
+    /// links are followed, since they make the path name a real target entry.
+    async fn path_is_symlink(&self, path: &Path) -> bool {
+        fs::symlink_metadata(path)
+            .await
+            .map(|meta| meta.file_type().is_symlink())
+            .unwrap_or_default()
     }
 
     /// Whether `user` may perform `method` on `path`, accounting for the
