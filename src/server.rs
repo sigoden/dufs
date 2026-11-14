@@ -377,8 +377,14 @@ impl Server {
                     }
                 } else if is_file {
                     if has_query_flag(&query_params, "json") {
-                        self.handle_file_json(path, head_only, &access_paths, &mut res)
-                            .await?;
+                        self.handle_file_json(
+                            path,
+                            head_only,
+                            &access_paths,
+                            user.as_deref(),
+                            &mut res,
+                        )
+                        .await?;
                     } else if has_query_flag(&query_params, "edit") {
                         self.handle_edit_file(
                             path,
@@ -678,6 +684,7 @@ impl Server {
             access_paths,
             res,
         )
+        .await
     }
 
     async fn handle_search_dir(
@@ -740,6 +747,7 @@ impl Server {
             access_paths,
             res,
         )
+        .await
     }
 
     async fn handle_zip_dir(
@@ -848,6 +856,7 @@ impl Server {
         path: &Path,
         head_only: bool,
         access_paths: &AccessPaths,
+        user: Option<&str>,
         res: &mut Response,
     ) -> Result<()> {
         let mut pathitem = match self.to_pathitem(path, &self.args.serve_path).await? {
@@ -857,10 +866,15 @@ impl Server {
                 return Ok(());
             }
         };
+        let readwrite = access_paths.perm().readwrite() && self.path_readwrite(path, user).await;
         self.set_item_access(
             &mut pathitem,
             EntryAccess {
-                perm: access_paths.perm(),
+                perm: if readwrite {
+                    access_paths.perm()
+                } else {
+                    AccessPerm::ReadOnly
+                },
                 restricted: false,
             },
         );
@@ -1221,7 +1235,8 @@ impl Server {
         file.take(1024).read_to_end(&mut buffer).await?;
         let editable =
             meta.len() <= EDITABLE_TEXT_MAX_SIZE && content_inspector::inspect(&buffer).is_text();
-        let readwrite = access_paths.perm().readwrite();
+        let readwrite =
+            access_paths.perm().readwrite() && self.path_readwrite(path, user.as_deref()).await;
         let data = EditData {
             href,
             kind,
@@ -1422,7 +1437,8 @@ impl Server {
         // request path. The target check below would catch the new target, but
         // refusing the move as well closes the race between that check and the
         // following filesystem operation. Renaming within the same parent
-        // preserves every relative target and stays allowed.
+        // preserves every relative target, so only the target permission check
+        // applies to it.
         if self.args.auth.has_rules()
             && path.parent() != dest.parent()
             && contains_symlink(path).await
@@ -1497,7 +1513,7 @@ impl Server {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn send_index(
+    async fn send_index(
         &self,
         path: &Path,
         mut paths: Vec<PathItem>,
@@ -1555,7 +1571,8 @@ impl Server {
             "/{}",
             normalize_path(path.strip_prefix(&self.args.serve_path)?)
         );
-        let readwrite = access_paths.perm().readwrite();
+        let readwrite =
+            access_paths.perm().readwrite() && self.path_readwrite(path, user.as_deref()).await;
         let data = IndexData {
             kind: DataKind::Index,
             href,
@@ -1802,34 +1819,53 @@ impl Server {
             if is_hidden(&self.args.hidden, base_name, item.is_dir()) {
                 return;
             }
-            if self.args.auth.has_rules() && self.is_symlink(entry_path).await {
-                let rel_path = entry_path
-                    .strip_prefix(&self.args.serve_path)
-                    .ok()
-                    .map(normalize_path)
-                    .unwrap_or_default();
-                if !self
-                    .args
-                    .auth
-                    .can_access(user, &rel_path, &Method::GET, &self.args.serve_path)
-                    .await
-                {
-                    return;
-                }
-            }
-            let access = access_paths
+            let mut access = access_paths
                 .entry_access(base_name, prefix, Some(&self.args.serve_path))
                 .await;
+            if self.args.auth.has_rules() && self.path_resolves_elsewhere(entry_path).await {
+                // The entry is reached through a link, either as the entry
+                // itself or as a parent component. Check the canonical target
+                // so a listing cannot expose entries the target rule denies.
+                if !self.path_can_access(entry_path, &Method::GET, user).await {
+                    return;
+                }
+                // Display permission follows both the request path and the
+                // canonical target, so write controls are not advertised for
+                // entries that the target rule makes read-only.
+                if access.perm.readwrite() && !self.path_readwrite(entry_path, user).await {
+                    access.perm = AccessPerm::ReadOnly;
+                }
+            }
             self.set_item_access(&mut item, access);
             paths.push(item);
         }
     }
 
-    async fn is_symlink(&self, path: &Path) -> bool {
-        fs::symlink_metadata(path)
+    /// Whether `path` does not name its canonical target directly, for example
+    /// because it is a symbolic link or a parent component is one.
+    ///
+    /// Dangling links do not canonicalize and are reported as aliases so the
+    /// authorization check still runs for them.
+    async fn path_resolves_elsewhere(&self, path: &Path) -> bool {
+        match fs::canonicalize(path).await {
+            Ok(canonical) => canonical != path,
+            Err(_) => true,
+        }
+    }
+
+    /// Whether `user` may perform `method` on `path`, accounting for the
+    /// canonical target of any symbolic link on the way.
+    async fn path_can_access(&self, path: &Path, method: &Method, user: Option<&str>) -> bool {
+        let rel_path = self.relative_parts(path).join("/");
+        self.args
+            .auth
+            .can_access(user, &rel_path, method, &self.args.serve_path)
             .await
-            .map(|meta| meta.is_symlink())
-            .unwrap_or_default()
+    }
+
+    /// Whether `path` grants write permission, including its canonical target.
+    async fn path_readwrite(&self, path: &Path, user: Option<&str>) -> bool {
+        self.path_can_access(path, &Method::PUT, user).await
     }
 
     async fn to_pathitem<P: AsRef<Path>>(&self, path: P, base_path: P) -> Result<Option<PathItem>> {

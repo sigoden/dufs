@@ -200,24 +200,50 @@ fn move_retarget_denied(
     Ok(())
 }
 
-/// A link that resolves outside the root is denied when access rules exist,
-/// even if `--allow-symlink` is enabled.
+/// `--allow-symlink` keeps its meaning with access rules: a link that resolves
+/// outside the root is served under the requested path's permission.
 #[cfg(unix)]
 #[rstest]
-fn symlink_outside_root_denied_with_auth(
-    #[with(&["--auth", "alice:alice@/:rw", "--allow-symlink", "-A"])] server: TestServer,
+fn symlink_outside_root_follows_request_path(
+    #[with(&["--auth", "alice:alice@/public:ro,/rw:rw", "--allow-symlink", "-A"])]
+    server: TestServer,
 ) -> Result<(), Error> {
     let outside = assert_fs::TempDir::new()?;
     std::fs::write(outside.path().join("secret.txt"), "OUTSIDE")?;
+    std::fs::create_dir_all(server.path().join("public"))?;
+    std::fs::create_dir_all(server.path().join("rw"))?;
     symlink_file(
         outside.path().join("secret.txt"),
-        server.path().join("outside-link"),
+        server.path().join("public/outside-link"),
+    )?;
+    symlink_file(
+        outside.path().join("secret.txt"),
+        server.path().join("rw/outside-link"),
     )?;
 
-    let resp = fetch!(b"GET", format!("{}outside-link", server.url()))
+    for path in ["public/outside-link", "rw/outside-link"] {
+        let resp = fetch!(b"GET", format!("{}{}", server.url(), path))
+            .basic_auth("alice", Some("alice"))
+            .send()?;
+        assert_eq!(resp.status(), 200, "{path}");
+        assert_eq!(resp.text()?, "OUTSIDE");
+    }
+
+    // The requested path's permission still governs writes through the link.
+    let resp = fetch!(b"PUT", format!("{}public/outside-link", server.url()))
         .basic_auth("alice", Some("alice"))
+        .body("hacked")
         .send()?;
     assert_eq!(resp.status(), 403);
+    let resp = fetch!(b"PUT", format!("{}rw/outside-link", server.url()))
+        .basic_auth("alice", Some("alice"))
+        .body("through-link")
+        .send()?;
+    assert_eq!(resp.status(), 201);
+    assert_eq!(
+        std::fs::read_to_string(outside.path().join("secret.txt"))?,
+        "through-link"
+    );
     Ok(())
 }
 
@@ -247,5 +273,80 @@ fn zip_skips_denied_symlink(
     }
     assert!(names.iter().any(|name| name == "legit.txt"));
     assert!(!names.iter().any(|name| name.contains("secret")));
+    Ok(())
+}
+
+/// A dangling link is resolved through its link text. When that text itself
+/// traverses another link, the resolved target must be authorized instead of
+/// falling back to the link text.
+#[cfg(unix)]
+#[rstest]
+fn dangling_link_through_symlink_denied(
+    #[with(&["--auth", "alice:alice@/public:rw,/private:ro", "-A"])] server: TestServer,
+) -> Result<(), Error> {
+    std::fs::create_dir_all(server.path().join("private/x"))?;
+    std::fs::create_dir_all(server.path().join("public"))?;
+    symlink_file("../private", server.path().join("public/aliasdir"))?;
+    symlink_file("aliasdir/new.txt", server.path().join("public/dangling"))?;
+
+    let resp = fetch!(b"PUT", format!("{}public/dangling", server.url()))
+        .basic_auth("alice", Some("alice"))
+        .body("hacked")
+        .send()?;
+    assert_eq!(resp.status(), 403);
+    assert!(!server.path().join("private/new.txt").exists());
+    Ok(())
+}
+
+/// A directory reached through a link exposes only the entries that the target
+/// rules allow, and does not advertise write access to a read-only target.
+#[cfg(unix)]
+#[rstest]
+fn listing_through_symlink_hides_denied_entries(
+    #[with(&["--auth", "alice:alice@/public:rw,/shared/team/secret.txt:ro", "--allow-symlink"])]
+    server: TestServer,
+) -> Result<(), Error> {
+    std::fs::create_dir_all(server.path().join("shared/team"))?;
+    std::fs::write(server.path().join("shared/team/secret.txt"), "SECRET")?;
+    std::fs::write(server.path().join("shared/team/other.txt"), "OTHER")?;
+    std::fs::create_dir_all(server.path().join("public"))?;
+    symlink_file("../shared/team", server.path().join("public/team"))?;
+
+    let resp = fetch!(b"GET", format!("{}public/team/?json", server.url()))
+        .basic_auth("alice", Some("alice"))
+        .send()?;
+    assert_eq!(resp.status(), 200);
+    let value: serde_json::Value = serde_json::from_str(&resp.text()?)?;
+    assert_eq!(value["allow_upload"], false);
+    assert_eq!(value["allow_delete"], false);
+    let names: Vec<&str> = value["paths"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, vec!["secret.txt"]);
+    assert_eq!(value["paths"][0]["allow_upload"], false);
+
+    let resp = fetch!(b"GET", format!("{}public/team/other.txt", server.url()))
+        .basic_auth("alice", Some("alice"))
+        .send()?;
+    assert_eq!(resp.status(), 403);
+
+    let resp = fetch!(b"GET", format!("{}public/team/secret.txt", server.url()))
+        .basic_auth("alice", Some("alice"))
+        .send()?;
+    assert_eq!(resp.status(), 200);
+
+    let resp = fetch!(
+        b"GET",
+        format!("{}public/team/secret.txt?json", server.url())
+    )
+    .basic_auth("alice", Some("alice"))
+    .send()?;
+    assert_eq!(resp.status(), 200);
+    let value: serde_json::Value = serde_json::from_str(&resp.text()?)?;
+    assert_eq!(value["allow_upload"], false);
+    assert_eq!(value["allow_delete"], false);
     Ok(())
 }

@@ -23,9 +23,11 @@ communicate later to fill in any details we need after that first note is shared
 ## Access Control and Symbolic Links
 
 Authorization is evaluated against the requested path and against the canonical target that the path
-resolves to. When a path traverses a symbolic link, the effective permission is the stricter of the
-two: a link never grants access that its target does not already grant. If the target resolves
-outside the served root, the request is denied whenever access rules are configured.
+resolves to. When a path traverses a symbolic link to another path inside the served root, the
+effective permission is the stricter of the two: a link never grants access that its target does not
+already grant. Targets that cannot be resolved, such as link loops, are denied. Targets outside the
+served root have no path rules; they keep being governed by `--allow-symlink` and the requested
+path's permission.
 
 This keeps symlink sharing working. A link to a readable target stays readable, and a link to a
 write-protected target stays read-only. To grant write access to shared content, grant it on the
@@ -37,15 +39,17 @@ target path explicitly, for example:
 
 Placing a link in a `:rw` directory does not grant write access to its target by itself.
 
-When access rules are configured, WebDAV `MOVE` also refuses to relocate a symbolic link (or a
-directory containing one) to a different directory. Renaming within the same directory preserves
-every relative target and remains allowed. This prevents an HTTP client from repointing an existing
-link while a request is being authorized.
+When access rules are configured, WebDAV `MOVE` refuses to relocate a symbolic link (or a directory
+containing one) to a different directory. A rename within the same directory preserves every
+relative target, but it is still authorized as a write against the requested path and, for in-root
+targets, against the resolved target. `DELETE` follows the same rule. This prevents an HTTP client
+from repointing an existing link while a request is being authorized.
 
 All entry points follow the same rule, including WebDAV `MOVE`/`COPY` destinations, archive
-downloads (`?zip`), search results, and directory listings. `--allow-symlink` only relaxes the
-served-root containment check for deployments without `--auth`; with access rules configured, links
-that resolve outside the root are always denied.
+downloads (`?zip`), search results, and directory listings. Directory listings resolve every entry,
+so an entry whose in-root target is not accessible is hidden or shown read-only according to that
+target. `--allow-symlink` keeps its meaning with access rules configured: links that resolve outside
+the root are served under the requested path's permission, and without the flag they are not served.
 
 
 ## Out of Scope
