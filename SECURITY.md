@@ -42,19 +42,6 @@ All entry points follow these rules, including `MOVE`/`COPY` destinations, `?zip
 results, and listings, which resolve entries and hide or downgrade inaccessible ones.
 
 
-## Cross-Origin Resource Sharing (CORS)
-
-`--enable-cors` is an explicit opt-in that lets every origin call the API. Responses carry
-`Access-Control-Allow-Origin: *`, wildcard methods and exposed headers, and allow `Authorization`, so
-any web page can list, download, upload, or delete content whenever the corresponding global
-permissions are enabled. *Dufs* uses HTTP Basic/Digest rather than cookies, so a page can only act
-with credentials it already knows. There is no origin allowlist: the flag always applies to every
-origin.
-
-Enabling it exposes the API to any website. Use `--auth` for sensitive content, and avoid the flag
-on an unauthenticated writable instance that is only meant to be reached locally.
-
-
 ## Out of Scope
 
 The following are expected behavior, not vulnerabilities.
@@ -68,10 +55,15 @@ name grants no access — reads and writes still return `401`/`403` without cred
 
 ### CORS delegates access to every origin
 
-`--enable-cors` is documented as allowing every origin to call the API. A web page can therefore
-drive a CORS-enabled instance in the same way as any other client that *dufs* allows. This is the
-purpose of the flag, not a bypass of the server's permissions. See [Cross-Origin Resource Sharing
-(CORS)](#cross-origin-resource-sharing-cors).
+`--enable-cors` is an explicit opt-in that lets every origin call the API. Responses carry
+`Access-Control-Allow-Origin: *`, wildcard methods and exposed headers, and allow `Authorization`, so
+any web page can list, download, upload, or delete content whenever the corresponding global
+permissions are enabled. *Dufs* uses HTTP Basic/Digest rather than cookies, so a page can only act
+with credentials it already knows. There is no origin allowlist: the flag always applies to every
+origin. This is the purpose of the flag, not a bypass of the server's permissions.
+
+Enabling it exposes the API to any website. Use `--auth` for sensitive content, and avoid the flag
+on an unauthenticated writable instance that is only meant to be reached locally.
 
 ### XSS from files served by dufs
 
@@ -88,3 +80,12 @@ hard links, so *dufs* cannot tell that two paths refer to the same object. Creat
 requires local filesystem access, which *dufs* does not provide over HTTP. Treat local write access
 to a served tree as equivalent to the permissions *dufs* grants through that path, not as a trust
 boundary between accounts.
+
+### Share tokens for hashed-password accounts
+
+Share-token signing keys are derived from the stored password string. For a hashed account, anyone
+who learns the `$6$` hash can derive the key and mint valid tokens without knowing the password.
+These tokens are `GET`-only and still limited by the account's path ACL, but they can read every
+accessible file and can be given a long expiry. Basic authentication is unaffected: the hash is
+still not accepted as a password. Treat the stored hash as sensitive as the account's read
+credential, and rotate the password if it may have leaked.
