@@ -16,9 +16,9 @@ use bytes::Bytes;
 use chrono::{LocalResult, TimeZone, Utc};
 use futures_util::{pin_mut, TryStreamExt};
 use headers::{
-    AcceptRanges, AccessControlAllowCredentials, AccessControlAllowOrigin, CacheControl,
-    ContentLength, ContentType, ETag, HeaderMap, HeaderMapExt, IfMatch, IfModifiedSince,
-    IfNoneMatch, IfRange, IfUnmodifiedSince, LastModified, Range,
+    AcceptRanges, AccessControlAllowOrigin, CacheControl, ContentLength, ContentType, ETag,
+    HeaderMap, HeaderMapExt, IfMatch, IfModifiedSince, IfNoneMatch, IfRange, IfUnmodifiedSince,
+    LastModified, Range,
 };
 use http_body_util::{combinators::BoxBody, BodyExt, StreamBody};
 use hyper::body::Frame;
@@ -2226,10 +2226,12 @@ async fn contains_symlink(path: &Path) -> bool {
 }
 
 fn add_cors(res: &mut Response) {
+    // A wildcard origin cannot be combined with credentialed requests, so the
+    // credentials header is deliberately omitted. dufs authenticates with
+    // Basic/Digest rather than cookies, and CORS stays as permissive as
+    // possible for every other request.
     res.headers_mut()
         .typed_insert(AccessControlAllowOrigin::ANY);
-    res.headers_mut()
-        .typed_insert(AccessControlAllowCredentials);
     res.headers_mut().insert(
         "Access-Control-Allow-Methods",
         HeaderValue::from_static("*"),
@@ -2240,7 +2242,7 @@ fn add_cors(res: &mut Response) {
     );
     res.headers_mut().insert(
         "Access-Control-Expose-Headers",
-        HeaderValue::from_static("Authorization,X-Dufs-Error-Code,*"),
+        HeaderValue::from_static("*"),
     );
 }
 
