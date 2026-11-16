@@ -76,6 +76,8 @@ Options:
       --log-format <format>  Customize http log format
       --log-file <file>      Specify the file to save logs to, other than stdout/stderr
       --compress <level>     Set zip compress level [default: low] [possible values: none, low, medium, high]
+      --sort <field>         Set default sort field for directory listings [default: name] [possible values: name, mtime, size]
+      --order <order>        Set default sort order for directory listings [default: asc] [possible values: asc, desc]
       --completions <shell>  Print shell completion script for <shell> [possible values: bash, elvish, fish, powershell, zsh]
       --tls-cert <path>      Path to an SSL/TLS certificate to serve with HTTPS
       --tls-key <path>       Path to the SSL/TLS certificate's private key
@@ -367,6 +369,8 @@ All options can be set using environment variables prefixed with `DUFS_`.
     --log-format <format>   DUFS_LOG_FORMAT=""
     --log-file <file>       DUFS_LOG_FILE=./dufs.log
     --compress <compress>   DUFS_COMPRESS=low
+    --sort <field>          DUFS_SORT=name
+    --order <order>         DUFS_ORDER=asc
     --tls-cert <path>       DUFS_TLS_CERT=cert.pem
     --tls-key <path>        DUFS_TLS_KEY=key.pem
 ```
@@ -405,6 +409,8 @@ assets: ./assets/
 log-format: '$remote_addr "$request" $status $http_user_agent'
 log-file: ./dufs.log
 compress: low
+sort: mtime
+order: desc
 tls-cert: tests/data/cert.pem
 tls-key: tests/data/key_pkcs1.pem
 ```

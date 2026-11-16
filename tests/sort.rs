@@ -44,3 +44,20 @@ fn search_dir_sort_by_name(server: TestServer) -> Result<(), Error> {
     assert_dirs_first_and_reversed_within_groups(&paths1, &paths2);
     Ok(())
 }
+
+#[rstest]
+fn ls_dir_default_sort_from_args(
+    #[with(&["--sort", "name", "--order", "desc"])] server: TestServer,
+) -> Result<(), Error> {
+    let url = server.url();
+    let resp = reqwest::blocking::get(format!("{url}?sort=name&order=asc"))?;
+    let paths1: Vec<String> = self::utils::retrieve_index_paths(&resp.text()?)
+        .into_iter()
+        .collect();
+    let resp = reqwest::blocking::get(url)?;
+    let paths2: Vec<String> = self::utils::retrieve_index_paths(&resp.text()?)
+        .into_iter()
+        .collect();
+    assert_dirs_first_and_reversed_within_groups(&paths1, &paths2);
+    Ok(())
+}

@@ -1,5 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 
+use crate::args::{SortBy, SortOrder};
 use crate::auth::{www_authenticate, AccessControl, AccessPaths, AccessPerm, EntryAccess};
 use crate::error::DufsErrorCode;
 use crate::http_utils::{body_full, IncomingStream, LengthLimitedStream};
@@ -1533,25 +1534,30 @@ impl Server {
         access_paths: AccessPaths,
         res: &mut Response,
     ) -> Result<()> {
-        if let Some(sort) = query_params.get("sort") {
-            if sort == "name" {
-                paths.sort_by(|v1, v2| v1.sort_by_name(v2))
-            } else if sort == "mtime" {
-                paths.sort_by(|v1, v2| v1.sort_by_mtime(v2))
-            } else if sort == "size" {
-                paths.sort_by(|v1, v2| v1.sort_by_size(v2))
+        let (sort, order) = match query_params.get("sort") {
+            Some(sort) => {
+                let sort = match sort.as_str() {
+                    "mtime" => SortBy::Mtime,
+                    "size" => SortBy::Size,
+                    _ => SortBy::Name,
+                };
+                let order = match query_params.get("order").map(|v| v.as_str()) {
+                    Some("desc") => SortOrder::Desc,
+                    _ => SortOrder::Asc,
+                };
+                (sort, order)
             }
-            if query_params
-                .get("order")
-                .map(|v| v == "desc")
-                .unwrap_or_default()
-            {
-                paths.reverse();
-                // keep directories grouped on top, in reverse order within the group
-                paths.sort_by_key(|v| !v.path_type.is_dir());
-            }
-        } else {
-            paths.sort_by(|v1, v2| v1.sort_by_name(v2))
+            None => (self.args.sort, self.args.order),
+        };
+        match sort {
+            SortBy::Name => paths.sort_by(|v1, v2| v1.sort_by_name(v2)),
+            SortBy::Mtime => paths.sort_by(|v1, v2| v1.sort_by_mtime(v2)),
+            SortBy::Size => paths.sort_by(|v1, v2| v1.sort_by_size(v2)),
+        }
+        if order == SortOrder::Desc {
+            paths.reverse();
+            // keep directories grouped on top, in reverse order within the group
+            paths.sort_by_key(|v| !v.path_type.is_dir());
         }
         if has_query_flag(query_params, "simple") {
             let output = paths

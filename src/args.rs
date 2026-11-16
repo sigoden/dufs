@@ -224,6 +224,24 @@ pub fn build_cli() -> Command {
                 .help("Set zip compress level [default: low]")
         )
         .arg(
+            Arg::new("sort")
+                .env("DUFS_SORT")
+                .hide_env(true)
+                .value_parser(clap::builder::EnumValueParser::<SortBy>::new())
+                .long("sort")
+                .value_name("field")
+                .help("Set default sort field for directory listings [default: name]"),
+        )
+        .arg(
+            Arg::new("order")
+                .env("DUFS_ORDER")
+                .hide_env(true)
+                .value_parser(clap::builder::EnumValueParser::<SortOrder>::new())
+                .long("order")
+                .value_name("order")
+                .help("Set default sort order for directory listings [default: asc]"),
+        )
+        .arg(
             Arg::new("completions")
                 .long("completions")
                 .value_name("shell")
@@ -301,6 +319,8 @@ pub struct Args {
     pub http_logger: HttpLogger,
     pub log_file: Option<PathBuf>,
     pub compress: Compress,
+    pub sort: SortBy,
+    pub order: SortOrder,
     pub tls_cert: Option<PathBuf>,
     pub tls_key: Option<PathBuf>,
 }
@@ -430,6 +450,14 @@ impl Args {
             args.compress = *compress;
         }
 
+        if let Some(sort) = matches.get_one::<SortBy>("sort") {
+            args.sort = *sort;
+        }
+
+        if let Some(order) = matches.get_one::<SortOrder>("order") {
+            args.order = *order;
+        }
+
         #[cfg(feature = "tls")]
         {
             if let Some(tls_cert) = matches.get_one::<PathBuf>("tls-cert") {
@@ -545,6 +573,50 @@ impl Compress {
             Compress::Medium => CompressionLevel::default(),
             Compress::High => CompressionLevel::best(),
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum SortBy {
+    #[default]
+    Name,
+    Mtime,
+    Size,
+}
+
+impl ValueEnum for SortBy {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[Self::Name, Self::Mtime, Self::Size]
+    }
+
+    fn to_possible_value(&self) -> Option<PossibleValue> {
+        Some(match self {
+            SortBy::Name => PossibleValue::new("name"),
+            SortBy::Mtime => PossibleValue::new("mtime"),
+            SortBy::Size => PossibleValue::new("size"),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum SortOrder {
+    #[default]
+    Asc,
+    Desc,
+}
+
+impl ValueEnum for SortOrder {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[Self::Asc, Self::Desc]
+    }
+
+    fn to_possible_value(&self) -> Option<PossibleValue> {
+        Some(match self {
+            SortOrder::Asc => PossibleValue::new("asc"),
+            SortOrder::Desc => PossibleValue::new("desc"),
+        })
     }
 }
 
