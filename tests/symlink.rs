@@ -454,3 +454,74 @@ fn listing_through_symlink_hides_denied_entries(
     assert_eq!(value["allow_delete"], false);
     Ok(())
 }
+
+#[cfg(unix)]
+fn path_item<'a>(json: &'a serde_json::Value, name: &str) -> &'a serde_json::Value {
+    json["paths"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["name"].as_str() == Some(name))
+        .unwrap_or_else(|| panic!("missing path item `{name}`: {json}"))
+}
+
+/// JSON exposes the canonical target of a link inside the root, so clients can
+/// recognize entries that alias the same path.
+#[cfg(unix)]
+#[rstest]
+fn json_symlink_target(server: TestServer) -> Result<(), Error> {
+    symlink_dir("../dir1", server.path().join("dir2/link-dir"))?;
+    symlink_file("../dir1/test.txt", server.path().join("dir2/link-file"))?;
+    symlink_file("link-dir", server.path().join("dir2/link-chain"))?;
+
+    let resp = reqwest::blocking::get(format!("{}dir2/?json", server.url()))?;
+    assert_eq!(resp.status(), 200);
+    let json: serde_json::Value = serde_json::from_str(&resp.text()?)?;
+    assert_eq!(path_item(&json, "link-dir")["path_type"], "SymlinkDir");
+    assert_eq!(path_item(&json, "link-dir")["target"], "dir1");
+    assert_eq!(path_item(&json, "link-file")["path_type"], "SymlinkFile");
+    assert_eq!(path_item(&json, "link-file")["target"], "dir1/test.txt");
+    assert_eq!(path_item(&json, "link-chain")["target"], "dir1");
+    assert!(path_item(&json, "test.txt")["target"].is_null());
+
+    let resp = reqwest::blocking::get(format!("{}dir2/link-file?json", server.url()))?;
+    assert_eq!(resp.status(), 200);
+    let json: serde_json::Value = serde_json::from_str(&resp.text()?)?;
+    assert_eq!(json["target"], "dir1/test.txt");
+    Ok(())
+}
+
+/// Targets outside the root are listed with `--allow-symlink`, but their
+/// location is not disclosed.
+#[cfg(unix)]
+#[rstest]
+fn json_symlink_target_outside_root(
+    #[with(&["--allow-symlink"])] server: TestServer,
+    tmpdir: TempDir,
+) -> Result<(), Error> {
+    symlink_dir(tmpdir.path(), server.path().join("outside"))?;
+
+    let resp = reqwest::blocking::get(format!("{}?json", server.url()))?;
+    assert_eq!(resp.status(), 200);
+    let json: serde_json::Value = serde_json::from_str(&resp.text()?)?;
+    assert_eq!(path_item(&json, "outside")["path_type"], "SymlinkDir");
+    assert!(path_item(&json, "outside")["target"].is_null());
+    Ok(())
+}
+
+/// A target must not reveal names that `--hidden` removes from listings.
+#[cfg(unix)]
+#[rstest]
+fn json_symlink_target_hidden(
+    #[with(&["--hidden", ".git"])] server: TestServer,
+) -> Result<(), Error> {
+    symlink_dir("../.git", server.path().join("dir1/link-dir"))?;
+    symlink_file("../.git/test.txt", server.path().join("dir1/link-file"))?;
+
+    let resp = reqwest::blocking::get(format!("{}dir1/?json", server.url()))?;
+    assert_eq!(resp.status(), 200);
+    let json: serde_json::Value = serde_json::from_str(&resp.text()?)?;
+    assert!(path_item(&json, "link-dir")["target"].is_null());
+    assert!(path_item(&json, "link-file")["target"].is_null());
+    Ok(())
+}
