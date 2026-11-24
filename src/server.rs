@@ -1932,7 +1932,17 @@ impl Server {
         let (meta, meta2) = tokio::join!(fs::metadata(&path), fs::symlink_metadata(&path));
         let (meta, meta2) = (meta?, meta2?);
         let is_symlink = meta2.is_symlink();
-        if !self.args.allow_symlink && is_symlink && !self.is_root_contained(path).await {
+        // Resolve a link once: the root-relative target serves both the
+        // containment check and the exposed `target`.
+        let target = match is_symlink {
+            true => fs::canonicalize(path).await.ok().and_then(|v| {
+                v.strip_prefix(&self.args.serve_path)
+                    .ok()
+                    .map(PathBuf::from)
+            }),
+            false => None,
+        };
+        if !self.args.allow_symlink && is_symlink && target.is_none() {
             return Ok(None);
         }
         let is_dir = meta.is_dir();
@@ -1974,6 +1984,9 @@ impl Server {
             PathType::File | PathType::SymlinkFile => etag_from_metadata(&meta),
             PathType::Dir | PathType::SymlinkDir => None,
         };
+        let target = target
+            .filter(|v| !is_hidden_path(&self.args.hidden, v, is_dir))
+            .and_then(|v| v.to_str().map(normalize_path));
         let rel_path = path.strip_prefix(base_path)?;
         let name = normalize_path(rel_path);
         Ok(Some(PathItem {
@@ -1982,6 +1995,7 @@ impl Server {
             mtime,
             size,
             etag,
+            target,
             allow_upload: false,
             allow_delete: false,
             readonly_descendant: false,
@@ -2018,6 +2032,9 @@ pub struct PathItem {
     pub mtime: u64,
     pub size: u64,
     pub etag: Option<String>,
+    /// Canonical target of a symlink, relative to the serve root. `None` for
+    /// other entries and for targets outside the root or through hidden names.
+    pub target: Option<String>,
     pub allow_upload: bool,
     pub allow_delete: bool,
     pub readonly_descendant: bool,
@@ -2469,6 +2486,15 @@ fn is_hidden(hidden: &[String], file_name: &str, is_dir: bool) -> bool {
         }
         glob(v, file_name)
     })
+}
+
+/// Whether any component of a root-relative path is hidden. All components
+/// except the last are directories.
+fn is_hidden_path(hidden: &[String], path: &Path, is_dir: bool) -> bool {
+    let count = path.iter().count();
+    path.iter()
+        .enumerate()
+        .any(|(i, name)| is_hidden(hidden, &name.to_string_lossy(), is_dir || i + 1 < count))
 }
 
 fn set_webdav_headers(res: &mut Response) {
