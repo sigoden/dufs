@@ -164,7 +164,7 @@ impl AccessControl {
             );
         }
 
-        if method == Method::GET {
+        if method == Method::GET || method == Method::HEAD {
             if let Some(token) = token {
                 if let Ok((user, ap)) = self.verify_token(token, path) {
                     return (
