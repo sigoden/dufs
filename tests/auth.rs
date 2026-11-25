@@ -728,6 +728,8 @@ fn token_auth(#[with(&["-a", "user:pass@/"])] server: TestServer) -> Result<(), 
     let url = format!("{}index.html", server.url());
     let resp = fetch!(b"GET", &url).send()?;
     assert_eq!(resp.status(), 401);
+    let resp = fetch!(b"HEAD", &url).send()?;
+    assert_eq!(resp.status(), 401);
     let url = format!("{}index.html?tokengen", server.url());
     let resp = fetch!(b"GET", &url)
         .basic_auth("user", Some("pass"))
@@ -736,6 +738,11 @@ fn token_auth(#[with(&["-a", "user:pass@/"])] server: TestServer) -> Result<(), 
     let url = format!("{}index.html?token={token}", server.url());
     let resp = fetch!(b"GET", &url).send()?;
     assert_eq!(resp.status(), 200);
+    let content_length = resp.headers().get("content-length");
+    assert!(content_length.is_some());
+    let head = fetch!(b"HEAD", &url).send()?;
+    assert_eq!(head.status(), 200);
+    assert_eq!(head.headers().get("content-length"), content_length);
     Ok(())
 }
 
